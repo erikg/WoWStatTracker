@@ -1,0 +1,16 @@
+## Interface: 110002
+## Title: WoW Stat Tracker
+## Notes: Automatically exports character statistics for the WoW Stat Tracker application
+## Author: WoWStatTracker
+## Version: 1.0.0
+## SavedVariables: WoWStatTrackerDB
+## DefaultState: enabled
+## LoadOnDemand: 0
+
+# Core files
+Core.lua
+DataCollector.lua
+EventHandler.lua
+
+# UI files (optional)
+UI.lua
