@@ -28,13 +28,13 @@ class WoWStatTracker:
     COL_NOTES = 14
     COL_INDEX = 15  # Hidden column with original character index
     COL_COUNT = 16  # Total number of columns
-    
+
     # Maximum values for validation
     MAX_ITEM_LEVEL = 1000
     MAX_ITEMS_PER_CATEGORY = 50  # Max items per gear category
     MAX_DELVES = 8  # Max weekly delves
     MAX_TIMEWALK = 5  # Max weekly timewalking dungeons
-    
+
     # Theme constants
     THEME_AUTO = "auto"
     THEME_LIGHT = "light"
@@ -64,7 +64,7 @@ class WoWStatTracker:
         self.characters = self.load_data()
         self.config = self.load_config()
         self.debug_enabled = self.config.get("debug", False)
-        
+
         # Initialize theme system
         self.setup_theme_system()
 
@@ -170,48 +170,64 @@ class WoWStatTracker:
     def detect_system_theme(self):
         """Detect if system prefers dark mode"""
         system = platform.system().lower()
-        
+
         try:
             if system == "darwin":  # macOS
                 result = subprocess.run(
-                    ["defaults", "read", "-g", "AppleInterfaceStyle"], 
-                    capture_output=True, text=True, timeout=5
+                    ["defaults", "read", "-g", "AppleInterfaceStyle"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 return result.returncode == 0 and "dark" in result.stdout.lower()
-            
+
             elif system == "linux":
                 # Try GNOME/GTK settings first
                 try:
                     result = subprocess.run(
-                        ["gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"],
-                        capture_output=True, text=True, timeout=5
+                        [
+                            "gsettings",
+                            "get",
+                            "org.gnome.desktop.interface",
+                            "gtk-theme",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
                     )
                     if result.returncode == 0:
                         theme = result.stdout.strip().strip("'\"").lower()
                         return "dark" in theme
                 except:
                     pass
-                
+
                 # Fall back to checking environment variables
                 current_theme = os.environ.get("GTK_THEME", "").lower()
                 return "dark" in current_theme
-            
+
             elif system == "windows":
                 # Windows 10/11 theme detection
                 try:
-                    result = subprocess.run([
-                        "reg", "query", 
-                        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                        "/v", "AppsUseLightTheme"
-                    ], capture_output=True, text=True, timeout=5)
+                    result = subprocess.run(
+                        [
+                            "reg",
+                            "query",
+                            "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                            "/v",
+                            "AppsUseLightTheme",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
                     if result.returncode == 0 and "0x0" in result.stdout:
                         return True  # 0x0 means dark mode is enabled
                 except:
                     pass
-        
+
         except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
             pass
-        
+
         # Default to light theme if detection fails
         return False
 
@@ -229,21 +245,21 @@ class WoWStatTracker:
             use_dark = True
         else:  # THEME_LIGHT
             use_dark = False
-        
+
         # Apply GTK theme
         settings = Gtk.Settings.get_default()
         if settings:
             # Set the theme preference - GTK will handle the dark variant automatically
             settings.set_property("gtk-application-prefer-dark-theme", use_dark)
             settings.set_property("gtk-theme-name", "Adwaita")
-            
+
         # Apply custom CSS for better dark mode support
         self.apply_custom_css(use_dark)
 
     def apply_custom_css(self, use_dark):
         """Apply custom CSS styling for better theme support"""
         css_provider = Gtk.CssProvider()
-        
+
         if use_dark:
             css_data = """
             window {
@@ -311,17 +327,19 @@ class WoWStatTracker:
                 color: #ffffff;
             }
             """
-        
+
         try:
-            css_provider.load_from_data(css_data.encode('utf-8'))
+            css_provider.load_from_data(css_data.encode("utf-8"))
             # Use the window's display to get screen for modern GTK
-            if hasattr(self, 'window') and self.window:
+            if hasattr(self, "window") and self.window:
                 display = self.window.get_display()
                 if display:
                     screen = display.get_default_screen()
                     if screen:
                         Gtk.StyleContext.add_provider_for_screen(
-                            screen, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+                            screen,
+                            css_provider,
+                            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
                         )
         except Exception as e:
             if self.debug_enabled:
@@ -345,7 +363,9 @@ class WoWStatTracker:
         is_maximized = window_config.get("maximized", False)
 
         if self.debug_enabled:
-            print(f"[DEBUG] Restoring window: {width}x{height} at ({x},{y}) maximized={is_maximized}")
+            print(
+                f"[DEBUG] Restoring window: {width}x{height} at ({x},{y}) maximized={is_maximized}"
+            )
 
         self.window.set_default_size(width, height)
 
@@ -353,13 +373,14 @@ class WoWStatTracker:
         if is_maximized:
             # Use idle_add for better macOS compatibility
             from gi.repository import GLib
+
             GLib.idle_add(self._delayed_maximize_window)
         elif x is not None and y is not None:
             # macOS-compatible window positioning for non-maximized windows
             # Try to get screen dimensions
             screen_width = 1920  # Default fallback
             screen_height = 1080
-            
+
             try:
                 # First try modern GTK API
                 display = self.window.get_display()
@@ -370,7 +391,9 @@ class WoWStatTracker:
                         screen_width = geometry.width
                         screen_height = geometry.height
                         if self.debug_enabled:
-                            print(f"[DEBUG] Screen dimensions: {screen_width}x{screen_height}")
+                            print(
+                                f"[DEBUG] Screen dimensions: {screen_width}x{screen_height}"
+                            )
             except AttributeError:
                 # Fallback for older GTK or macOS issues
                 try:
@@ -379,20 +402,23 @@ class WoWStatTracker:
                         screen_width = screen.get_width()
                         screen_height = screen.get_height()
                         if self.debug_enabled:
-                            print(f"[DEBUG] Screen dimensions (fallback): {screen_width}x{screen_height}")
+                            print(
+                                f"[DEBUG] Screen dimensions (fallback): {screen_width}x{screen_height}"
+                            )
                 except:
                     if self.debug_enabled:
                         print(f"[DEBUG] Using default screen dimensions")
                     pass  # Use defaults
-            
+
             # Ensure at least 100px of window is visible
             x = max(0, min(screen_width - 100, x))
             y = max(0, min(screen_height - 100, y))
-            
+
             # Use idle_add to delay positioning for better macOS compatibility
             from gi.repository import GLib
+
             GLib.idle_add(self._delayed_window_position, x, y)
-    
+
     def _delayed_window_position(self, x, y):
         """Delayed window positioning for better macOS compatibility"""
         try:
@@ -403,7 +429,7 @@ class WoWStatTracker:
             if self.debug_enabled:
                 print(f"[DEBUG] Failed to restore window position: {e}")
         return False  # Don't repeat
-    
+
     def _delayed_maximize_window(self):
         """Delayed window maximizing for better macOS compatibility"""
         try:
@@ -451,14 +477,14 @@ class WoWStatTracker:
         try:
             if not self.config.get("window"):
                 self.config["window"] = {}
-                
+
             # Save maximized state
             is_maximized = bool(event.new_window_state & Gdk.WindowState.MAXIMIZED)
             self.config["window"]["maximized"] = is_maximized
-            
+
             if self.debug_enabled:
                 print(f"[DEBUG] Window state changed - maximized: {is_maximized}")
-                
+
             self.save_config()
         except Exception as e:
             if self.debug_enabled:
@@ -559,22 +585,30 @@ class WoWStatTracker:
 
         # Theme radio buttons
         self.theme_group = None
-        
-        auto_theme_item = Gtk.RadioMenuItem(group=self.theme_group, label="Auto (System)")
-        auto_theme_item.connect("activate", self.on_theme_menu_activate, self.THEME_AUTO)
+
+        auto_theme_item = Gtk.RadioMenuItem(
+            group=self.theme_group, label="Auto (System)"
+        )
+        auto_theme_item.connect(
+            "activate", self.on_theme_menu_activate, self.THEME_AUTO
+        )
         if self.current_theme_preference == self.THEME_AUTO:
             auto_theme_item.set_active(True)
         theme_submenu.append(auto_theme_item)
         self.theme_group = auto_theme_item
 
         light_theme_item = Gtk.RadioMenuItem(group=self.theme_group, label="Light")
-        light_theme_item.connect("activate", self.on_theme_menu_activate, self.THEME_LIGHT)
+        light_theme_item.connect(
+            "activate", self.on_theme_menu_activate, self.THEME_LIGHT
+        )
         if self.current_theme_preference == self.THEME_LIGHT:
             light_theme_item.set_active(True)
         theme_submenu.append(light_theme_item)
 
         dark_theme_item = Gtk.RadioMenuItem(group=self.theme_group, label="Dark")
-        dark_theme_item.connect("activate", self.on_theme_menu_activate, self.THEME_DARK)
+        dark_theme_item.connect(
+            "activate", self.on_theme_menu_activate, self.THEME_DARK
+        )
         if self.current_theme_preference == self.THEME_DARK:
             dark_theme_item.set_active(True)
         theme_submenu.append(dark_theme_item)
@@ -592,7 +626,22 @@ class WoWStatTracker:
         content_box.pack_start(scrolled, True, True, 0)
 
         self.store = Gtk.ListStore(
-            str, str, str, int, int, int, int, int, int, bool, int, bool, bool, int, str, int
+            str,
+            str,
+            str,
+            int,
+            int,
+            int,
+            int,
+            int,
+            int,
+            bool,
+            int,
+            bool,
+            bool,
+            int,
+            str,
+            int,
         )
 
         self.treeview = Gtk.TreeView(model=self.store)
@@ -675,7 +724,11 @@ class WoWStatTracker:
             cell.set_property("background", bg_color)
             if use_dark:
                 # In dark mode, use black text on light colored backgrounds for readability
-                if bg_color in ["#90EE90", "#FFFFE0", "#F08080"]:  # Light green, yellow, light red
+                if bg_color in [
+                    "#90EE90",
+                    "#FFFFE0",
+                    "#F08080",
+                ]:  # Light green, yellow, light red
                     cell.set_property("foreground", "#000000")
                 else:
                     cell.set_property("foreground", "#ffffff")
@@ -775,12 +828,12 @@ class WoWStatTracker:
         model = treeview.get_model()
         iter = model.get_iter(path)
         char_index = model[iter][self.COL_INDEX]  # Get the original character index
-        
+
         # Validate char_index
         if char_index >= len(self.characters) or char_index < 0:
             print(f"Warning: Invalid character index {char_index}")
             return
-            
+
         self.edit_character_dialog(char_index)
 
     def on_boolean_toggled(self, renderer, path, col_id):
@@ -1039,9 +1092,7 @@ class WoWStatTracker:
                     buttons=Gtk.ButtonsType.YES_NO,
                     text=f"Delete {char_name} - {char_realm}?",
                 )
-                confirm_dialog.format_secondary_text(
-                    "This action cannot be undone."
-                )
+                confirm_dialog.format_secondary_text("This action cannot be undone.")
                 confirm_response = confirm_dialog.run()
                 confirm_dialog.destroy()
 
@@ -1079,7 +1130,9 @@ class WoWStatTracker:
             self.config["window"] = {}
 
         # Use cached geometry if available and not maximized
-        if self._last_window_geometry and not self.config.get("window", {}).get("maximized", False):
+        if self._last_window_geometry and not self.config.get("window", {}).get(
+            "maximized", False
+        ):
             self.config["window"].update(self._last_window_geometry)
 
         self.save_column_widths()
@@ -1183,7 +1236,9 @@ class WoWStatTracker:
                 ),
             ]
 
-        print(f"[VERBOSE] Checking {len(possible_paths)} possible WoW installation paths:")
+        print(
+            f"[VERBOSE] Checking {len(possible_paths)} possible WoW installation paths:"
+        )
         for i, path in enumerate(possible_paths, 1):
             print(f"[VERBOSE]   {i}. {path}")
 
@@ -1195,76 +1250,128 @@ class WoWStatTracker:
                 print(f"[VERBOSE]   ✓ Base path exists, listing account directories...")
                 try:
                     account_dirs = os.listdir(abs_base_path)
-                    print(f"[VERBOSE]   Found {len(account_dirs)} directories: {account_dirs}")
+                    print(
+                        f"[VERBOSE]   Found {len(account_dirs)} directories: {account_dirs}"
+                    )
 
                     for account_dir in account_dirs:
                         account_path = os.path.join(abs_base_path, account_dir)
                         abs_account_path = os.path.abspath(account_path)
-                        print(f"[VERBOSE]   Checking account directory: {abs_account_path}")
+                        print(
+                            f"[VERBOSE]   Checking account directory: {abs_account_path}"
+                        )
 
                         if os.path.isdir(abs_account_path):
                             sv_dir = os.path.join(abs_account_path, "SavedVariables")
                             abs_sv_dir = os.path.abspath(sv_dir)
-                            print(f"[VERBOSE]     Looking in SavedVariables directory: {abs_sv_dir}")
-                            
+                            print(
+                                f"[VERBOSE]     Looking in SavedVariables directory: {abs_sv_dir}"
+                            )
+
                             if os.path.exists(abs_sv_dir):
                                 try:
                                     sv_files = os.listdir(abs_sv_dir)
-                                    print(f"[VERBOSE]     Found {len(sv_files)} files in SavedVariables")
-                                    
+                                    print(
+                                        f"[VERBOSE]     Found {len(sv_files)} files in SavedVariables"
+                                    )
+
                                     # Look for Altoholic and DataStore files (not .bak)
                                     target_files = []
                                     for filename in sv_files:
-                                        if ((filename.startswith('Altoholic') or filename.startswith('DataStore')) 
-                                            and not filename.endswith('.bak') 
-                                            and filename.endswith('.lua')):
+                                        if (
+                                            (
+                                                filename.startswith("Altoholic")
+                                                or filename.startswith("DataStore")
+                                            )
+                                            and not filename.endswith(".bak")
+                                            and filename.endswith(".lua")
+                                        ):
                                             target_files.append(filename)
-                                    
-                                    print(f"[VERBOSE]     Found {len(target_files)} target files: {target_files}")
-                                    
+
+                                    print(
+                                        f"[VERBOSE]     Found {len(target_files)} target files: {target_files}"
+                                    )
+
                                     if target_files:
                                         # Store ALL target files for processing
-                                        self._altoholic_files = [os.path.abspath(os.path.join(abs_sv_dir, f)) for f in target_files]
-                                        print(f"[VERBOSE]     ✓ Found {len(target_files)} Altoholic/DataStore files:")
-                                        
-                                        for i, target_file in enumerate(target_files, 1):
-                                            abs_file_path = os.path.abspath(os.path.join(abs_sv_dir, target_file))
+                                        self._altoholic_files = [
+                                            os.path.abspath(os.path.join(abs_sv_dir, f))
+                                            for f in target_files
+                                        ]
+                                        print(
+                                            f"[VERBOSE]     ✓ Found {len(target_files)} Altoholic/DataStore files:"
+                                        )
+
+                                        for i, target_file in enumerate(
+                                            target_files, 1
+                                        ):
+                                            abs_file_path = os.path.abspath(
+                                                os.path.join(abs_sv_dir, target_file)
+                                            )
                                             file_size = os.path.getsize(abs_file_path)
-                                            print(f"[VERBOSE]       {i}. {target_file} - {file_size:,} bytes")
-                                            print(f"[VERBOSE]          Path: {abs_file_path}")
-                                        
+                                            print(
+                                                f"[VERBOSE]       {i}. {target_file} - {file_size:,} bytes"
+                                            )
+                                            print(
+                                                f"[VERBOSE]          Path: {abs_file_path}"
+                                            )
+
                                         # Return the first file as primary (for compatibility), but all will be processed
-                                        priority_order = ['DataStore_Characters.lua', 'Altoholic.lua', 'DataStore.lua']
+                                        priority_order = [
+                                            "DataStore_Characters.lua",
+                                            "Altoholic.lua",
+                                            "DataStore.lua",
+                                        ]
                                         primary_file = None
-                                        
+
                                         # First check for priority files
                                         for priority_file in priority_order:
                                             if priority_file in target_files:
                                                 primary_file = priority_file
-                                                print(f"[VERBOSE]     ✓ Using {priority_file} as primary file")
+                                                print(
+                                                    f"[VERBOSE]     ✓ Using {priority_file} as primary file"
+                                                )
                                                 break
-                                        
+
                                         # If no priority file, use the first one
                                         if not primary_file:
                                             primary_file = target_files[0]
-                                            print(f"[VERBOSE]     ✓ Using {primary_file} as primary file")
-                                        
-                                        primary_abs_path = os.path.abspath(os.path.join(abs_sv_dir, primary_file))
-                                        print(f"[VERBOSE]     ✓ Primary file path: {primary_abs_path}")
-                                        print(f"[VERBOSE]     ✓ ALL files will be processed during import")
-                                        
+                                            print(
+                                                f"[VERBOSE]     ✓ Using {primary_file} as primary file"
+                                            )
+
+                                        primary_abs_path = os.path.abspath(
+                                            os.path.join(abs_sv_dir, primary_file)
+                                        )
+                                        print(
+                                            f"[VERBOSE]     ✓ Primary file path: {primary_abs_path}"
+                                        )
+                                        print(
+                                            f"[VERBOSE]     ✓ ALL files will be processed during import"
+                                        )
+
                                         return primary_abs_path
                                     else:
-                                        print(f"[VERBOSE]     ✗ No Altoholic or DataStore .lua files found (excluding .bak)")
-                                
+                                        print(
+                                            f"[VERBOSE]     ✗ No Altoholic or DataStore .lua files found (excluding .bak)"
+                                        )
+
                                 except Exception as e:
-                                    print(f"[VERBOSE]     ✗ Error reading SavedVariables directory: {e}")
+                                    print(
+                                        f"[VERBOSE]     ✗ Error reading SavedVariables directory: {e}"
+                                    )
                             else:
-                                print(f"[VERBOSE]     ✗ SavedVariables directory not found: {abs_sv_dir}")
+                                print(
+                                    f"[VERBOSE]     ✗ SavedVariables directory not found: {abs_sv_dir}"
+                                )
                         else:
-                            print(f"[VERBOSE]     ✗ Not a directory: {abs_account_path}")
+                            print(
+                                f"[VERBOSE]     ✗ Not a directory: {abs_account_path}"
+                            )
                 except PermissionError as e:
-                    print(f"[VERBOSE]   ✗ Permission error accessing {abs_base_path}: {e}")
+                    print(
+                        f"[VERBOSE]   ✗ Permission error accessing {abs_base_path}: {e}"
+                    )
                 except Exception as e:
                     print(f"[VERBOSE]   ✗ Error accessing {abs_base_path}: {e}")
             else:
@@ -1277,17 +1384,22 @@ class WoWStatTracker:
         """Parse Altoholic/DataStore SavedVariables file for character data"""
         abs_file_path = os.path.abspath(file_path)
         print(f"[VERBOSE] Parsing data from absolute path: {abs_file_path}")
-        
+
         # Verify file exists and show file info
         if not os.path.exists(abs_file_path):
-            print(f"[VERBOSE] ✗ ERROR: File does not exist at absolute path: {abs_file_path}")
+            print(
+                f"[VERBOSE] ✗ ERROR: File does not exist at absolute path: {abs_file_path}"
+            )
             return []
-        
+
         try:
             file_stat = os.stat(abs_file_path)
             import time
+
             mod_time = time.ctime(file_stat.st_mtime)
-            print(f"[VERBOSE] File info - Size: {file_stat.st_size:,} bytes, Modified: {mod_time}")
+            print(
+                f"[VERBOSE] File info - Size: {file_stat.st_size:,} bytes, Modified: {mod_time}"
+            )
         except Exception as e:
             print(f"[VERBOSE] Warning: Could not get file stats: {e}")
 
@@ -1300,9 +1412,13 @@ class WoWStatTracker:
             for encoding in encodings:
                 try:
                     print(f"[VERBOSE]   Trying {encoding} encoding on: {abs_file_path}")
-                    with open(abs_file_path, "r", encoding=encoding, errors="replace") as f:
+                    with open(
+                        abs_file_path, "r", encoding=encoding, errors="replace"
+                    ) as f:
                         content = f.read()
-                    print(f"[VERBOSE] ✓ Successfully read file with {encoding} encoding from: {abs_file_path}")
+                    print(
+                        f"[VERBOSE] ✓ Successfully read file with {encoding} encoding from: {abs_file_path}"
+                    )
                     break
                 except UnicodeDecodeError as e:
                     print(f"[VERBOSE] ✗ Failed with {encoding}: {e}")
@@ -1329,86 +1445,102 @@ class WoWStatTracker:
             # Determine file type for specialized parsing
             filename = os.path.basename(abs_file_path).lower()
             print(f"[VERBOSE] File type detected: {filename}")
-            
+
             characters = []
-            
+
             # Use specialized parsers based on file type
-            if filename == 'datastore_characters.lua':
+            if filename == "datastore_characters.lua":
                 characters = self.parse_datastore_characters(content)
-                print(f"[VERBOSE] DataStore_Characters parser returned {len(characters)} characters")
-            elif filename.startswith('datastore_inventory'):
+                print(
+                    f"[VERBOSE] DataStore_Characters parser returned {len(characters)} characters"
+                )
+            elif filename.startswith("datastore_inventory"):
                 characters = self.parse_datastore_inventory(content)
-                print(f"[VERBOSE] DataStore_Inventory parser returned {len(characters)} characters")
+                print(
+                    f"[VERBOSE] DataStore_Inventory parser returned {len(characters)} characters"
+                )
             else:
                 # Fall back to general Altoholic parsing
                 characters = self.parse_altoholic_general(content)
-                print(f"[VERBOSE] General Altoholic parser returned {len(characters)} characters")
-            
-            print(f"[VERBOSE] Parsing complete. Returning {len(characters)} parsed characters")
-            
+                print(
+                    f"[VERBOSE] General Altoholic parser returned {len(characters)} characters"
+                )
+
+            print(
+                f"[VERBOSE] Parsing complete. Returning {len(characters)} parsed characters"
+            )
+
             if characters:
                 print(f"[VERBOSE] Successfully parsed characters:")
                 for i, char in enumerate(characters[:10], 1):  # Show first 10
-                    print(f"[VERBOSE]   {i}. {char['name']} ({char['realm']}) - iLevel {char.get('item_level', 0)}")
+                    print(
+                        f"[VERBOSE]   {i}. {char['name']} ({char['realm']}) - iLevel {char.get('item_level', 0)}"
+                    )
                 if len(characters) > 10:
                     print(f"[VERBOSE]   ... and {len(characters) - 10} more characters")
-            
+
             return characters
 
         except Exception as e:
             print(f"[VERBOSE] ✗ Error parsing data: {e}")
             import traceback
+
             print(f"[VERBOSE] Traceback: {traceback.format_exc()}")
             return []
 
     def parse_datastore_characters(self, content):
         """Parse DataStore_Characters.lua format"""
         import re
+
         characters = []
-        
+
         print(f"[VERBOSE] Parsing DataStore_Characters format...")
-        
+
         # Look for DataStore_Characters_Info table - need to handle nested braces properly
         # First, find where the table starts
-        start_match = re.search(r'DataStore_Characters_Info\s*=\s*{', content)
+        start_match = re.search(r"DataStore_Characters_Info\s*=\s*{", content)
         if not start_match:
             print(f"[VERBOSE] ✗ DataStore_Characters_Info table not found")
             return characters
-        
+
         # Extract the table content by matching braces
         start_pos = start_match.end() - 1  # Position of opening brace
         brace_count = 0
         table_content = ""
-        
+
         for i, char in enumerate(content[start_pos:], start_pos):
             table_content += char
-            if char == '{':
+            if char == "{":
                 brace_count += 1
-            elif char == '}':
+            elif char == "}":
                 brace_count -= 1
                 if brace_count == 0:
                     break
-        
+
         # Remove the outer braces to get just the content
-        info_content = table_content[1:-1] if table_content.startswith('{') and table_content.endswith('}') else table_content
+        info_content = (
+            table_content[1:-1]
+            if table_content.startswith("{") and table_content.endswith("}")
+            else table_content
+        )
         print(f"[VERBOSE] ✓ Found DataStore_Characters_Info table")
-        
+
         # Parse individual character entries - need to handle nested structures
         # The character entries contain nested structures, so we need a more sophisticated approach
         char_entries = []
         brace_count = 0
         current_entry = ""
         in_entry = False
-        
+
         for char in info_content:
-            if char == '{':
+            if char == "{":
                 if not in_entry:
                     in_entry = True
                     current_entry = ""
                 else:
                     current_entry += char
                 brace_count += 1
-            elif char == '}':
+            elif char == "}":
                 brace_count -= 1
                 if brace_count == 0 and in_entry:
                     char_entries.append(current_entry)
@@ -1418,144 +1550,155 @@ class WoWStatTracker:
                     current_entry += char
             elif in_entry:
                 current_entry += char
-        
+
         print(f"[VERBOSE] Found {len(char_entries)} character entries")
-        
+
         # Also get character ID mappings from DataStore_CharacterIDs
         char_ids = {}
-        ids_match = re.search(r'DataStore_CharacterIDs\s*=\s*{[^}]*"List"\s*=\s*{([^}]+)}', content, re.DOTALL)
+        ids_match = re.search(
+            r'DataStore_CharacterIDs\s*=\s*{[^}]*"List"\s*=\s*{([^}]+)}',
+            content,
+            re.DOTALL,
+        )
         if ids_match:
             ids_content = ids_match.group(1)
             # Parse character ID list: "Default.Realm.Name"
             id_entries = re.findall(r'"([^"]+)"', ids_content)
             for i, char_id in enumerate(id_entries):
-                if '.' in char_id:
-                    parts = char_id.split('.')
+                if "." in char_id:
+                    parts = char_id.split(".")
                     if len(parts) >= 3:
                         realm = parts[1]
                         name = parts[2]
-                        char_ids[i] = {'name': name, 'realm': realm}
+                        char_ids[i] = {"name": name, "realm": realm}
                         print(f"[VERBOSE] Character ID {i}: {name} on {realm}")
         else:
             print(f"[VERBOSE] ⚠ DataStore_CharacterIDs not found in this file")
-        
+
         for i, entry in enumerate(char_entries):
             try:
                 character = {}
-                
+
                 # Get name and realm from character ID mapping or parse from entry
                 if i in char_ids:
-                    character['name'] = char_ids[i]['name']
-                    character['realm'] = char_ids[i]['realm']
+                    character["name"] = char_ids[i]["name"]
+                    character["realm"] = char_ids[i]["realm"]
                 else:
                     # Try to extract from entry itself
                     name_match = re.search(r'\["name"\]\s*=\s*"([^"]+)"', entry)
                     if name_match:
-                        character['name'] = name_match.group(1)
+                        character["name"] = name_match.group(1)
                     else:
                         print(f"[VERBOSE] ✗ No name found for entry {i}")
                         print(f"[VERBOSE] Entry preview: {entry[:200]}")
                         continue
-                    
-                    character['realm'] = "Unknown"  # Will try to get from other sources
-                
+
+                    character["realm"] = "Unknown"  # Will try to get from other sources
+
                 # Parse money (convert from copper to gold for display)
                 money_match = re.search(r'\["money"\]\s*=\s*(\d+)', entry)
                 if money_match:
                     copper = int(money_match.group(1))
                     # Store as copper but we could convert: gold = copper / 10000
-                    character['money'] = copper
-                
+                    character["money"] = copper
+
                 # Parse playtime
                 played_match = re.search(r'\["played"\]\s*=\s*(\d+)', entry)
                 if played_match:
-                    character['played_seconds'] = int(played_match.group(1))
-                
+                    character["played_seconds"] = int(played_match.group(1))
+
                 # Parse location
                 zone_match = re.search(r'\["zone"\]\s*=\s*"([^"]*)"', entry)
                 if zone_match:
-                    character['zone'] = zone_match.group(1)
-                
+                    character["zone"] = zone_match.group(1)
+
                 # Parse guild rank (would need guild mapping for guild name)
                 guild_rank_match = re.search(r'\["guildRankIndex"\]\s*=\s*(\d+)', entry)
                 if guild_rank_match:
-                    character['guild_rank'] = int(guild_rank_match.group(1))
-                
+                    character["guild_rank"] = int(guild_rank_match.group(1))
+
                 # Parse BaseInfo (packed race/class/gender/faction data)
                 base_info_match = re.search(r'\["BaseInfo"\]\s*=\s*(\d+)', entry)
                 if base_info_match:
-                    character['base_info'] = int(base_info_match.group(1))
-                
+                    character["base_info"] = int(base_info_match.group(1))
+
                 # Set defaults for tracking fields
-                character.setdefault('item_level', 0)
-                character.setdefault('guild', '')
-                character.setdefault('heroic_items', 0)
-                character.setdefault('champion_items', 0)
-                character.setdefault('veteran_items', 0)
-                character.setdefault('adventure_items', 0)
-                character.setdefault('old_items', 0)
-                character.setdefault('vault_visited', False)
-                character.setdefault('delves', 0)
-                character.setdefault('gundarz', False)
-                character.setdefault('quests', False)
-                character.setdefault('timewalk', 0)
-                
-                if character.get('name'):
+                character.setdefault("item_level", 0)
+                character.setdefault("guild", "")
+                character.setdefault("heroic_items", 0)
+                character.setdefault("champion_items", 0)
+                character.setdefault("veteran_items", 0)
+                character.setdefault("adventure_items", 0)
+                character.setdefault("old_items", 0)
+                character.setdefault("vault_visited", False)
+                character.setdefault("delves", 0)
+                character.setdefault("gundarz", False)
+                character.setdefault("quests", False)
+                character.setdefault("timewalk", 0)
+
+                if character.get("name"):
                     characters.append(character)
-                    print(f"[VERBOSE] ✓ Parsed character: {character['name']} on {character.get('realm', 'Unknown')}")
-                
+                    print(
+                        f"[VERBOSE] ✓ Parsed character: {character['name']} on {character.get('realm', 'Unknown')}"
+                    )
+
             except Exception as e:
                 print(f"[VERBOSE] ✗ Error parsing character entry {i}: {e}")
                 continue
-        
+
         return characters
 
     def parse_datastore_inventory(self, content):
         """Parse DataStore_Inventory.lua format"""
         import re
+
         characters = []
-        
+
         print(f"[VERBOSE] Parsing DataStore_Inventory format...")
-        
+
         # Look for DataStore_Inventory_Characters table - handle nested braces properly
-        start_match = re.search(r'DataStore_Inventory_Characters\s*=\s*{', content)
+        start_match = re.search(r"DataStore_Inventory_Characters\s*=\s*{", content)
         if not start_match:
             print(f"[VERBOSE] ✗ DataStore_Inventory_Characters table not found")
             return characters
-        
+
         # Extract the table content by matching braces
         start_pos = start_match.end() - 1  # Position of opening brace
         brace_count = 0
         table_content = ""
-        
+
         for i, char in enumerate(content[start_pos:], start_pos):
             table_content += char
-            if char == '{':
+            if char == "{":
                 brace_count += 1
-            elif char == '}':
+            elif char == "}":
                 brace_count -= 1
                 if brace_count == 0:
                     break
-        
+
         # Remove the outer braces to get just the content
-        inv_content = table_content[1:-1] if table_content.startswith('{') and table_content.endswith('}') else table_content
+        inv_content = (
+            table_content[1:-1]
+            if table_content.startswith("{") and table_content.endswith("}")
+            else table_content
+        )
         print(f"[VERBOSE] ✓ Found DataStore_Inventory_Characters table")
-        
+
         # Parse individual inventory entries - need to handle nested structures properly
         inv_entries = []
         brace_count = 0
         current_entry = ""
         in_entry = False
-        
+
         for char in inv_content:
-            if char == '{':
+            if char == "{":
                 if not in_entry:
                     in_entry = True
                     current_entry = ""
                 else:
                     current_entry += char
                 brace_count += 1
-            elif char == '}':
+            elif char == "}":
                 brace_count -= 1
                 if brace_count == 0 and in_entry:
                     inv_entries.append(current_entry)
@@ -1565,82 +1708,91 @@ class WoWStatTracker:
                     current_entry += char
             elif in_entry:
                 current_entry += char
-        
+
         print(f"[VERBOSE] Found {len(inv_entries)} inventory entries")
-        
+
         for i, entry in enumerate(inv_entries):
             try:
                 character = {}
-                
+
                 # Parse average item level
                 ilvl_match = re.search(r'\["averageItemLvl"\]\s*=\s*([0-9.]+)', entry)
                 if ilvl_match:
-                    character['item_level'] = int(float(ilvl_match.group(1)))
-                
+                    character["item_level"] = int(float(ilvl_match.group(1)))
+
                 # Parse overall average item level
-                overall_ilvl_match = re.search(r'\["overallAIL"\]\s*=\s*([0-9.]+)', entry)
+                overall_ilvl_match = re.search(
+                    r'\["overallAIL"\]\s*=\s*([0-9.]+)', entry
+                )
                 if overall_ilvl_match:
                     # Use overall if available, otherwise use regular average
-                    character['item_level'] = int(float(overall_ilvl_match.group(1)))
-                
+                    character["item_level"] = int(float(overall_ilvl_match.group(1)))
+
                 # Parse inventory items to count by quality - need to handle nested structure
-                inventory_match = re.search(r'\["Inventory"\]\s*=\s*{(.+)}', entry, re.DOTALL)
+                inventory_match = re.search(
+                    r'\["Inventory"\]\s*=\s*{(.+)}', entry, re.DOTALL
+                )
                 if inventory_match:
                     inventory_content = inventory_match.group(1)
                     # Count item qualities from item links
                     # Item link format: |cnIQ#:|Hitem:...
                     # IQ1 = Common (old), IQ2 = Uncommon (adventure), IQ3 = Rare (champion), IQ4 = Epic (heroic)
-                    
-                    heroic_count = len(re.findall(r'\|cnIQ4:', inventory_content))
-                    champion_count = len(re.findall(r'\|cnIQ3:', inventory_content))
-                    adventure_count = len(re.findall(r'\|cnIQ2:', inventory_content))
-                    old_count = len(re.findall(r'\|cnIQ1:', inventory_content))
-                    
-                    character['heroic_items'] = heroic_count
-                    character['champion_items'] = champion_count
-                    character['adventure_items'] = adventure_count
-                    character['old_items'] = old_count
-                    
+
+                    heroic_count = len(re.findall(r"\|cnIQ4:", inventory_content))
+                    champion_count = len(re.findall(r"\|cnIQ3:", inventory_content))
+                    adventure_count = len(re.findall(r"\|cnIQ2:", inventory_content))
+                    old_count = len(re.findall(r"\|cnIQ1:", inventory_content))
+
+                    character["heroic_items"] = heroic_count
+                    character["champion_items"] = champion_count
+                    character["adventure_items"] = adventure_count
+                    character["old_items"] = old_count
+
                     # Count veteran items by item level (would need item level parsing)
-                    character['veteran_items'] = 0
-                
+                    character["veteran_items"] = 0
+
                 # Set defaults for missing fields
-                character.setdefault('name', f'Character_{i+1}')
-                character.setdefault('realm', 'Unknown')
-                character.setdefault('guild', '')
-                character.setdefault('item_level', 0)
-                character.setdefault('heroic_items', 0)
-                character.setdefault('champion_items', 0)
-                character.setdefault('veteran_items', 0)
-                character.setdefault('adventure_items', 0)
-                character.setdefault('old_items', 0)
-                character.setdefault('vault_visited', False)
-                character.setdefault('delves', 0)
-                character.setdefault('gundarz', False)
-                character.setdefault('quests', False)
-                character.setdefault('timewalk', 0)
-                
-                if character.get('item_level', 0) > 0:
+                character.setdefault("name", f"Character_{i+1}")
+                character.setdefault("realm", "Unknown")
+                character.setdefault("guild", "")
+                character.setdefault("item_level", 0)
+                character.setdefault("heroic_items", 0)
+                character.setdefault("champion_items", 0)
+                character.setdefault("veteran_items", 0)
+                character.setdefault("adventure_items", 0)
+                character.setdefault("old_items", 0)
+                character.setdefault("vault_visited", False)
+                character.setdefault("delves", 0)
+                character.setdefault("gundarz", False)
+                character.setdefault("quests", False)
+                character.setdefault("timewalk", 0)
+
+                if character.get("item_level", 0) > 0:
                     characters.append(character)
-                    print(f"[VERBOSE] ✓ Parsed inventory: {character['name']} (iLevel {character['item_level']})")
-                
+                    print(
+                        f"[VERBOSE] ✓ Parsed inventory: {character['name']} (iLevel {character['item_level']})"
+                    )
+
             except Exception as e:
                 print(f"[VERBOSE] ✗ Error parsing inventory entry {i}: {e}")
                 continue
-        
+
         return characters
 
     def parse_altoholic_general(self, content):
         """Parse general Altoholic format (fallback parser)"""
         import re
+
         characters = []
-        
+
         print(f"[VERBOSE] Using general Altoholic parser...")
-        
+
         # Add timeout protection for regex to prevent ReDoS (cross-platform)
         max_file_size = 50 * 1024 * 1024  # 50MB limit
         if len(content) > max_file_size:
-            print(f"[VERBOSE] File too large ({len(content):,} bytes), truncating to {max_file_size:,} bytes")
+            print(
+                f"[VERBOSE] File too large ({len(content):,} bytes), truncating to {max_file_size:,} bytes"
+            )
             content = content[:max_file_size]
 
         def safe_regex_search(pattern, text, timeout_seconds=5):
@@ -1658,7 +1810,9 @@ class WoWStatTracker:
                     return result
 
                 except concurrent.futures.TimeoutError:
-                    print(f"[VERBOSE] Regex operation timed out after {timeout_seconds}s")
+                    print(
+                        f"[VERBOSE] Regex operation timed out after {timeout_seconds}s"
+                    )
                     return []
                 except Exception as e:
                     print(f"[VERBOSE] Regex operation failed: {e}")
@@ -1667,25 +1821,46 @@ class WoWStatTracker:
         # Try multiple patterns to find character data
         patterns_to_try = [
             # Original pattern - exact Altoholic format
-            (r'\["([^"]+)\|([^"]+)"\]\s*=\s*{[^}]*"itemLevel"\s*=\s*(\d+)', "Original Altoholic format"),
+            (
+                r'\["([^"]+)\|([^"]+)"\]\s*=\s*{[^}]*"itemLevel"\s*=\s*(\d+)',
+                "Original Altoholic format",
+            ),
             # More flexible itemLevel pattern
-            (r'\["([^"]+)\|([^"]+)"\]\s*=\s*{[^}]*itemLevel["\s]*=\s*(\d+)', "Flexible itemLevel format"),
+            (
+                r'\["([^"]+)\|([^"]+)"\]\s*=\s*{[^}]*itemLevel["\s]*=\s*(\d+)',
+                "Flexible itemLevel format",
+            ),
             # DataStore Characters pattern (general)
-            (r'\["([^"]+)\|([^"]+)"\]\s*=\s*{[^}]*averageItemLevel["\s]*=\s*(\d+)', "DataStore averageItemLevel format"),
+            (
+                r'\["([^"]+)\|([^"]+)"\]\s*=\s*{[^}]*averageItemLevel["\s]*=\s*(\d+)',
+                "DataStore averageItemLevel format",
+            ),
             # Look for any character|realm pattern with item level numbers
-            (r'\["([^"]+)\|([^"]+)"\]\s*=\s*{[^}]*(\d{3,4})', "Character|Realm with item level numbers"),
+            (
+                r'\["([^"]+)\|([^"]+)"\]\s*=\s*{[^}]*(\d{3,4})',
+                "Character|Realm with item level numbers",
+            ),
             # Look for Characters table entries
-            (r'Characters\s*=\s*{.*?\["([^"]+)\|([^"]+)"\]\s*=.*?itemLevel["\s]*=\s*(\d+)', "Characters table format"),
+            (
+                r'Characters\s*=\s*{.*?\["([^"]+)\|([^"]+)"\]\s*=.*?itemLevel["\s]*=\s*(\d+)',
+                "Characters table format",
+            ),
             # Simple character name pattern in quotes
-            (r'"([A-Za-z]{2,12})"\s*=\s*{[^}]*(?:itemLevel|averageItemLevel)["\s]*=\s*(\d+)', "Simple character name pattern"),
+            (
+                r'"([A-Za-z]{2,12})"\s*=\s*{[^}]*(?:itemLevel|averageItemLevel)["\s]*=\s*(\d+)',
+                "Simple character name pattern",
+            ),
             # Broader pattern for any character data with level info
-            (r'\["?([A-Za-z]+)\|([A-Za-z\s\'-]+)"?\]?\s*=\s*{[^}]*(\d{3,4})', "Broad character|realm pattern"),
+            (
+                r'\["?([A-Za-z]+)\|([A-Za-z\s\'-]+)"?\]?\s*=\s*{[^}]*(\d{3,4})',
+                "Broad character|realm pattern",
+            ),
         ]
 
         for pattern_info in patterns_to_try:
             pattern, description = pattern_info
             print(f"[VERBOSE] Trying pattern: {description}")
-            
+
             matches = safe_regex_search(pattern, content)
             print(f"[VERBOSE]   Found {len(matches)} matches")
 
@@ -1699,8 +1874,10 @@ class WoWStatTracker:
                         realm = "Unknown"
                     else:
                         continue
-                        
-                    print(f"[VERBOSE]     {i}. Character: {char_name} on {realm}, iLevel: {item_level}")
+
+                    print(
+                        f"[VERBOSE]     {i}. Character: {char_name} on {realm}, iLevel: {item_level}"
+                    )
 
                     try:
                         characters.append(
@@ -1736,139 +1913,176 @@ class WoWStatTracker:
     def merge_datastore_data(self, all_files):
         """Merge data from multiple DataStore files to create complete character records"""
         print(f"[VERBOSE] Merging data from {len(all_files)} DataStore files...")
-        
+
         characters_data = {}  # Character index -> character data
-        inventory_data = {}   # Character index -> inventory data
-        guild_mappings = {}   # Guild ID -> Guild name
-        character_guilds = {} # Character index -> Guild ID
+        inventory_data = {}  # Character index -> inventory data
+        guild_mappings = {}  # Guild ID -> Guild name
+        character_guilds = {}  # Character index -> Guild ID
         character_mappings = {}  # Character index -> (name, realm)
-        
+
         for file_path in all_files:
             filename = os.path.basename(file_path).lower()
             print(f"[VERBOSE] Processing {filename}...")
-            
+
             try:
-                with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                     content = f.read()
-                
-                if filename == 'datastore_characters.lua':
+
+                if filename == "datastore_characters.lua":
                     # Parse character info and mappings
                     chars = self.parse_datastore_characters(content)
                     for i, char in enumerate(chars):
                         characters_data[i] = char
-                        character_mappings[i] = (char['name'], char['realm'])
-                    
+                        character_mappings[i] = (char["name"], char["realm"])
+
                     # Parse character-guild relationships
                     import re
-                    guild_rel_match = re.search(r'DataStore_CharacterGuilds\s*=\s*{([^}]+)}', content)
+
+                    guild_rel_match = re.search(
+                        r"DataStore_CharacterGuilds\s*=\s*{([^}]+)}", content
+                    )
                     if guild_rel_match:
-                        guild_numbers = re.findall(r'(\d+)', guild_rel_match.group(1))
+                        guild_numbers = re.findall(r"(\d+)", guild_rel_match.group(1))
                         for i, guild_id in enumerate(guild_numbers):
-                            if guild_id != 'nil':
+                            if guild_id != "nil":
                                 character_guilds[i] = int(guild_id)
-                                
-                elif filename == 'datastore_inventory.lua':
+
+                elif filename == "datastore_inventory.lua":
                     # Parse inventory data (item levels, gear quality counts)
                     inv_chars = self.parse_datastore_inventory(content)
                     for i, inv_char in enumerate(inv_chars):
                         inventory_data[i] = inv_char
-                        
-                elif filename == 'datastore.lua':
+
+                elif filename == "datastore.lua":
                     # Parse guild mappings and character mappings
                     import re
-                    guild_ids_match = re.search(r'DataStore_GuildIDs\s*=\s*{.*?List.*?=\s*{([^}]+)}', content, re.DOTALL)
+
+                    guild_ids_match = re.search(
+                        r"DataStore_GuildIDs\s*=\s*{.*?List.*?=\s*{([^}]+)}",
+                        content,
+                        re.DOTALL,
+                    )
                     if guild_ids_match:
                         guild_list = re.findall(r'"([^"]+)"', guild_ids_match.group(1))
                         for i, guild_full_name in enumerate(guild_list):
                             # Extract guild name from "Default.Realm.GuildName" format
-                            if '.' in guild_full_name:
-                                parts = guild_full_name.split('.')
+                            if "." in guild_full_name:
+                                parts = guild_full_name.split(".")
                                 if len(parts) >= 3:
                                     guild_name = parts[2]
-                                    guild_mappings[i + 1] = guild_name  # Guild IDs are 1-indexed
+                                    guild_mappings[i + 1] = (
+                                        guild_name  # Guild IDs are 1-indexed
+                                    )
                                     print(f"[VERBOSE] Guild {i + 1}: {guild_name}")
                     else:
-                        print(f"[VERBOSE] ⚠ DataStore_GuildIDs not found in datastore.lua")
-                    
+                        print(
+                            f"[VERBOSE] ⚠ DataStore_GuildIDs not found in datastore.lua"
+                        )
+
                     # Parse character ID mappings to get realm information
-                    char_ids_match = re.search(r'DataStore_CharacterIDs\s*=\s*{.*?List.*?=\s*{([^}]+)}', content, re.DOTALL)
+                    char_ids_match = re.search(
+                        r"DataStore_CharacterIDs\s*=\s*{.*?List.*?=\s*{([^}]+)}",
+                        content,
+                        re.DOTALL,
+                    )
                     if char_ids_match:
                         char_list = re.findall(r'"([^"]+)"', char_ids_match.group(1))
                         for i, char_full_name in enumerate(char_list):
                             # Extract realm and name from "Default.Realm.Name" format
-                            if '.' in char_full_name:
-                                parts = char_full_name.split('.')
+                            if "." in char_full_name:
+                                parts = char_full_name.split(".")
                                 if len(parts) >= 3:
                                     realm = parts[1]
                                     name = parts[2]
                                     character_mappings[i] = (name, realm)
-                                    print(f"[VERBOSE] Character mapping {i}: {name} on {realm}")
-                    
+                                    print(
+                                        f"[VERBOSE] Character mapping {i}: {name} on {realm}"
+                                    )
+
                     # Parse character-guild relationships
-                    char_guilds_match = re.search(r'DataStore_CharacterGuilds\s*=\s*{([^}]+)}', content)
+                    char_guilds_match = re.search(
+                        r"DataStore_CharacterGuilds\s*=\s*{([^}]+)}", content
+                    )
                     if char_guilds_match:
-                        guild_numbers = re.findall(r'(\d+)', char_guilds_match.group(1))
+                        guild_numbers = re.findall(r"(\d+)", char_guilds_match.group(1))
                         for i, guild_id in enumerate(guild_numbers):
-                            if guild_id != 'nil':
+                            if guild_id != "nil":
                                 character_guilds[i] = int(guild_id)
                                 print(f"[VERBOSE] Character {i} -> Guild {guild_id}")
-                    
+
             except Exception as e:
                 print(f"[VERBOSE] ✗ Error processing {filename}: {e}")
                 continue
-        
+
         # Merge all data together
         merged_characters = []
-        
+
         print(f"[VERBOSE] Merging character data...")
         print(f"[VERBOSE] Characters data: {len(characters_data)} entries")
         print(f"[VERBOSE] Inventory data: {len(inventory_data)} entries")
         print(f"[VERBOSE] Guild mappings: {len(guild_mappings)} entries")
         print(f"[VERBOSE] Character guilds: {len(character_guilds)} entries")
-        
+
         for char_index in characters_data:
             try:
                 character = characters_data[char_index].copy()
-                
+
                 # Update realm from character mappings if available
                 if char_index in character_mappings:
                     name, realm = character_mappings[char_index]
-                    character['realm'] = realm
+                    character["realm"] = realm
                     # Verify name matches
-                    if character.get('name') != name:
-                        print(f"[VERBOSE] ⚠ Name mismatch for index {char_index}: parsed '{character.get('name')}' vs mapping '{name}'")
-                
+                    if character.get("name") != name:
+                        print(
+                            f"[VERBOSE] ⚠ Name mismatch for index {char_index}: parsed '{character.get('name')}' vs mapping '{name}'"
+                        )
+
                 # Add inventory data if available
                 if char_index in inventory_data:
                     inv_data = inventory_data[char_index]
                     # Use inventory item level if character doesn't have one
-                    if character.get('item_level', 0) == 0 and inv_data.get('item_level', 0) > 0:
-                        character['item_level'] = inv_data['item_level']
-                    
+                    if (
+                        character.get("item_level", 0) == 0
+                        and inv_data.get("item_level", 0) > 0
+                    ):
+                        character["item_level"] = inv_data["item_level"]
+
                     # Add gear quality counts
-                    for key in ['heroic_items', 'champion_items', 'veteran_items', 'adventure_items', 'old_items']:
+                    for key in [
+                        "heroic_items",
+                        "champion_items",
+                        "veteran_items",
+                        "adventure_items",
+                        "old_items",
+                    ]:
                         if key in inv_data:
                             character[key] = inv_data[key]
-                
+
                 # Add guild name if available
                 if char_index in character_guilds:
                     guild_id = character_guilds[char_index]
                     if guild_id in guild_mappings:
-                        character['guild'] = guild_mappings[guild_id]
-                        print(f"[VERBOSE] ✓ Added guild '{guild_mappings[guild_id]}' to {character['name']}")
-                
+                        character["guild"] = guild_mappings[guild_id]
+                        print(
+                            f"[VERBOSE] ✓ Added guild '{guild_mappings[guild_id]}' to {character['name']}"
+                        )
+
                 # Only add characters with names and known realms
-                if character.get('name'):
-                    if character.get('realm') == 'Unknown':
-                        print(f"[VERBOSE] ⚠ Warning: Skipping character {character['name']} - realm is Unknown, not updating")
+                if character.get("name"):
+                    if character.get("realm") == "Unknown":
+                        print(
+                            f"[VERBOSE] ⚠ Warning: Skipping character {character['name']} - realm is Unknown, not updating"
+                        )
                         continue
                     merged_characters.append(character)
-                    print(f"[VERBOSE] ✓ Merged character: {character['name']} on {character['realm']} (iLevel: {character.get('item_level', 0)}, Guild: {character.get('guild', 'None')})")
-                    
+                    print(
+                        f"[VERBOSE] ✓ Merged character: {character['name']} on {character['realm']} (iLevel: {character.get('item_level', 0)}, Guild: {character.get('guild', 'None')})"
+                    )
+
             except Exception as e:
                 print(f"[VERBOSE] ✗ Error merging character {char_index}: {e}")
                 continue
-        
+
         print(f"[VERBOSE] Merge complete: {len(merged_characters)} total characters")
         return merged_characters
 
@@ -1902,36 +2116,52 @@ class WoWStatTracker:
         # Process ALL matching files, not just the primary one
         altoholic_chars = []
         files_processed = 0
-        
-        if hasattr(self, '_altoholic_files') and self._altoholic_files:
-            print(f"[VERBOSE] Processing ALL {len(self._altoholic_files)} Altoholic/DataStore files...")
-            
+
+        if hasattr(self, "_altoholic_files") and self._altoholic_files:
+            print(
+                f"[VERBOSE] Processing ALL {len(self._altoholic_files)} Altoholic/DataStore files..."
+            )
+
             # Check if we have DataStore files that can be merged
-            datastore_files = [f for f in self._altoholic_files if 'datastore' in os.path.basename(f).lower()]
-            other_files = [f for f in self._altoholic_files if 'datastore' not in os.path.basename(f).lower()]
-            
+            datastore_files = [
+                f
+                for f in self._altoholic_files
+                if "datastore" in os.path.basename(f).lower()
+            ]
+            other_files = [
+                f
+                for f in self._altoholic_files
+                if "datastore" not in os.path.basename(f).lower()
+            ]
+
             if len(datastore_files) > 1:
-                print(f"[VERBOSE] Found {len(datastore_files)} DataStore files - using merge strategy")
+                print(
+                    f"[VERBOSE] Found {len(datastore_files)} DataStore files - using merge strategy"
+                )
                 merged_chars = self.merge_datastore_data(datastore_files)
                 if merged_chars:
                     altoholic_chars.extend(merged_chars)
-                    print(f"[VERBOSE] ✓ Merged {len(merged_chars)} characters from DataStore files")
+                    print(
+                        f"[VERBOSE] ✓ Merged {len(merged_chars)} characters from DataStore files"
+                    )
                 files_processed += len(datastore_files)
-            
+
             # Process remaining files individually
             remaining_files = datastore_files if len(datastore_files) <= 1 else []
             remaining_files.extend(other_files)
-            
+
             for file_path in remaining_files:
                 files_processed += 1
                 filename = os.path.basename(file_path)
                 print(f"[VERBOSE] Processing individual file: {filename}")
                 print(f"[VERBOSE]   Full path: {file_path}")
-                
+
                 chars_from_file = self.parse_altoholic_data(file_path)
                 if chars_from_file:
                     altoholic_chars.extend(chars_from_file)
-                    print(f"[VERBOSE] ✓ Found {len(chars_from_file)} characters in {filename}")
+                    print(
+                        f"[VERBOSE] ✓ Found {len(chars_from_file)} characters in {filename}"
+                    )
                 else:
                     print(f"[VERBOSE] ✗ No characters found in {filename}")
         else:
@@ -1945,27 +2175,39 @@ class WoWStatTracker:
             print(f"[VERBOSE] Deduplicating characters...")
             seen_characters = set()
             deduplicated_chars = []
-            
+
             for char in altoholic_chars:
                 # Skip characters with Unknown realm
-                if char.get('realm') == 'Unknown':
-                    print(f"[VERBOSE] ⚠ Warning: Skipping character {char.get('name', 'Unknown')} - realm is Unknown, not updating")
+                if char.get("realm") == "Unknown":
+                    print(
+                        f"[VERBOSE] ⚠ Warning: Skipping character {char.get('name', 'Unknown')} - realm is Unknown, not updating"
+                    )
                     continue
-                    
-                char_key = f"{char.get('name', '').lower()}|{char.get('realm', '').lower()}"
+
+                char_key = (
+                    f"{char.get('name', '').lower()}|{char.get('realm', '').lower()}"
+                )
                 if char_key not in seen_characters:
                     seen_characters.add(char_key)
                     deduplicated_chars.append(char)
                 else:
-                    print(f"[VERBOSE]   Skipping duplicate: {char.get('name', '')}-{char.get('realm', '')}")
-            
-            altoholic_chars = deduplicated_chars
-            print(f"[VERBOSE] After deduplication: {len(altoholic_chars)} unique characters")
+                    print(
+                        f"[VERBOSE]   Skipping duplicate: {char.get('name', '')}-{char.get('realm', '')}"
+                    )
 
-        print(f"[VERBOSE] Summary: Processed {files_processed} files, found {len(altoholic_chars)} unique characters")
+            altoholic_chars = deduplicated_chars
+            print(
+                f"[VERBOSE] After deduplication: {len(altoholic_chars)} unique characters"
+            )
+
+        print(
+            f"[VERBOSE] Summary: Processed {files_processed} files, found {len(altoholic_chars)} unique characters"
+        )
 
         if not altoholic_chars:
-            print(f"[VERBOSE] ✗ No character data parsed from any Altoholic/DataStore files")
+            print(
+                f"[VERBOSE] ✗ No character data parsed from any Altoholic/DataStore files"
+            )
             dialog = Gtk.MessageDialog(
                 parent=self.window,
                 modal=True,
@@ -2005,10 +2247,14 @@ class WoWStatTracker:
 
             # Skip characters with invalid data
             if not alt_name or not alt_realm or alt_ilevel <= 0:
-                print(f"[VERBOSE]   Skipping character with invalid data: {alt_name}-{alt_realm} (iLvl: {alt_ilevel})")
+                print(
+                    f"[VERBOSE]   Skipping character with invalid data: {alt_name}-{alt_realm} (iLvl: {alt_ilevel})"
+                )
                 continue
 
-            print(f"[VERBOSE]   Processing {i}/{len(altoholic_chars)}: {alt_name}-{alt_realm} (iLvl: {alt_ilevel})")
+            print(
+                f"[VERBOSE]   Processing {i}/{len(altoholic_chars)}: {alt_name}-{alt_realm} (iLvl: {alt_ilevel})"
+            )
 
             # Look for existing character
             existing_char = None
@@ -2024,13 +2270,17 @@ class WoWStatTracker:
 
             if existing_char:
                 current_ilevel = existing_char.get("item_level", 0)
-                print(f"[VERBOSE]     Current iLevel: {current_ilevel}, Altoholic iLevel: {alt_ilevel}")
+                print(
+                    f"[VERBOSE]     Current iLevel: {current_ilevel}, Altoholic iLevel: {alt_ilevel}"
+                )
 
                 # Update item level if Altoholic has newer data
                 if alt_ilevel > current_ilevel:
                     existing_char["item_level"] = alt_ilevel
                     updated_count += 1
-                    print(f"[VERBOSE]     ✓ Updated iLevel from {current_ilevel} to {alt_ilevel}")
+                    print(
+                        f"[VERBOSE]     ✓ Updated iLevel from {current_ilevel} to {alt_ilevel}"
+                    )
                 else:
                     print(f"[VERBOSE]     ✗ No update needed (current >= altoholic)")
             else:
@@ -2039,7 +2289,9 @@ class WoWStatTracker:
                 added_count += 1
                 print(f"[VERBOSE]     ✓ Added new character")
 
-        print(f"[VERBOSE] Update summary: Updated {updated_count} characters, added {added_count} new characters")
+        print(
+            f"[VERBOSE] Update summary: Updated {updated_count} characters, added {added_count} new characters"
+        )
 
         if updated_count > 0 or added_count > 0:
             print(f"[VERBOSE] Saving data and refreshing table...")
@@ -2082,14 +2334,14 @@ class WoWStatTracker:
         try:
             # Find WoW addon SavedVariables file
             addon_data_file = self.find_wow_addon_data()
-            
+
             if not addon_data_file:
                 dialog = Gtk.MessageDialog(
                     parent=self.window,
                     flags=0,
                     message_type=Gtk.MessageType.WARNING,
                     buttons=Gtk.ButtonsType.OK,
-                    text="WoW Addon Data Not Found"
+                    text="WoW Addon Data Not Found",
                 )
                 dialog.format_secondary_text(
                     "Could not find WoW Stat Tracker addon data.\n\n"
@@ -2106,14 +2358,14 @@ class WoWStatTracker:
 
             # Parse addon data
             addon_chars = self.parse_wow_addon_data(addon_data_file)
-            
+
             if not addon_chars:
                 dialog = Gtk.MessageDialog(
                     parent=self.window,
                     flags=0,
                     message_type=Gtk.MessageType.WARNING,
                     buttons=Gtk.ButtonsType.OK,
-                    text="No Character Data Found"
+                    text="No Character Data Found",
                 )
                 dialog.format_secondary_text(
                     "The addon data file was found but contains no character data.\n\n"
@@ -2129,20 +2381,22 @@ class WoWStatTracker:
             # Import the data
             imported_count = 0
             updated_count = 0
-            
+
             for addon_char in addon_chars:
                 char_name = addon_char.get("name", "Unknown")
                 char_realm = addon_char.get("realm", "Unknown")
                 char_key = f"{char_name}-{char_realm}"
-                
+
                 if self.debug_enabled:
                     print(f"[DEBUG] Processing {char_key} from addon data")
 
                 # Find or create character
                 existing_char = None
                 for i, char in enumerate(self.characters):
-                    if (char.get("name") == char_name and 
-                        char.get("realm") == char_realm):
+                    if (
+                        char.get("name") == char_name
+                        and char.get("realm") == char_realm
+                    ):
                         existing_char = i
                         break
 
@@ -2173,7 +2427,7 @@ class WoWStatTracker:
                 flags=0,
                 message_type=Gtk.MessageType.INFO,
                 buttons=Gtk.ButtonsType.OK,
-                text="WoW Addon Import Complete"
+                text="WoW Addon Import Complete",
             )
             dialog.format_secondary_text(
                 f"Successfully imported data from WoW Stat Tracker addon!\n\n"
@@ -2187,13 +2441,13 @@ class WoWStatTracker:
         except Exception as e:
             if self.debug_enabled:
                 print(f"[DEBUG] Error importing addon data: {e}")
-            
+
             dialog = Gtk.MessageDialog(
                 parent=self.window,
                 flags=0,
                 message_type=Gtk.MessageType.ERROR,
                 buttons=Gtk.ButtonsType.OK,
-                text="Import Error"
+                text="Import Error",
             )
             dialog.format_secondary_text(f"Failed to import addon data:\n{str(e)}")
             dialog.run()
@@ -2205,12 +2459,12 @@ class WoWStatTracker:
     def find_wow_addon_data(self):
         """Find the WoW Stat Tracker addon SavedVariables file"""
         import platform
-        
+
         system = platform.system()
         home = os.path.expanduser("~")
-        
+
         possible_paths = []
-        
+
         if system == "Darwin":  # macOS
             possible_paths = [
                 f"{home}/Applications/World of Warcraft/_retail_/WTF/Account",
@@ -2229,24 +2483,28 @@ class WoWStatTracker:
             ]
 
         if self.debug_enabled:
-            print(f"[DEBUG] Searching for addon data in {len(possible_paths)} locations")
+            print(
+                f"[DEBUG] Searching for addon data in {len(possible_paths)} locations"
+            )
 
         for base_path in possible_paths:
             if not os.path.exists(base_path):
                 continue
-                
+
             try:
                 # Look through account folders
                 for account_dir in os.listdir(base_path):
                     if account_dir.startswith("."):
                         continue
-                        
-                    addon_file = os.path.join(base_path, account_dir, "SavedVariables", "WoWStatTracker.lua")
+
+                    addon_file = os.path.join(
+                        base_path, account_dir, "SavedVariables", "WoWStatTracker.lua"
+                    )
                     if os.path.exists(addon_file):
                         if self.debug_enabled:
                             print(f"[DEBUG] Found addon data: {addon_file}")
                         return addon_file
-                        
+
             except (OSError, PermissionError) as e:
                 if self.debug_enabled:
                     print(f"[DEBUG] Error accessing {base_path}: {e}")
@@ -2257,30 +2515,34 @@ class WoWStatTracker:
     def parse_wow_addon_data(self, file_path):
         """Parse WoW addon SavedVariables file"""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # Look for the exportData table in the Lua file
             import re
-            
+
             # Find the exportData section
-            export_match = re.search(r'exportData\s*=\s*{(.+?)}(?=\s*[},])', content, re.DOTALL)
+            export_match = re.search(
+                r"exportData\s*=\s*{(.+?)}(?=\s*[},])", content, re.DOTALL
+            )
             if not export_match:
                 return []
 
             export_content = export_match.group(1)
-            
+
             # Look for characters array
-            chars_match = re.search(r'characters\s*=\s*{(.+?)}', export_content, re.DOTALL)
+            chars_match = re.search(
+                r"characters\s*=\s*{(.+?)}", export_content, re.DOTALL
+            )
             if not chars_match:
                 return []
 
             chars_content = chars_match.group(1)
-            
+
             # Parse character entries
             characters = []
-            char_pattern = r'{([^{}]+)}'
-            
+            char_pattern = r"{([^{}]+)}"
+
             for match in re.finditer(char_pattern, chars_content):
                 char_data = match.group(1)
                 character = self.parse_lua_character_data(char_data)
@@ -2300,42 +2562,51 @@ class WoWStatTracker:
     def parse_lua_character_data(self, char_data):
         """Parse individual character data from Lua format"""
         character = {}
-        
+
         # Simple regex-based parsing for Lua table format
         import re
-        
+
         patterns = {
-            'name': r'name\s*=\s*"([^"]+)"',
-            'realm': r'realm\s*=\s*"([^"]+)"',
-            'guild': r'guild\s*=\s*"([^"]*)"',
-            'item_level': r'item_level\s*=\s*(\d+)',
-            'heroic_items': r'heroic_items\s*=\s*(\d+)',
-            'champion_items': r'champion_items\s*=\s*(\d+)',
-            'veteran_items': r'veteran_items\s*=\s*(\d+)',
-            'adventure_items': r'adventure_items\s*=\s*(\d+)',
-            'old_items': r'old_items\s*=\s*(\d+)',
-            'vault_visited': r'vault_visited\s*=\s*(true|false)',
-            'delves': r'delves\s*=\s*(\d+)',
-            'gundarz': r'gundarz\s*=\s*(true|false)',
-            'quests': r'quests\s*=\s*(true|false)',
-            'timewalk': r'timewalk\s*=\s*(\d+)',
+            "name": r'name\s*=\s*"([^"]+)"',
+            "realm": r'realm\s*=\s*"([^"]+)"',
+            "guild": r'guild\s*=\s*"([^"]*)"',
+            "item_level": r"item_level\s*=\s*(\d+)",
+            "heroic_items": r"heroic_items\s*=\s*(\d+)",
+            "champion_items": r"champion_items\s*=\s*(\d+)",
+            "veteran_items": r"veteran_items\s*=\s*(\d+)",
+            "adventure_items": r"adventure_items\s*=\s*(\d+)",
+            "old_items": r"old_items\s*=\s*(\d+)",
+            "vault_visited": r"vault_visited\s*=\s*(true|false)",
+            "delves": r"delves\s*=\s*(\d+)",
+            "gundarz": r"gundarz\s*=\s*(true|false)",
+            "quests": r"quests\s*=\s*(true|false)",
+            "timewalk": r"timewalk\s*=\s*(\d+)",
         }
-        
+
         for key, pattern in patterns.items():
             match = re.search(pattern, char_data)
             if match:
                 value = match.group(1)
-                if key in ['item_level', 'heroic_items', 'champion_items', 'veteran_items', 'adventure_items', 'old_items', 'delves', 'timewalk']:
+                if key in [
+                    "item_level",
+                    "heroic_items",
+                    "champion_items",
+                    "veteran_items",
+                    "adventure_items",
+                    "old_items",
+                    "delves",
+                    "timewalk",
+                ]:
                     character[key] = int(value)
-                elif key in ['vault_visited', 'gundarz', 'quests']:
-                    character[key] = value.lower() == 'true'
+                elif key in ["vault_visited", "gundarz", "quests"]:
+                    character[key] = value.lower() == "true"
                 else:
                     character[key] = value
 
         # Only return if we have essential data
-        if character.get('name') and character.get('realm'):
+        if character.get("name") and character.get("realm"):
             return character
-        
+
         return None
 
     def _is_process_running(self, pid):
