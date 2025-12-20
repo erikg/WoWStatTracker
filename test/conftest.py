@@ -1,8 +1,7 @@
 """Pytest configuration and fixtures for WoW Stat Tracker tests."""
 
 import json
-import os
-import tempfile
+
 import pytest
 
 
