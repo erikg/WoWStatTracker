@@ -8,7 +8,7 @@
 #   make lint     - Check code formatting
 #   make clean    - Remove build artifacts
 
-.PHONY: help test test-quick build format lint clean install-deps run all
+.PHONY: help test test-quick build format check-format lint clean install-deps run all
 
 # Default target
 all: format lint test
@@ -20,7 +20,8 @@ help:
 	@echo "  make test-quick  - Run tests without coverage"
 	@echo "  make build       - Build macOS app bundle"
 	@echo "  make format      - Format code with black"
-	@echo "  make lint        - Check code formatting (no changes)"
+	@echo "  make check-format - Check formatting (no changes)"
+	@echo "  make lint        - Run flake8 linter"
 	@echo "  make clean       - Remove build artifacts"
 	@echo "  make install-deps - Install Python dependencies"
 	@echo "  make run         - Run the application"
@@ -55,10 +56,15 @@ format:
 	$(PYTHON) -m black wowstat.py test/ --line-length 88
 
 # Check formatting without making changes
-lint:
+check-format:
 	@echo "Checking code formatting..."
 	$(PYTHON) -m black wowstat.py test/ --check --line-length 88
 	@echo "All files formatted correctly!"
+
+# Run flake8 linter
+lint:
+	@echo "Running flake8 linter..."
+	$(PYTHON) -m flake8 wowstat.py test/
 
 # Remove build artifacts
 clean:
