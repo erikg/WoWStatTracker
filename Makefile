@@ -27,10 +27,10 @@ help:
 	@echo "  make all         - Format, lint, and test"
 	@echo ""
 
-# Find Python and tools
-PYTHON := $(shell command -v python3 2>/dev/null)
-BLACK := $(shell command -v black 2>/dev/null)
-PYTEST := $(shell command -v pytest 2>/dev/null)
+# Find Python with required modules
+# Check if python3 in PATH has pytest, otherwise try common locations
+PYTHON := $(shell python3 -c "import pytest" 2>/dev/null && echo python3 || \
+	(/usr/local/bin/python3 -c "import pytest" 2>/dev/null && echo /usr/local/bin/python3 || echo python3))
 
 # Run tests with coverage
 test:
@@ -98,8 +98,8 @@ uninstall:
 # Check for required tools
 check-tools:
 	@echo "Checking for required tools..."
-	@command -v python3 >/dev/null 2>&1 || { echo "python3 not found"; exit 1; }
-	@echo "  python3: $(PYTHON)"
-	@command -v black >/dev/null 2>&1 && echo "  black: $(BLACK)" || echo "  black: not found (run: pip3 install black)"
-	@command -v pytest >/dev/null 2>&1 && echo "  pytest: $(PYTEST)" || echo "  pytest: not found (run: pip3 install pytest)"
+	@echo "  python: $(PYTHON)"
+	@$(PYTHON) -c "import pytest" 2>/dev/null && echo "  pytest: OK" || echo "  pytest: not found (run: pip3 install pytest)"
+	@$(PYTHON) -c "import black" 2>/dev/null && echo "  black: OK" || echo "  black: not found (run: pip3 install black)"
+	@$(PYTHON) -c "import pytest_cov" 2>/dev/null && echo "  pytest-cov: OK" || echo "  pytest-cov: not found (run: pip3 install pytest-cov)"
 	@echo ""
