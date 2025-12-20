@@ -1,0 +1,12 @@
+[flake8]
+max-line-length = 88
+exclude =
+    __pycache__,
+    build,
+    dist,
+    .eggs,
+    *.egg-info
+
+# E402: module level import not at top of file (required for gi.require_version)
+# W503: line break before binary operator (conflicts with black)
+ignore = E402, W503
