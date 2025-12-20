@@ -156,9 +156,7 @@ class TestConfigDirectory:
 
     def test_config_dir_path(self):
         """Test expected config directory path."""
-        expected_path = os.path.join(
-            os.path.expanduser("~"), ".config", "wowstat"
-        )
+        expected_path = os.path.join(os.path.expanduser("~"), ".config", "wowstat")
         assert "wowstat" in expected_path
         assert ".config" in expected_path
 

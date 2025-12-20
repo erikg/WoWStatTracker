@@ -1,5 +1,44 @@
+# Virtual environment
 bin/
 include/
 lib/
 pyvenv.cfg
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.eggs/
+*.egg-info/
+*.egg
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+*.cover
+
+# Build artifacts
+build/
+dist/
+*.spec.bak
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Data files (user-specific)
 *.json
+!pytest.ini
+
+# Logs
+*.log
+nohup.out
