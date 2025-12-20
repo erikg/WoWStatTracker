@@ -1,1 +1,7 @@
+# Runtime dependencies
 PyGObject
+
+# Development/testing dependencies
+pytest
+pytest-cov
+black
