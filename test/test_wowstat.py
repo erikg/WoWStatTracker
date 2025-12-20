@@ -3,10 +3,6 @@
 import json
 import os
 import sys
-import tempfile
-from unittest.mock import Mock, patch, MagicMock
-
-import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -208,8 +204,6 @@ class TestWeeklyReset:
 
     def test_reset_weekly_fields(self, sample_characters):
         """Test resetting weekly fields."""
-        weekly_fields = ["vault_visited", "delves", "gundarz", "quests", "timewalk"]
-
         # Reset weekly data
         for char in sample_characters:
             char["vault_visited"] = False
