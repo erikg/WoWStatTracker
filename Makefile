@@ -8,7 +8,7 @@
 #   make lint     - Check code formatting
 #   make clean    - Remove build artifacts
 
-.PHONY: help test test-quick build format check-format lint clean install-deps run all
+.PHONY: help test test-quick build dmg format check-format lint clean install-deps run all
 
 # Default target
 all: format lint test
@@ -19,6 +19,7 @@ help:
 	@echo "  make test        - Run tests with coverage report"
 	@echo "  make test-quick  - Run tests without coverage"
 	@echo "  make build       - Build macOS app bundle"
+	@echo "  make dmg         - Build app and create DMG installer"
 	@echo "  make format      - Format code with black"
 	@echo "  make check-format - Check formatting (no changes)"
 	@echo "  make lint        - Run flake8 linter"
@@ -50,6 +51,11 @@ build:
 	@echo "Building macOS app bundle..."
 	./build_mac_app.sh
 
+# Build app and create DMG installer
+dmg: build
+	@echo "Creating DMG installer..."
+	./create_dmg.sh
+
 # Format code with black
 format:
 	@echo "Formatting code with black..."
@@ -72,7 +78,7 @@ clean:
 	rm -rf build/ dist/ __pycache__/ test/__pycache__/
 	rm -rf htmlcov/ .coverage .pytest_cache/
 	rm -rf *.egg-info/ .eggs/
-	rm -f *.pyc *.pyo
+	rm -f *.pyc *.pyo *.dmg
 	@echo "Clean complete!"
 
 # Install Python dependencies

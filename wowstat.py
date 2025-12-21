@@ -12,6 +12,8 @@ from gi.repository import Gtk, GLib
 import os
 import platform
 import re
+import shutil
+import sys
 import threading
 
 from model import (
@@ -162,6 +164,10 @@ class WoWStatTracker:
         set_path_item.connect("activate", self._on_set_wow_path)
         file_menu.append(set_path_item)
 
+        install_addon_item = Gtk.MenuItem(label="Install Addon to WoW")
+        install_addon_item.connect("activate", self._on_install_addon)
+        file_menu.append(install_addon_item)
+
         file_menu.append(Gtk.SeparatorMenuItem())
 
         quit_item = Gtk.MenuItem(label="Quit")
@@ -286,6 +292,66 @@ class WoWStatTracker:
                     "Invalid Selection",
                     "The selected folder must contain a '_retail_' directory.",
                 )
+
+    def _on_install_addon(self, widget):
+        """Install WoW addon to WoW's AddOns folder."""
+        wow_path = self.get_wow_path()
+        if not wow_path:
+            return
+
+        addons_path = os.path.join(wow_path, "_retail_", "Interface", "AddOns")
+
+        # Create AddOns folder if it doesn't exist
+        os.makedirs(addons_path, exist_ok=True)
+
+        # Find addon source (bundled or local)
+        addon_source = self._find_addon_source()
+        if not addon_source:
+            show_error(
+                self.window,
+                "Addon Not Found",
+                "Could not find the WoWStatTracker addon to install.",
+            )
+            return
+
+        # Copy addon
+        dest_path = os.path.join(addons_path, "WoWStatTracker_Addon")
+        try:
+            if os.path.exists(dest_path):
+                shutil.rmtree(dest_path)
+            shutil.copytree(addon_source, dest_path)
+            show_info(
+                self.window,
+                "Addon Installed",
+                f"WoWStatTracker addon installed to:\n{dest_path}\n\n"
+                "Restart WoW to load the addon.",
+            )
+        except Exception as e:
+            show_error(self.window, "Installation Failed", str(e))
+
+    def _find_addon_source(self) -> str | None:
+        """Find the addon source directory (bundled or development)."""
+        # Check if running from bundle (frozen)
+        if getattr(sys, "frozen", False):
+            # PyInstaller bundle - addon in Resources
+            bundle_path = os.path.join(
+                os.path.dirname(sys.executable),
+                "..",
+                "Resources",
+                "WoWStatTracker_Addon",
+            )
+            if os.path.exists(bundle_path):
+                return os.path.realpath(bundle_path)
+
+        # Development mode - addon in same directory as script
+        dev_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "WoWStatTracker_Addon",
+        )
+        if os.path.exists(dev_path):
+            return dev_path
+
+        return None
 
     # ==================== Window State Management ====================
 

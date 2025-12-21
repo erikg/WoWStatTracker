@@ -76,6 +76,9 @@ def find_gtk_libraries():
 # Get GTK binaries and data
 gtk_binaries, gtk_datas = find_gtk_libraries()
 
+# Include WoW addon in bundle Resources
+addon_datas = [('WoWStatTracker_Addon', 'WoWStatTracker_Addon')]
+
 a = Analysis(
     ['wowstat.py'],
     pathex=[
@@ -84,7 +87,7 @@ a = Analysis(
         '/usr/local/opt/pygobject3/lib/python3.13/site-packages',
     ],
     binaries=gtk_binaries,
-    datas=gtk_datas,
+    datas=gtk_datas + addon_datas,
     hiddenimports=[
         'gi',
         'gi.repository',
