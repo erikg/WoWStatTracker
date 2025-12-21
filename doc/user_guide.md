@@ -80,10 +80,9 @@ Specific thresholds:
 
 ### Data Import
 
-Import character data from WoW addons:
+Import character data from the WoWStatTracker addon:
 
-- **File > Import from Altoholic**: Imports from Altoholic addon SavedVariables
-- **File > Import from WoW Addon**: Imports from custom WoWStatTracker addon
+- **File > Import from WoW Addon**: Imports from WoWStatTracker addon SavedVariables
 
 ### Weekly Reset
 

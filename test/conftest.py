@@ -91,7 +91,7 @@ def sample_config_file(temp_config_dir, sample_config):
 
 @pytest.fixture
 def sample_lua_content():
-    """Sample Altoholic Lua SavedVariables content."""
+    """Sample WoW addon Lua SavedVariables content."""
     return """
 DataStore_CharactersDB = {
     ["global"] = {
