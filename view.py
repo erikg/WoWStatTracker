@@ -21,6 +21,7 @@ from model import (
     COL_OLD_ITEMS,
     COL_VAULT_VISITED,
     COL_DELVES,
+    COL_GILDED_STASH,
     COL_GUNDARZ,
     COL_QUESTS,
     COL_TIMEWALK,
@@ -32,6 +33,7 @@ from model import (
     MAX_ITEM_LEVEL,
     MAX_ITEMS_PER_CATEGORY,
     MAX_DELVES,
+    MAX_GILDED_STASH,
     MAX_TIMEWALK,
 )
 
@@ -170,6 +172,7 @@ class CharacterTable:
         ("Old Items", int, COL_OLD_ITEMS),
         ("Vault Visited", bool, COL_VAULT_VISITED),
         ("Delves", int, COL_DELVES),
+        ("Gilded", int, COL_GILDED_STASH),
         ("Gundarz", bool, COL_GUNDARZ),
         ("Quests", bool, COL_QUESTS),
         ("Timewalk", int, COL_TIMEWALK),
@@ -185,6 +188,7 @@ class CharacterTable:
         COL_OLD_ITEMS,
         COL_VAULT_VISITED,
         COL_DELVES,
+        COL_GILDED_STASH,
         COL_GUNDARZ,
         COL_QUESTS,
         COL_TIMEWALK,
@@ -207,7 +211,7 @@ class CharacterTable:
             str,  # realm
             str,  # name
             str,  # guild
-            int,  # item_level
+            float,  # item_level
             int,  # heroic_items
             int,  # champion_items
             int,  # veteran_items
@@ -215,6 +219,7 @@ class CharacterTable:
             int,  # old_items
             bool,  # vault_visited
             int,  # delves
+            int,  # gilded_stash
             bool,  # gundarz
             bool,  # quests
             int,  # timewalk
@@ -244,9 +249,13 @@ class CharacterTable:
                     renderer.connect("edited", self._handle_notes_edited, col_id)
                 column = Gtk.TreeViewColumn(title, renderer, text=col_id)
 
-                # Apply cell data function for weekly columns
+                # Apply cell data function for weekly columns and item level
                 if col_id in self.WEEKLY_COLUMNS:
                     column.set_cell_data_func(renderer, self._cell_data_func, col_id)
+                elif col_id == COL_ITEM_LEVEL:
+                    column.set_cell_data_func(
+                        renderer, self._item_level_cell_func, col_id
+                    )
                 elif col_id == COL_INDEX:
                     column.set_visible(False)
 
@@ -300,6 +309,16 @@ class CharacterTable:
             else:
                 set_cell_colors("#ffffff" if not use_dark else "#3c3c3c")
 
+        elif col_id == COL_GILDED_STASH:
+            # Gilded stash: green if 3, yellow if 1-2, red if 0
+            gilded = model[iter][COL_GILDED_STASH]
+            if gilded >= 3:
+                set_cell_colors("#90EE90")  # Light green
+            elif gilded > 0:
+                set_cell_colors("#FFFFE0")  # Light yellow
+            else:
+                set_cell_colors("#F08080")  # Light red
+
         elif col_id in [COL_GUNDARZ, COL_QUESTS]:
             # Boolean weeklies: green if done, yellow if not
             value = model[iter][col_id]
@@ -320,6 +339,11 @@ class CharacterTable:
         elif col_id == COL_OLD_ITEMS:
             # Old items: just use default background
             set_cell_colors("#ffffff" if not use_dark else "#3c3c3c")
+
+    def _item_level_cell_func(self, column, cell, model, iter, col_id):
+        """Format item level with one decimal place."""
+        value = model[iter][col_id]
+        cell.set_property("text", f"{value:.1f}")
 
     def _handle_row_activated(self, treeview, path, column):
         """Handle row double-click."""
@@ -360,6 +384,7 @@ class CharacterTable:
                     char.old_items,
                     char.vault_visited,
                     char.delves,
+                    char.gilded_stash,
                     char.gundarz,
                     char.quests,
                     char.timewalk,
@@ -383,6 +408,7 @@ class CharacterTable:
                 row[COL_OLD_ITEMS] = char.old_items
                 row[COL_VAULT_VISITED] = char.vault_visited
                 row[COL_DELVES] = char.delves
+                row[COL_GILDED_STASH] = char.gilded_stash
                 row[COL_GUNDARZ] = char.gundarz
                 row[COL_QUESTS] = char.quests
                 row[COL_TIMEWALK] = char.timewalk
@@ -434,7 +460,7 @@ class CharacterDialog:
         ("realm", "Realm", str, "", None),
         ("name", "Name", str, "", None),
         ("guild", "Guild", str, "", None),
-        ("item_level", "Item Level", int, 0, MAX_ITEM_LEVEL),
+        ("item_level", "Item Level", float, 0.0, MAX_ITEM_LEVEL),
         ("heroic_items", "Heroic Items", int, 0, MAX_ITEMS_PER_CATEGORY),
         ("champion_items", "Champion Items", int, 0, MAX_ITEMS_PER_CATEGORY),
         ("veteran_items", "Veteran Items", int, 0, MAX_ITEMS_PER_CATEGORY),
@@ -442,6 +468,7 @@ class CharacterDialog:
         ("old_items", "Old Items", int, 0, MAX_ITEMS_PER_CATEGORY),
         ("vault_visited", "Vault Visited", bool, False, None),
         ("delves", "Delves (0-8)", int, 0, MAX_DELVES),
+        ("gilded_stash", "Gilded Stash (0-3)", int, 0, MAX_GILDED_STASH),
         ("gundarz", "Gundarz Quest", bool, False, None),
         ("quests", "World Quests", bool, False, None),
         ("timewalk", "Timewalk (0-5)", int, 0, MAX_TIMEWALK),
@@ -507,6 +534,18 @@ class CharacterDialog:
                     )
                 )
                 entry.set_value(current_value)
+            elif field_type == float:
+                entry = Gtk.SpinButton()
+                entry.set_adjustment(
+                    Gtk.Adjustment(
+                        value=current_value,
+                        lower=0,
+                        upper=max_val or 9999,
+                        step_increment=0.1,
+                    )
+                )
+                entry.set_digits(1)
+                entry.set_value(current_value)
             else:
                 entry = Gtk.Entry()
                 entry.set_text(str(current_value))
@@ -527,6 +566,8 @@ class CharacterDialog:
                     value = entry.get_active()
                 elif field_type == int:
                     value = int(entry.get_value())
+                elif field_type == float:
+                    value = entry.get_value()
                 else:
                     value = entry.get_text()
                 setattr(result, key, value)
