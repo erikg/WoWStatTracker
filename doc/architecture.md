@@ -2,7 +2,11 @@
 
 ## Overview
 
-WoW Stat Tracker is a single-file GTK3 application written in Python. It uses a simple MVC-like pattern where the `WoWStatTracker` class manages both the UI and data.
+WoW Stat Tracker is a GTK3 application written in Python, organized into three main modules:
+
+- **model.py**: Data structures, persistence, and business logic (no GTK dependencies)
+- **view.py**: GTK UI components, theming, and display logic
+- **wowstat.py**: Main controller that orchestrates model and view
 
 ## Main Components
 
@@ -27,7 +31,7 @@ JSON array of character objects:
     "realm": "ServerName",
     "name": "CharacterName",
     "guild": "GuildName",
-    "item_level": 480,
+    "item_level": 480.0,
     "heroic_items": 5,
     "champion_items": 3,
     "veteran_items": 2,
@@ -35,6 +39,7 @@ JSON array of character objects:
     "old_items": 0,
     "vault_visited": true,
     "delves": 4,
+    "gilded_stash": 3,
     "gundarz": false,
     "quests": true,
     "timewalk": 0,
@@ -66,32 +71,39 @@ JSON array of character objects:
 }
 ```
 
-## Key Methods
+## Key Classes
 
-### Lifecycle
+### model.py
 
-- `__init__()`: Initialize application, load data, create UI
-- `on_destroy()`: Save state, cleanup, quit
+- **Character**: Dataclass for character data with validation
+- **CharacterStore**: CRUD operations and JSON persistence for characters
+- **Config**: Application configuration storage
+- **LockManager**: Single-instance file locking
 
-### Data Operations
+### view.py
 
-- `load_data()` / `save_data()`: Character data persistence
-- `load_config()` / `save_config()`: Configuration persistence
-- `_migrate_old_files()`: Migrate from old file locations
+- **ThemeManager**: GTK theme application and dark/light mode
+- **CharacterTable**: TreeView display with color-coded cells
+- **CharacterDialog**: Add/edit character form
 
-### UI Operations
+### wowstat.py
 
-- `setup_ui()`: Create menu bar and table
-- `populate_table()`: Fill TreeView with character data
-- `add_character()` / `edit_character()`: Character dialogs
-- `cell_data_func()`: Color coding for weekly columns
+- **WoWStatTracker**: Main controller orchestrating model and view
 
-### Import Functions
+## Key Functions
+
+### Data Import (wowstat.py)
 
 - `find_altoholic_data()`: Locate Altoholic SavedVariables
 - `parse_altoholic_data()`: Parse Lua SavedVariables format
 - `update_from_altoholic()`: Import workflow
 - `merge_datastore_data()`: Merge multiple DataStore files
+
+### Utilities (model.py)
+
+- `get_config_dir()`: Platform-specific config directory
+- `migrate_old_files()`: Migrate from old file locations
+- `detect_system_theme()`: Query OS for dark mode preference
 
 ## Threading
 
@@ -102,15 +114,15 @@ The application uses threading for:
 
 ## Single Instance
 
-A lock file (`wowstat.lock`) prevents multiple instances from running simultaneously:
+The `LockManager` class prevents multiple instances from running simultaneously using a lock file (`wowstat.lock`):
 
-- `acquire_lock()`: Create lock file with PID
-- `release_lock()`: Remove lock file on exit
+- `acquire()`: Create lock file with PID, uses fcntl on Unix with fallback
+- `release()`: Remove lock file on exit
 
 ## Theme System
 
-Themes are managed through GTK settings:
+The `ThemeManager` class handles theming:
 
-- `setup_theme_system()`: Initialize theme from config
-- `set_theme()`: Apply theme preference
-- `detect_system_theme()`: Query OS for dark mode preference
+- Applies GTK dark/light theme based on preference
+- Auto mode detects system preference via `detect_system_theme()`
+- Custom CSS for consistent styling across themes

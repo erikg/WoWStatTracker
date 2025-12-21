@@ -151,10 +151,11 @@ class TestConfigDirectory:
         assert config_dir.is_dir()
 
     def test_config_dir_path(self):
-        """Test expected config directory path."""
-        expected_path = os.path.join(os.path.expanduser("~"), ".config", "wowstat")
-        assert "wowstat" in expected_path
-        assert ".config" in expected_path
+        """Test expected config directory path uses get_config_dir."""
+        from model import get_config_dir
+        config_path = get_config_dir()
+        assert "wowstat" in config_path
+        assert os.path.isabs(config_path)
 
 
 class TestFileMigration:

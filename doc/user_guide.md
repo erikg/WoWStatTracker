@@ -25,8 +25,13 @@ python3 wowstat.py
 
 ## Configuration
 
-All configuration and data files are stored in `~/.config/wowstat/`:
+Configuration and data files are stored in platform-specific locations:
 
+- **macOS**: `~/Library/Application Support/wowstat/`
+- **Linux**: `~/.config/wowstat/` (or `$XDG_CONFIG_HOME/wowstat/`)
+- **Windows**: `%APPDATA%/wowstat/`
+
+Files:
 - `wowstat_data.json` - Character data
 - `wowstat_config.json` - Window position, column widths, theme preference
 
@@ -53,6 +58,7 @@ All configuration and data files are stored in `~/.config/wowstat/`:
 | Old Items | Number | Count of outdated gear |
 | Vault Visited | Checkbox | Weekly Great Vault completion |
 | Delves | Number | Weekly delves completed (0-8) |
+| Gilded | Number | Gilded stash keys collected (0-3) |
 | Gundarz | Checkbox | Weekly Gundarz quest |
 | Quests | Checkbox | Weekly quests completion |
 | Timewalk | Number | Timewalking dungeons (0-5) |
@@ -64,11 +70,13 @@ Weekly columns use color backgrounds to indicate progress:
 
 - **Green**: Goal met
 - **Yellow**: Partial progress
-- **Red**: Not started or incomplete
+- **Red**: Needs attention
 
 Specific thresholds:
-- Delves: Green (8), Blue (4+), Yellow (2-3), Red (<2)
-- Timewalk: Green (5), Yellow (1-4), Red (0)
+- Delves: Green (4+), Yellow (1-3), Default (0)
+- Gilded Stash: Green (3), Yellow (1-2), Red (0)
+- Timewalk: Green (5), Yellow (1-4), Default (0)
+- Vault Visited: Green (visited), Red (not visited but weeklies done)
 
 ### Data Import
 

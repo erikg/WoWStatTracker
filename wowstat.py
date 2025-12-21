@@ -19,6 +19,7 @@ from model import (
     CharacterStore,
     Config,
     LockManager,
+    get_config_dir,
     migrate_old_files,
     THEME_AUTO,
     THEME_LIGHT,
@@ -42,8 +43,8 @@ class WoWStatTracker:
     """Main application controller."""
 
     def __init__(self):
-        # Set up config directory
-        self.config_dir = os.path.join(os.path.expanduser("~"), ".config", "wowstat")
+        # Set up config directory (platform-specific)
+        self.config_dir = get_config_dir()
         os.makedirs(self.config_dir, exist_ok=True)
 
         data_file = os.path.join(self.config_dir, "wowstat_data.json")
@@ -257,7 +258,8 @@ class WoWStatTracker:
             self.theme_manager.set_preference(theme_preference)
             self.config.set("theme", theme_preference)
             self.config.save()
-            self.table.refresh_backgrounds()
+            if hasattr(self, 'table'):
+                self.table.refresh_backgrounds()
 
     def _on_import_altoholic(self, widget):
         """Handle Import from Altoholic menu item."""
@@ -427,8 +429,12 @@ class WoWStatTracker:
 
     def _save_and_refresh(self):
         """Save data and refresh the table."""
+        # Debug: check item_level before save
+        for c in self.store.characters[:3]:
+            print(f"[DEBUG] Before save: {c.name} item_level={c.item_level} (type: {type(c.item_level).__name__})")
         try:
             self.store.save()
+            print(f"[DEBUG] Saved to {self.store.data_file}")
         except IOError as e:
             show_error(self.window, "Failed to save", str(e))
         self.table.populate(self.store.characters)
@@ -686,7 +692,7 @@ class WoWStatTracker:
                 # Parse item level
                 ilevel_match = re.search(r'\["averageItemLvl"\]\s*=\s*([\d.]+)', entry)
                 if ilevel_match:
-                    char_data["item_level"] = int(float(ilevel_match.group(1)))
+                    char_data["item_level"] = float(ilevel_match.group(1))
 
                 # Parse guild
                 guild_match = re.search(r'\["guildName"\]\s*=\s*"([^"]*)"', entry)
@@ -739,7 +745,7 @@ class WoWStatTracker:
                             {
                                 "name": name_val,
                                 "realm": realm_val,
-                                "item_level": int(ilevel),
+                                "item_level": float(ilevel),
                             }
                         )
                     except ValueError:
@@ -988,9 +994,13 @@ class WoWStatTracker:
                 if existing_idx is not None:
                     # Update existing
                     existing = self.store.characters[existing_idx]
+                    # Debug: track item_level changes
+                    old_ilevel = existing.item_level
+                    new_ilevel = addon_char.get("item_level")
                     for key, value in addon_char.items():
                         if hasattr(existing, key) and value:
                             setattr(existing, key, value)
+                    print(f"[DEBUG] {name}: item_level {old_ilevel} -> {existing.item_level} (addon had: {new_ilevel}, type: {type(new_ilevel).__name__ if new_ilevel else 'None'})")
                     updated += 1
                 else:
                     # Add new
@@ -1031,6 +1041,7 @@ class WoWStatTracker:
 
         if system == "Darwin":
             possible_paths = [
+                "/Applications/Games/World of Warcraft/_retail_/WTF/Account",
                 f"{home}/Applications/World of Warcraft/_retail_/WTF/Account",
                 "/Applications/World of Warcraft/_retail_/WTF/Account",
                 f"{home}/Games/World of Warcraft/_retail_/WTF/Account",
@@ -1056,7 +1067,7 @@ class WoWStatTracker:
                         continue
 
                     addon_file = os.path.join(
-                        base_path, account_dir, "SavedVariables", "WoWStatTracker.lua"
+                        base_path, account_dir, "SavedVariables", "WoWStatTracker_Addon.lua"
                     )
                     if os.path.exists(addon_file):
                         return addon_file
@@ -1073,11 +1084,21 @@ class WoWStatTracker:
                 content = f.read()
 
             characters = []
-            # Parse WoWStatTrackerDB table
-            char_pattern = r'\["([^"]+)-([^"]+)"\]\s*=\s*{([^}]+)}'
-            matches = re.findall(char_pattern, content)
+            # Find all character header positions using position-based matching
+            # This handles nested tables correctly
+            header_pattern = r'\["([^"]+)-([^"]+)"\]\s*=\s*\{'
+            headers = list(re.finditer(header_pattern, content))
 
-            for name, realm, data in matches:
+            for i, match in enumerate(headers):
+                name, realm = match.groups()
+                start = match.end()
+                # End is either next header or a reasonable boundary
+                if i + 1 < len(headers):
+                    end = headers[i + 1].start()
+                else:
+                    end = start + 2000  # reasonable limit for last character
+
+                data = content[start:end]
                 char_data = {"name": name, "realm": realm}
                 char_data.update(self.parse_lua_character_data(data))
                 characters.append(char_data)
@@ -1092,24 +1113,36 @@ class WoWStatTracker:
         """Extract character fields from Lua table data."""
         result = {}
 
-        field_patterns = [
-            ("item_level", r'\["itemLevel"\]\s*=\s*(\d+)'),
-            ("heroic_items", r'\["heroicItems"\]\s*=\s*(\d+)'),
-            ("champion_items", r'\["championItems"\]\s*=\s*(\d+)'),
-            ("veteran_items", r'\["veteranItems"\]\s*=\s*(\d+)'),
-            ("adventure_items", r'\["adventureItems"\]\s*=\s*(\d+)'),
-            ("old_items", r'\["oldItems"\]\s*=\s*(\d+)'),
-            ("delves", r'\["delves"\]\s*=\s*(\d+)'),
-            ("timewalk", r'\["timewalk"\]\s*=\s*(\d+)'),
+        # Float field (item_level supports decimals)
+        ilevel_match = re.search(r'\["item_level"\]\s*=\s*([\d.]+)', lua_data)
+        if ilevel_match:
+            result["item_level"] = float(ilevel_match.group(1))
+
+        # Integer fields
+        int_patterns = [
+            ("heroic_items", r'\["heroic_items"\]\s*=\s*(\d+)'),
+            ("champion_items", r'\["champion_items"\]\s*=\s*(\d+)'),
+            ("veteran_items", r'\["veteran_items"\]\s*=\s*(\d+)'),
+            ("adventure_items", r'\["adventure_items"\]\s*=\s*(\d+)'),
+            ("old_items", r'\["old_items"\]\s*=\s*(\d+)'),
+            ("delves", r'\["vault_delves"\]\s*=\s*\{[^}]*\["count"\]\s*=\s*(\d+)'),
+            ("timewalk", r'\["timewalking_quest"\]\s*=\s*\{[^}]*\["progress"\]\s*=\s*(\d+)'),
         ]
 
-        for field, pattern in field_patterns:
+        # Gilded stash is a table with claimed field
+        gilded_match = re.search(
+            r'\["gilded_stash"\]\s*=\s*\{[^}]*\["claimed"\]\s*=\s*(\d+)', lua_data
+        )
+        if gilded_match:
+            result["gilded_stash"] = int(gilded_match.group(1))
+
+        for field, pattern in int_patterns:
             match = re.search(pattern, lua_data)
             if match:
                 result[field] = int(match.group(1))
 
         bool_patterns = [
-            ("vault_visited", r'\["vaultVisited"\]\s*=\s*(true|false)'),
+            ("vault_visited", r'\["vault_visited"\]\s*=\s*(true|false)'),
             ("gundarz", r'\["gundarz"\]\s*=\s*(true|false)'),
             ("quests", r'\["quests"\]\s*=\s*(true|false)'),
         ]
