@@ -11,10 +11,14 @@ import subprocess
 from dataclasses import dataclass, asdict
 
 
+# Application name for config directories
+APP_NAME = "wowstat"
+
 # Validation constants
 MAX_ITEM_LEVEL = 1000
 MAX_ITEMS_PER_CATEGORY = 50
 MAX_DELVES = 8
+MAX_GILDED_STASH = 3
 MAX_TIMEWALK = 5
 
 # Theme constants
@@ -34,12 +38,13 @@ COL_ADVENTURE_ITEMS = 7
 COL_OLD_ITEMS = 8
 COL_VAULT_VISITED = 9
 COL_DELVES = 10
-COL_GUNDARZ = 11
-COL_QUESTS = 12
-COL_TIMEWALK = 13
-COL_NOTES = 14
-COL_INDEX = 15
-COL_COUNT = 16
+COL_GILDED_STASH = 11
+COL_GUNDARZ = 12
+COL_QUESTS = 13
+COL_TIMEWALK = 14
+COL_NOTES = 15
+COL_INDEX = 16
+COL_COUNT = 17
 
 
 @dataclass
@@ -49,7 +54,7 @@ class Character:
     realm: str = ""
     name: str = ""
     guild: str = ""
-    item_level: int = 0
+    item_level: float = 0.0
     heroic_items: int = 0
     champion_items: int = 0
     veteran_items: int = 0
@@ -57,6 +62,7 @@ class Character:
     old_items: int = 0
     vault_visited: bool = False
     delves: int = 0
+    gilded_stash: int = 0
     gundarz: bool = False
     quests: bool = False
     timewalk: int = 0
@@ -107,7 +113,7 @@ class Character:
             "realm": "",
             "name": "",
             "guild": "",
-            "item_level": 0,
+            "item_level": 0.0,
             "heroic_items": 0,
             "champion_items": 0,
             "veteran_items": 0,
@@ -115,12 +121,15 @@ class Character:
             "old_items": 0,
             "vault_visited": False,
             "delves": 0,
+            "gilded_stash": 0,
             "gundarz": False,
             "quests": False,
             "timewalk": 0,
             "notes": "",
         }
         defaults.update(data)
+        # Ensure item_level is always a float
+        defaults["item_level"] = float(defaults["item_level"])
         return cls(
             **{k: v for k, v in defaults.items() if k in cls.__dataclass_fields__}
         )
@@ -129,6 +138,7 @@ class Character:
         """Reset weekly tracking fields."""
         self.vault_visited = False
         self.delves = 0
+        self.gilded_stash = 0
         self.gundarz = False
         self.quests = False
         self.timewalk = 0
@@ -342,6 +352,35 @@ class LockManager:
                 os.remove(self.lock_file)
         except (IOError, OSError):
             pass
+
+
+def get_config_dir() -> str:
+    """Get the platform-specific config directory for the application.
+
+    Returns:
+        macOS: ~/Library/Application Support/wowstat
+        Linux: ~/.config/wowstat (or $XDG_CONFIG_HOME/wowstat)
+        Windows: %APPDATA%/wowstat
+    """
+    system = platform.system().lower()
+    home = os.path.expanduser("~")
+
+    if system == "darwin":
+        # macOS: use Application Support
+        return os.path.join(home, "Library", "Application Support", APP_NAME)
+    elif system == "windows":
+        # Windows: use APPDATA
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return os.path.join(appdata, APP_NAME)
+        # Fallback if APPDATA not set
+        return os.path.join(home, "AppData", "Roaming", APP_NAME)
+    else:
+        # Linux and other Unix-like: use XDG_CONFIG_HOME or ~/.config
+        xdg_config = os.environ.get("XDG_CONFIG_HOME")
+        if xdg_config:
+            return os.path.join(xdg_config, APP_NAME)
+        return os.path.join(home, ".config", APP_NAME)
 
 
 def migrate_old_files(config_dir: str, data_file: str, config_file: str) -> None:

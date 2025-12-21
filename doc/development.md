@@ -24,7 +24,9 @@ pip install PyGObject pytest pytest-cov black
 
 ```
 wowstat/
-├── wowstat.py           # Main application
+├── wowstat.py           # Main application controller
+├── model.py             # Data structures and persistence
+├── view.py              # GTK UI components
 ├── icon.icns            # macOS app icon
 ├── WoWStatTracker.spec  # PyInstaller spec file
 ├── build_mac_app.sh     # macOS build script
@@ -37,6 +39,7 @@ wowstat/
 └── test/                # Test suite
     ├── __init__.py
     ├── conftest.py
+    ├── test_model.py
     └── test_wowstat.py
 ```
 
@@ -89,7 +92,7 @@ Tests are located in `test/` and use pytest.
 pytest
 
 # Run with coverage
-pytest --cov=wowstat --cov-report=html
+pytest --cov=model --cov=wowstat --cov-report=html
 
 # Run specific test
 pytest test/test_wowstat.py::test_function_name
@@ -99,8 +102,13 @@ Coverage reports are generated in `htmlcov/`.
 
 ## Configuration Files
 
-The application stores data in `~/.config/wowstat/`:
+The application stores data in platform-specific locations:
 
+- **macOS**: `~/Library/Application Support/wowstat/`
+- **Linux**: `~/.config/wowstat/` (or `$XDG_CONFIG_HOME/wowstat/`)
+- **Windows**: `%APPDATA%/wowstat/`
+
+Files:
 - `wowstat_data.json` - Character data array
 - `wowstat_config.json` - UI configuration (window size, column widths, theme)
 - `wowstat.lock` - Single-instance lock file

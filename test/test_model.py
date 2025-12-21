@@ -14,6 +14,7 @@ from model import (
     CharacterStore,
     Config,
     LockManager,
+    get_config_dir,
     migrate_old_files,
     detect_system_theme,
     MAX_ITEM_LEVEL,
@@ -35,7 +36,7 @@ class TestCharacter:
         assert char.realm == ""
         assert char.name == ""
         assert char.guild == ""
-        assert char.item_level == 0
+        assert char.item_level == 0.0
         assert char.heroic_items == 0
         assert char.champion_items == 0
         assert char.veteran_items == 0
@@ -54,7 +55,7 @@ class TestCharacter:
             realm="TestRealm",
             name="TestChar",
             guild="TestGuild",
-            item_level=500,
+            item_level=500.0,
             heroic_items=10,
             champion_items=5,
             veteran_items=3,
@@ -69,7 +70,7 @@ class TestCharacter:
         )
         assert char.realm == "TestRealm"
         assert char.name == "TestChar"
-        assert char.item_level == 500
+        assert char.item_level == 500.0
         assert char.vault_visited is True
 
     def test_validate_valid_character(self):
@@ -149,13 +150,13 @@ class TestCharacter:
             realm="TestRealm",
             name="TestChar",
             guild="TestGuild",
-            item_level=500,
+            item_level=500.0,
         )
         d = char.to_dict()
         assert d["realm"] == "TestRealm"
         assert d["name"] == "TestChar"
         assert d["guild"] == "TestGuild"
-        assert d["item_level"] == 500
+        assert d["item_level"] == 500.0
         assert "vault_visited" in d
         assert "delves" in d
 
@@ -165,7 +166,7 @@ class TestCharacter:
             "realm": "TestRealm",
             "name": "TestChar",
             "guild": "TestGuild",
-            "item_level": 500,
+            "item_level": 500.0,
             "heroic_items": 10,
             "champion_items": 5,
             "veteran_items": 3,
@@ -181,7 +182,7 @@ class TestCharacter:
         char = Character.from_dict(data)
         assert char.realm == "TestRealm"
         assert char.name == "TestChar"
-        assert char.item_level == 500
+        assert char.item_level == 500.0
         assert char.vault_visited is True
 
     def test_from_dict_partial(self):
@@ -190,7 +191,7 @@ class TestCharacter:
         char = Character.from_dict(data)
         assert char.realm == "TestRealm"
         assert char.name == "TestChar"
-        assert char.item_level == 0
+        assert char.item_level == 0.0
         assert char.guild == ""
         assert char.vault_visited is False
 
@@ -235,7 +236,7 @@ class TestCharacter:
             realm="TestRealm",
             name="TestChar",
             guild="TestGuild",
-            item_level=500,
+            item_level=500.0,
             heroic_items=10,
             vault_visited=True,
             notes="Test notes",
@@ -271,8 +272,8 @@ class TestCharacterStore:
         """Test loading from existing file."""
         data_file = tmp_path / "data.json"
         data = [
-            {"realm": "TestRealm", "name": "Char1", "item_level": 500},
-            {"realm": "TestRealm", "name": "Char2", "item_level": 450},
+            {"realm": "TestRealm", "name": "Char1", "item_level": 500.0},
+            {"realm": "TestRealm", "name": "Char2", "item_level": 450.0},
         ]
         with open(data_file, "w") as f:
             json.dump(data, f)
@@ -396,6 +397,37 @@ class TestCharacterStore:
             assert char.quests is False
             assert char.timewalk == 0
 
+    def test_save_to_readonly_directory_fails(self, tmp_path):
+        """Test saving to a readonly location raises IOError."""
+        # Use a path that doesn't exist and can't be created
+        bad_path = "/nonexistent_dir_12345/data.json"
+        store = CharacterStore(bad_path)
+        store.characters = [Character(realm="TestRealm", name="TestChar")]
+        with pytest.raises(IOError):
+            store.save()
+
+    def test_save_atomic_cleanup_on_failure(self, tmp_path, monkeypatch):
+        """Test that temp file is cleaned up on save failure."""
+        data_file = tmp_path / "data.json"
+        store = CharacterStore(str(data_file))
+        store.characters = [Character(realm="TestRealm", name="TestChar")]
+
+        # Mock shutil.move to fail after temp file is created
+        import shutil
+        original_move = shutil.move
+
+        def failing_move(src, dst):
+            raise OSError("Simulated move failure")
+
+        monkeypatch.setattr(shutil, "move", failing_move)
+
+        with pytest.raises(IOError):
+            store.save()
+
+        # Temp file should be cleaned up
+        temp_file = str(data_file) + ".tmp"
+        assert not os.path.exists(temp_file)
+
 
 class TestConfig:
     """Tests for the Config class."""
@@ -500,6 +532,39 @@ class TestLockManager:
         manager = LockManager(lock_file)
         manager.release()  # Should not raise
 
+    def test_fallback_acquire_with_stale_lock(self, tmp_path):
+        """Test fallback acquire succeeds with stale lock from dead process."""
+        lock_file = tmp_path / "lock"
+        # Create lock file with PID that doesn't exist
+        with open(lock_file, "w") as f:
+            f.write("99999999")  # Very high PID unlikely to exist
+
+        manager = LockManager(str(lock_file))
+        # Use fallback by calling _acquire_fallback directly
+        assert manager._acquire_fallback() is True
+        manager.release()
+
+    def test_fallback_acquire_empty_lock_file(self, tmp_path):
+        """Test fallback handles empty lock file."""
+        lock_file = tmp_path / "lock"
+        lock_file.touch()  # Create empty file
+
+        manager = LockManager(str(lock_file))
+        # Should succeed because empty file can't be parsed as PID
+        assert manager._acquire_fallback() is True
+        manager.release()
+
+    def test_is_process_running_nonexistent_pid(self, tmp_path):
+        """Test _is_process_running returns False for nonexistent PID."""
+        manager = LockManager(str(tmp_path / "lock"))
+        # Very high PID unlikely to exist
+        assert manager._is_process_running(99999999) is False
+
+    def test_is_process_running_current_pid(self, tmp_path):
+        """Test _is_process_running returns True for current process."""
+        manager = LockManager(str(tmp_path / "lock"))
+        assert manager._is_process_running(os.getpid()) is True
+
 
 class TestMigrateOldFiles:
     """Tests for the migrate_old_files function."""
@@ -602,3 +667,71 @@ class TestConstants:
         assert THEME_AUTO == "auto"
         assert THEME_LIGHT == "light"
         assert THEME_DARK == "dark"
+
+
+class TestGetConfigDir:
+    """Tests for the get_config_dir function."""
+
+    def test_returns_string(self):
+        """Test get_config_dir returns a string path."""
+        result = get_config_dir()
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_contains_app_name(self):
+        """Test that config dir contains the app name."""
+        result = get_config_dir()
+        assert "wowstat" in result
+
+    def test_path_is_absolute(self):
+        """Test that returned path is absolute."""
+        result = get_config_dir()
+        assert os.path.isabs(result)
+
+    def test_macos_path(self, monkeypatch):
+        """Test macOS returns Application Support path."""
+        import platform as plat
+        monkeypatch.setattr(plat, "system", lambda: "Darwin")
+        monkeypatch.setenv("HOME", "/Users/testuser")
+        # Need to reimport to pick up the mock
+        from model import get_config_dir as get_dir
+        result = get_dir()
+        assert "Library/Application Support/wowstat" in result
+
+    def test_linux_path_default(self, monkeypatch):
+        """Test Linux uses ~/.config by default."""
+        import platform as plat
+        monkeypatch.setattr(plat, "system", lambda: "Linux")
+        monkeypatch.setenv("HOME", "/home/testuser")
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+        from model import get_config_dir as get_dir
+        result = get_dir()
+        assert ".config/wowstat" in result
+
+    def test_linux_path_xdg(self, monkeypatch):
+        """Test Linux respects XDG_CONFIG_HOME."""
+        import platform as plat
+        monkeypatch.setattr(plat, "system", lambda: "Linux")
+        monkeypatch.setenv("XDG_CONFIG_HOME", "/custom/config")
+        from model import get_config_dir as get_dir
+        result = get_dir()
+        assert result == "/custom/config/wowstat"
+
+    def test_windows_path_appdata(self, monkeypatch):
+        """Test Windows uses APPDATA."""
+        import platform as plat
+        monkeypatch.setattr(plat, "system", lambda: "Windows")
+        monkeypatch.setenv("APPDATA", "C:\\Users\\testuser\\AppData\\Roaming")
+        from model import get_config_dir as get_dir
+        result = get_dir()
+        assert "AppData" in result and "wowstat" in result
+
+    def test_windows_path_fallback(self, monkeypatch):
+        """Test Windows fallback when APPDATA not set."""
+        import platform as plat
+        monkeypatch.setattr(plat, "system", lambda: "Windows")
+        monkeypatch.delenv("APPDATA", raising=False)
+        monkeypatch.setenv("HOME", "/home/testuser")
+        from model import get_config_dir as get_dir
+        result = get_dir()
+        assert "wowstat" in result
