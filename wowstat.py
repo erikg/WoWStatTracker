@@ -27,6 +27,7 @@ from model import (
     COL_VAULT_VISITED,
     COL_GUNDARZ,
     COL_QUESTS,
+    WOW_DEFAULT_PATHS,
 )
 
 from view import (
@@ -36,6 +37,7 @@ from view import (
     show_error,
     show_warning,
     show_info,
+    show_folder_chooser,
 )
 
 
@@ -156,6 +158,10 @@ class WoWStatTracker:
         addon_item.connect("activate", self._on_import_wow_addon)
         file_menu.append(addon_item)
 
+        set_path_item = Gtk.MenuItem(label="Set WoW Location...")
+        set_path_item.connect("activate", self._on_set_wow_path)
+        file_menu.append(set_path_item)
+
         file_menu.append(Gtk.SeparatorMenuItem())
 
         quit_item = Gtk.MenuItem(label="Quit")
@@ -260,6 +266,26 @@ class WoWStatTracker:
     def _on_import_wow_addon(self, widget):
         """Handle Import from WoW Addon menu item."""
         self.update_from_wow_addon(widget)
+
+    def _on_set_wow_path(self, widget):
+        """Allow user to manually set WoW installation path."""
+        current = self.config.get("wow_path", "")
+        path = show_folder_chooser(
+            self.window,
+            "Select World of Warcraft Folder",
+            initial_folder=current if current and os.path.exists(current) else None,
+        )
+        if path:
+            if os.path.exists(os.path.join(path, "_retail_")):
+                self.config.set("wow_path", path)
+                self.config.save()
+                show_info(self.window, "Path Updated", f"WoW path set to:\n{path}")
+            else:
+                show_warning(
+                    self.window,
+                    "Invalid Selection",
+                    "The selected folder must contain a '_retail_' directory.",
+                )
 
     # ==================== Window State Management ====================
 
@@ -526,48 +552,97 @@ class WoWStatTracker:
         if self.debug_enabled:
             print("[DEBUG] ========== WoW Addon Update Complete ===========")
 
-    def find_wow_addon_data(self):
-        """Find WoW Stat Tracker addon SavedVariables file."""
+    def get_wow_path(self) -> str | None:
+        """Get the WoW installation path, detecting or prompting if needed."""
+        # Check if already configured and valid
+        wow_path = self.config.get("wow_path")
+        if wow_path and os.path.exists(wow_path):
+            return wow_path
+
+        # Try to auto-detect from defaults
+        detected = self._detect_wow_path()
+        if detected:
+            self.config.set("wow_path", detected)
+            self.config.save()
+            return detected
+
+        # Prompt user to select
+        return self._prompt_wow_path()
+
+    def _detect_wow_path(self) -> str | None:
+        """Try to detect WoW installation from default paths."""
         system = platform.system()
-        home = os.path.expanduser("~")
+        defaults = WOW_DEFAULT_PATHS.get(system, [])
 
-        possible_paths = []
+        for path in defaults:
+            # Check for _retail_ subdirectory as validation
+            retail_path = os.path.join(path, "_retail_")
+            if os.path.exists(retail_path):
+                return path
+        return None
 
+    def _prompt_wow_path(self) -> str | None:
+        """Prompt user to select WoW installation folder."""
+        show_info(
+            self.window,
+            "WoW Installation Not Found",
+            "Please select your World of Warcraft installation folder.",
+        )
+
+        system = platform.system()
         if system == "Darwin":
-            possible_paths = [
-                "/Applications/Games/World of Warcraft/_retail_/WTF/Account",
-                f"{home}/Applications/World of Warcraft/_retail_/WTF/Account",
-                "/Applications/World of Warcraft/_retail_/WTF/Account",
-                f"{home}/Games/World of Warcraft/_retail_/WTF/Account",
-            ]
+            initial = "/Applications"
         elif system == "Windows":
-            possible_paths = [
-                "C:/Program Files (x86)/World of Warcraft/_retail_/WTF/Account",
-                "C:/Program Files/World of Warcraft/_retail_/WTF/Account",
-            ]
+            initial = "C:/"
         else:
-            possible_paths = [
-                f"{home}/.wine/drive_c/Program Files (x86)/World of Warcraft/_retail_/WTF/Account",
-                f"{home}/Games/World of Warcraft/_retail_/WTF/Account",
-            ]
+            initial = os.path.expanduser("~")
 
-        for base_path in possible_paths:
-            if not os.path.exists(base_path):
-                continue
+        path = show_folder_chooser(
+            self.window,
+            "Select World of Warcraft Folder",
+            initial_folder=initial,
+        )
 
-            try:
-                for account_dir in os.listdir(base_path):
-                    if account_dir.startswith("."):
-                        continue
+        if path:
+            # Validate it looks like a WoW installation
+            if os.path.exists(os.path.join(path, "_retail_")):
+                self.config.set("wow_path", path)
+                self.config.save()
+                return path
+            else:
+                show_warning(
+                    self.window,
+                    "Invalid Selection",
+                    "The selected folder doesn't appear to be a WoW installation.\n\n"
+                    "Please select the folder containing '_retail_'.",
+                )
+        return None
 
-                    addon_file = os.path.join(
-                        base_path, account_dir, "SavedVariables", "WoWStatTracker_Addon.lua"
-                    )
-                    if os.path.exists(addon_file):
-                        return addon_file
+    def find_wow_addon_data(self) -> str | None:
+        """Find WoW Stat Tracker addon SavedVariables file."""
+        wow_path = self.get_wow_path()
+        if not wow_path:
+            return None
 
-            except Exception:
-                continue
+        wtf_account_path = os.path.join(wow_path, "_retail_", "WTF", "Account")
+        if not os.path.exists(wtf_account_path):
+            return None
+
+        try:
+            for account_dir in os.listdir(wtf_account_path):
+                if account_dir.startswith("."):
+                    continue
+
+                addon_file = os.path.join(
+                    wtf_account_path,
+                    account_dir,
+                    "SavedVariables",
+                    "WoWStatTracker_Addon.lua",
+                )
+                if os.path.exists(addon_file):
+                    return addon_file
+        except Exception:
+            pass
 
         return None
 

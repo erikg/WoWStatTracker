@@ -46,6 +46,25 @@ COL_NOTES = 15
 COL_INDEX = 16
 COL_COUNT = 17
 
+# Default WoW installation paths by platform
+WOW_DEFAULT_PATHS = {
+    "Darwin": [  # macOS
+        "/Applications/World of Warcraft",
+        "/Applications/Games/World of Warcraft",
+        os.path.expanduser("~/Applications/World of Warcraft"),
+    ],
+    "Windows": [
+        "C:/Program Files (x86)/World of Warcraft",
+        "C:/Program Files/World of Warcraft",
+        "D:/World of Warcraft",
+        "D:/Games/World of Warcraft",
+    ],
+    "Linux": [
+        os.path.expanduser("~/.wine/drive_c/Program Files (x86)/World of Warcraft"),
+        os.path.expanduser("~/Games/world-of-warcraft/drive_c/Program Files (x86)/World of Warcraft"),
+    ],
+}
+
 
 @dataclass
 class Character:
