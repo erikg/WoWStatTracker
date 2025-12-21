@@ -7,7 +7,7 @@ A standalone Mac application for tracking World of Warcraft character statistics
 - **Dark/Light Mode Support**: Automatically follows system theme or manual selection
 - **Character Management**: Add, edit, and track multiple characters
 - **Weekly Progress Tracking**: Vault visits, delves, quests, timewalking, and more
-- **Altoholic Integration**: Import character data from Altoholic addon
+- **WoW Addon Integration**: Import character data from WoWStatTracker addon
 - **Native Mac App**: Proper Mac integration with app bundle, icon, and system theming
 
 ## Installation
@@ -54,12 +54,12 @@ brew install pygobject3 gtk+3
 2. Add your characters using the "Add Character" button
 3. Track weekly progress by clicking on the colored cells
 4. Double-click any row to edit character details
-5. Use "Update from Altoholic" to import addon data
-6. Change theme using the dropdown in the toolbar
+5. Use "Import from WoW Addon" to import addon data
+6. Change theme using the View menu
 
 ## File Locations
 
-The app stores data in the same directory as the executable:
+The app stores data in `~/Library/Application Support/wowstat/`:
 - `wowstat_data.json` - Character data
 - `wowstat_config.json` - App settings and preferences
 

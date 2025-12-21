@@ -94,10 +94,9 @@ JSON array of character objects:
 
 ### Data Import (wowstat.py)
 
-- `find_altoholic_data()`: Locate Altoholic SavedVariables
-- `parse_altoholic_data()`: Parse Lua SavedVariables format
-- `update_from_altoholic()`: Import workflow
-- `merge_datastore_data()`: Merge multiple DataStore files
+- `find_wow_addon_data()`: Locate WoWStatTracker addon SavedVariables
+- `parse_wow_addon_data()`: Parse addon Lua data format
+- `update_from_wow_addon()`: Import workflow from custom addon
 
 ### Utilities (model.py)
 
