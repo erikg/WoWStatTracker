@@ -650,3 +650,26 @@ def show_warning(parent: Gtk.Window, title: str, message: str) -> None:
 def show_info(parent: Gtk.Window, title: str, message: str) -> None:
     """Show an info dialog."""
     show_message(parent, Gtk.MessageType.INFO, title, message)
+
+
+def show_folder_chooser(
+    parent: Gtk.Window,
+    title: str,
+    initial_folder: str = None,
+) -> str | None:
+    """Show a folder chooser dialog. Returns selected path or None if cancelled."""
+    dialog = Gtk.FileChooserDialog(
+        title=title,
+        parent=parent,
+        action=Gtk.FileChooserAction.SELECT_FOLDER,
+    )
+    dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+    dialog.add_button("Select", Gtk.ResponseType.OK)
+
+    if initial_folder and os.path.exists(initial_folder):
+        dialog.set_current_folder(initial_folder)
+
+    response = dialog.run()
+    result = dialog.get_filename() if response == Gtk.ResponseType.OK else None
+    dialog.destroy()
+    return result

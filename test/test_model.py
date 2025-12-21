@@ -24,6 +24,7 @@ from model import (
     THEME_AUTO,
     THEME_LIGHT,
     THEME_DARK,
+    WOW_DEFAULT_PATHS,
 )
 
 
@@ -735,3 +736,28 @@ class TestGetConfigDir:
         from model import get_config_dir as get_dir
         result = get_dir()
         assert "wowstat" in result
+
+
+class TestWowDefaultPaths:
+    """Tests for WOW_DEFAULT_PATHS constant."""
+
+    def test_has_all_platforms(self):
+        """Test that WOW_DEFAULT_PATHS has entries for all platforms."""
+        assert "Darwin" in WOW_DEFAULT_PATHS
+        assert "Windows" in WOW_DEFAULT_PATHS
+        assert "Linux" in WOW_DEFAULT_PATHS
+
+    def test_darwin_paths_are_absolute(self):
+        """Test macOS paths are absolute."""
+        for path in WOW_DEFAULT_PATHS["Darwin"]:
+            assert path.startswith("/") or path.startswith("~")
+
+    def test_windows_paths_have_drive_letters(self):
+        """Test Windows paths start with drive letters."""
+        for path in WOW_DEFAULT_PATHS["Windows"]:
+            assert path[1] == ":"  # e.g., "C:/"
+
+    def test_each_platform_has_multiple_paths(self):
+        """Test each platform has fallback paths."""
+        for platform_name, paths in WOW_DEFAULT_PATHS.items():
+            assert len(paths) >= 2, f"{platform_name} should have multiple fallbacks"

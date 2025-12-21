@@ -33,7 +33,7 @@ Configuration and data files are stored in platform-specific locations:
 
 Files:
 - `wowstat_data.json` - Character data
-- `wowstat_config.json` - Window position, column widths, theme preference
+- `wowstat_config.json` - Window position, column widths, theme preference, WoW path
 
 ## Features
 
@@ -83,6 +83,9 @@ Specific thresholds:
 Import character data from the WoWStatTracker addon:
 
 - **File > Import from WoW Addon**: Imports from WoWStatTracker addon SavedVariables
+- **File > Set WoW Location...**: Manually set the WoW installation folder
+
+On first import, the app will auto-detect the WoW installation path. If detection fails, you'll be prompted to select the folder containing your WoW installation (the folder with `_retail_` inside).
 
 ### Weekly Reset
 
