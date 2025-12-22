@@ -112,6 +112,10 @@ class WoWStatTracker:
         menubar = self._create_menu_bar()
         vbox.pack_start(menubar, False, False, 0)
 
+        # Create toolbar
+        toolbar = self._create_toolbar()
+        vbox.pack_start(toolbar, False, False, 0)
+
         # Content area with margins
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         content_box.set_margin_start(10)
@@ -209,6 +213,58 @@ class WoWStatTracker:
         theme_submenu.append(dark_theme_item)
 
         return menubar
+
+    def _create_toolbar(self) -> Gtk.Toolbar:
+        """Create the application toolbar."""
+        toolbar = Gtk.Toolbar()
+        toolbar.set_style(Gtk.ToolbarStyle.BOTH)
+
+        # Add Character button
+        add_btn = Gtk.ToolButton()
+        add_btn.set_label("Add Character")
+        add_btn.set_icon_name("list-add")
+        add_btn.set_tooltip_text("Add a new character")
+        add_btn.connect("clicked", self._on_add_character)
+        toolbar.insert(add_btn, -1)
+
+        # Import from Addon button
+        import_btn = Gtk.ToolButton()
+        import_btn.set_label("Import")
+        import_btn.set_icon_name("document-open")
+        import_btn.set_tooltip_text("Import data from WoW addon")
+        import_btn.connect("clicked", self._on_import_wow_addon)
+        toolbar.insert(import_btn, -1)
+
+        # Reset Weekly button
+        reset_btn = Gtk.ToolButton()
+        reset_btn.set_label("Reset Weekly")
+        reset_btn.set_icon_name("view-refresh")
+        reset_btn.set_tooltip_text("Reset all weekly activity data")
+        reset_btn.connect("clicked", self._on_reset_weekly)
+        toolbar.insert(reset_btn, -1)
+
+        # Update Addon button (Install Addon to WoW)
+        update_addon_btn = Gtk.ToolButton()
+        update_addon_btn.set_label("Update Addon")
+        update_addon_btn.set_icon_name("system-software-install")
+        update_addon_btn.set_tooltip_text("Install/update addon in WoW")
+        update_addon_btn.connect("clicked", self._on_install_addon)
+        toolbar.insert(update_addon_btn, -1)
+
+        # Separator before Exit
+        separator = Gtk.SeparatorToolItem()
+        separator.set_draw(True)
+        toolbar.insert(separator, -1)
+
+        # Exit button
+        exit_btn = Gtk.ToolButton()
+        exit_btn.set_label("Exit")
+        exit_btn.set_icon_name("application-exit")
+        exit_btn.set_tooltip_text("Exit the application")
+        exit_btn.connect("clicked", lambda w: self.window.close())
+        toolbar.insert(exit_btn, -1)
+
+        return toolbar
 
     # ==================== Event Handlers ====================
 
