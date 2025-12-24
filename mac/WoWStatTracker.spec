@@ -77,10 +77,10 @@ def find_gtk_libraries():
 gtk_binaries, gtk_datas = find_gtk_libraries()
 
 # Include WoW addon in bundle Resources
-addon_datas = [('WoWStatTracker_Addon', 'WoWStatTracker_Addon')]
+addon_datas = [(str(spec_root / 'WoWStatTracker_Addon'), 'WoWStatTracker_Addon')]
 
 a = Analysis(
-    ['src/wowstat.py'],
+    [str(spec_root / 'src' / 'wowstat.py')],
     pathex=[
         str(spec_root),
         str(spec_root / 'src'),
@@ -109,7 +109,7 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=['mac/pyi_rth_gtk.py'],
+    runtime_hooks=[str(spec_root / 'mac' / 'pyi_rth_gtk.py')],
     excludes=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -151,7 +151,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='WoWStatTracker.app',
-    icon='mac/icon.icns',
+    icon=str(spec_root / 'mac' / 'icon.icns'),
     bundle_identifier='com.wowstattracker.app',
     version='1.0.0',
     info_plist={

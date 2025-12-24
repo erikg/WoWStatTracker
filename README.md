@@ -37,7 +37,7 @@ pip install PyGObject
 ## Usage
 
 ```bash
-python3 wowstat.py
+python3 src/wowstat.py
 ```
 
 ## Interface

@@ -4,8 +4,10 @@ import json
 import os
 import sys
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add src directory to path for imports
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+)
 
 
 class TestDataOperations:
@@ -153,6 +155,7 @@ class TestConfigDirectory:
     def test_config_dir_path(self):
         """Test expected config directory path uses get_config_dir."""
         from model import get_config_dir
+
         config_path = get_config_dir()
         assert "wowstat" in config_path
         assert os.path.isabs(config_path)

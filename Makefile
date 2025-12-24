@@ -49,28 +49,28 @@ test-quick:
 # Build macOS app bundle
 build:
 	@echo "Building macOS app bundle..."
-	./build_mac_app.sh
+	./mac/build_mac_app.sh
 
 # Build app and create DMG installer
 dmg: build
 	@echo "Creating DMG installer..."
-	./create_dmg.sh
+	./mac/create_dmg.sh
 
 # Format code with black
 format:
 	@echo "Formatting code with black..."
-	$(PYTHON) -m black wowstat.py test/ --line-length 88
+	$(PYTHON) -m black src/ test/ --line-length 88
 
 # Check formatting without making changes
 check-format:
 	@echo "Checking code formatting..."
-	$(PYTHON) -m black wowstat.py test/ --check --line-length 88
+	$(PYTHON) -m black src/ test/ --check --line-length 88
 	@echo "All files formatted correctly!"
 
 # Run flake8 linter
 lint:
 	@echo "Running flake8 linter..."
-	$(PYTHON) -m flake8 wowstat.py test/
+	$(PYTHON) -m flake8 src/ test/
 
 # Remove build artifacts
 clean:
@@ -93,7 +93,7 @@ install-deps:
 # Run the application
 run:
 	@echo "Starting WoW Stat Tracker..."
-	$(PYTHON) wowstat.py
+	$(PYTHON) src/wowstat.py
 
 # Install the app to /Applications (macOS)
 install: build
