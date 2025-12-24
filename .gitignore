@@ -24,7 +24,7 @@ htmlcov/
 build/
 dist/
 *.spec.bak
-dmg_background*.png
+mac/dmg_background*.png
 
 # IDE
 .idea/

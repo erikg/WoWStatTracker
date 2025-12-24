@@ -4,11 +4,14 @@
 
 set -e
 
+# Change to project root directory
+cd "$(dirname "$0")/.."
+
 echo "🚀 Installing WoW Stat Tracker..."
 
 # Check if the app exists
 if [ ! -d "dist/WoWStatTracker.app" ]; then
-    echo "❌ App not found. Please build the app first using: ./build_mac_app.sh"
+    echo "❌ App not found. Please build the app first using: mac/build_mac_app.sh"
     exit 1
 fi
 
