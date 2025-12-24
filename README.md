@@ -22,16 +22,32 @@ A GUI application for tracking World of Warcraft character statistics including 
 
 ## Installation
 
+A virtual environment is recommended for Python dependencies.
+
 ### macOS
 ```bash
+# Install system dependencies
 brew install gtk+3 gobject-introspection
-pip install PyGObject
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install Python dependencies
+pip install PyGObject pytest pytest-cov black
 ```
 
 ### Ubuntu/Debian
 ```bash
+# Install system dependencies
 sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-gtk-3.0
-pip install PyGObject
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install Python dependencies
+pip install PyGObject pytest pytest-cov black
 ```
 
 ## Usage
