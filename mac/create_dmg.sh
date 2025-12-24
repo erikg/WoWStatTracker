@@ -3,12 +3,15 @@
 
 set -e
 
+# Change to project root directory
+cd "$(dirname "$0")/.."
+
 APP_NAME="WoWStatTracker"
 DMG_NAME="${APP_NAME}.dmg"
 DMG_TEMP_NAME="${APP_NAME}_temp.dmg"
 VOLUME_NAME="${APP_NAME}"
 APP_PATH="dist/${APP_NAME}.app"
-BACKGROUND_IMG="dmg_background.png"
+BACKGROUND_IMG="mac/dmg_background.png"
 
 # DMG window dimensions (must match background image)
 WINDOW_WIDTH=600
@@ -22,14 +25,14 @@ APPS_ICON_Y=200
 
 # Check app exists
 if [ ! -d "$APP_PATH" ]; then
-    echo "Error: $APP_PATH not found. Run build_mac_app.sh first."
+    echo "Error: $APP_PATH not found. Run mac/build_mac_app.sh first."
     exit 1
 fi
 
 # Check background image exists
 if [ ! -f "$BACKGROUND_IMG" ]; then
     echo "Creating background image..."
-    python3 create_dmg_background.py || {
+    python3 mac/create_dmg_background.py || {
         echo "Warning: Could not create background image, continuing without it"
         BACKGROUND_IMG=""
     }

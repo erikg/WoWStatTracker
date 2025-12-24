@@ -7,8 +7,8 @@ set -e  # Exit on any error
 
 echo "🚀 Building WoW Stat Tracker Mac App..."
 
-# Ensure we're in the right directory
-cd "$(dirname "$0")"
+# Change to project root directory
+cd "$(dirname "$0")/.."
 
 # Add pipx to PATH if not already there
 if ! command -v pyinstaller &> /dev/null; then
