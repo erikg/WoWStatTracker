@@ -43,3 +43,9 @@ dmg_background*.png
 # Logs
 *.log
 nohup.out
+
+# Temporary/scratch files
+tmp/
+
+# Claude Code
+CLAUDE.md
