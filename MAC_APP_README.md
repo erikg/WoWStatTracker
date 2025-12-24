@@ -118,7 +118,7 @@ brew install pygobject3 gtk+3
 
 ## License
 
-Open source - feel free to modify and distribute.
+BSD 3-Clause License. See [LICENSE](LICENSE) for details.
 
 ## Support
 

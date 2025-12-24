@@ -49,3 +49,7 @@ The main table displays:
 Double-click any row to edit character data. Use "Add Character" to create new entries and "Reset Weekly Data" to clear weekly progress for all characters.
 
 Data is automatically saved to `wowstat_data.json` in the same directory.
+
+## License
+
+BSD 3-Clause License. See [LICENSE](LICENSE) for details.
