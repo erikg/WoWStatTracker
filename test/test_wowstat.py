@@ -53,7 +53,7 @@ class TestDataOperations:
             "old_items",
             "vault_visited",
             "delves",
-            "gundarz",
+            "gearing_up",
             "quests",
             "timewalk",
             "notes",
@@ -136,7 +136,7 @@ class TestCharacterValidation:
 
     def test_boolean_fields_are_bool(self, sample_characters):
         """Test that boolean fields are actually booleans."""
-        bool_fields = ["vault_visited", "gundarz", "quests"]
+        bool_fields = ["vault_visited", "gearing_up", "quests"]
         for char in sample_characters:
             for field in bool_fields:
                 assert isinstance(char[field], bool), f"{field} should be bool"
@@ -212,7 +212,7 @@ class TestWeeklyReset:
         for char in sample_characters:
             char["vault_visited"] = False
             char["delves"] = 0
-            char["gundarz"] = False
+            char["gearing_up"] = False
             char["quests"] = False
             char["timewalk"] = 0
 
@@ -220,7 +220,7 @@ class TestWeeklyReset:
         for char in sample_characters:
             assert char["vault_visited"] is False
             assert char["delves"] == 0
-            assert char["gundarz"] is False
+            assert char["gearing_up"] is False
             assert char["quests"] is False
             assert char["timewalk"] == 0
 

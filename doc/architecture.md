@@ -40,7 +40,7 @@ JSON array of character objects:
     "vault_visited": true,
     "delves": 4,
     "gilded_stash": 3,
-    "gundarz": false,
+    "gearing_up": false,
     "quests": true,
     "timewalk": 0,
     "notes": "Main character"

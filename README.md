@@ -5,10 +5,10 @@ A GUI application for tracking World of Warcraft character statistics including 
 ## Features
 
 - Track character realm, name, item level, and gear counts
-- Weekly progress tracking for vault visits, delves, gundarz, quests, and timewalk
+- Weekly progress tracking for vault visits, delves, Gearing Up for Trouble, quests, and timewalk
 - Visual indicators with color-coded backgrounds:
   - **Delves**: Green (4+), Yellow (2-3), Red (<2)
-  - **Gundarz**: Green (completed), Red (not completed)  
+  - **Gearing Up**: Green (completed), Red (not completed)
   - **Quests**: Green (completed), Red (not completed)
   - **Timewalk**: Green (5+), Red (<5)
 - Reset button for weekly data
@@ -44,7 +44,7 @@ python3 src/wowstat.py
 
 The main table displays:
 - **Static columns**: Realm, Name, Item Level, Heroic Items, Champion Items, Veteran Items, Adventure Items, Old Items
-- **Weekly columns**: Vault Visited, Delves Completed, Gundarz, Quests, Timewalk
+- **Weekly columns**: Vault Visited, Delves Completed, Gearing Up, Quests, Timewalk
 
 Double-click any row to edit character data. Use "Add Character" to create new entries and "Reset Weekly Data" to clear weekly progress for all characters.
 

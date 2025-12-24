@@ -47,7 +47,7 @@ class TestCharacter:
         assert char.old_items == 0
         assert char.vault_visited is False
         assert char.delves == 0
-        assert char.gundarz is False
+        assert char.gearing_up is False
         assert char.quests is False
         assert char.timewalk == 0
         assert char.notes == ""
@@ -66,7 +66,7 @@ class TestCharacter:
             old_items=1,
             vault_visited=True,
             delves=4,
-            gundarz=True,
+            gearing_up=True,
             quests=True,
             timewalk=3,
             notes="Test notes",
@@ -177,7 +177,7 @@ class TestCharacter:
             "old_items": 1,
             "vault_visited": True,
             "delves": 4,
-            "gundarz": True,
+            "gearing_up": True,
             "quests": True,
             "timewalk": 3,
             "notes": "Test notes",
@@ -216,7 +216,7 @@ class TestCharacter:
             name="TestChar",
             vault_visited=True,
             delves=5,
-            gundarz=True,
+            gearing_up=True,
             quests=True,
             timewalk=3,
             notes="Should not be reset",
@@ -224,7 +224,7 @@ class TestCharacter:
         char.reset_weekly()
         assert char.vault_visited is False
         assert char.delves == 0
-        assert char.gundarz is False
+        assert char.gearing_up is False
         assert char.quests is False
         assert char.timewalk == 0
         # Notes should not be reset
@@ -386,7 +386,7 @@ class TestCharacterStore:
         store = CharacterStore(str(tmp_path / "data.json"))
         store.characters = [
             Character(
-                realm="R1", name="C1", vault_visited=True, delves=5, gundarz=True
+                realm="R1", name="C1", vault_visited=True, delves=5, gearing_up=True
             ),
             Character(
                 realm="R2", name="C2", vault_visited=True, quests=True, timewalk=3
@@ -396,7 +396,7 @@ class TestCharacterStore:
         for char in store.characters:
             assert char.vault_visited is False
             assert char.delves == 0
-            assert char.gundarz is False
+            assert char.gearing_up is False
             assert char.quests is False
             assert char.timewalk == 0
 

@@ -23,7 +23,7 @@ from model import (
     COL_VAULT_VISITED,
     COL_DELVES,
     COL_GILDED_STASH,
-    COL_GUNDARZ,
+    COL_GEARING_UP,
     COL_QUESTS,
     COL_TIMEWALK,
     COL_NOTES,
@@ -174,7 +174,7 @@ class CharacterTable:
         ("Vault Visited", bool, COL_VAULT_VISITED),
         ("Delves", int, COL_DELVES),
         ("Gilded", int, COL_GILDED_STASH),
-        ("Gundarz", bool, COL_GUNDARZ),
+        ("Gearing Up", bool, COL_GEARING_UP),
         ("Quests", bool, COL_QUESTS),
         ("Timewalk", int, COL_TIMEWALK),
         ("Notes", str, COL_NOTES),
@@ -182,7 +182,7 @@ class CharacterTable:
     ]
 
     # Columns with toggleable boolean values
-    TOGGLE_COLUMNS = [COL_VAULT_VISITED, COL_GUNDARZ, COL_QUESTS]
+    TOGGLE_COLUMNS = [COL_VAULT_VISITED, COL_GEARING_UP, COL_QUESTS]
 
     # Weekly activity columns (colored backgrounds)
     WEEKLY_COLUMNS = [
@@ -190,7 +190,7 @@ class CharacterTable:
         COL_VAULT_VISITED,
         COL_DELVES,
         COL_GILDED_STASH,
-        COL_GUNDARZ,
+        COL_GEARING_UP,
         COL_QUESTS,
         COL_TIMEWALK,
     ]
@@ -221,7 +221,7 @@ class CharacterTable:
             bool,  # vault_visited
             int,  # delves
             int,  # gilded_stash
-            bool,  # gundarz
+            bool,  # gearing_up
             bool,  # quests
             int,  # timewalk
             str,  # notes
@@ -268,7 +268,7 @@ class CharacterTable:
     def _cell_data_func(self, column, cell, model, iter, col_id):
         """Color cells based on weekly activity status."""
         delves = model[iter][COL_DELVES]
-        gundarz = model[iter][COL_GUNDARZ]
+        gearing_up = model[iter][COL_GEARING_UP]
         quests = model[iter][COL_QUESTS]
         timewalk = model[iter][COL_TIMEWALK]
         vault_visited = model[iter][COL_VAULT_VISITED]
@@ -288,7 +288,7 @@ class CharacterTable:
 
         # Determine completion for weekly items
         delves_done = delves >= 4  # 4+ delves = completed
-        all_weeklies_done = gundarz and quests and delves_done
+        all_weeklies_done = gearing_up and quests and delves_done
 
         if col_id == COL_VAULT_VISITED:
             # Vault column: green if visited, red if not visited but weeklies done
@@ -320,7 +320,7 @@ class CharacterTable:
             else:
                 set_cell_colors("#F08080")  # Light red
 
-        elif col_id in [COL_GUNDARZ, COL_QUESTS]:
+        elif col_id in [COL_GEARING_UP, COL_QUESTS]:
             # Boolean weeklies: green if done, yellow if not
             value = model[iter][col_id]
             if value:
@@ -386,7 +386,7 @@ class CharacterTable:
                     char.vault_visited,
                     char.delves,
                     char.gilded_stash,
-                    char.gundarz,
+                    char.gearing_up,
                     char.quests,
                     char.timewalk,
                     char.notes,
@@ -410,7 +410,7 @@ class CharacterTable:
                 row[COL_VAULT_VISITED] = char.vault_visited
                 row[COL_DELVES] = char.delves
                 row[COL_GILDED_STASH] = char.gilded_stash
-                row[COL_GUNDARZ] = char.gundarz
+                row[COL_GEARING_UP] = char.gearing_up
                 row[COL_QUESTS] = char.quests
                 row[COL_TIMEWALK] = char.timewalk
                 row[COL_NOTES] = char.notes
@@ -470,7 +470,7 @@ class CharacterDialog:
         ("vault_visited", "Vault Visited", bool, False, None),
         ("delves", "Delves (0-8)", int, 0, MAX_DELVES),
         ("gilded_stash", "Gilded Stash (0-3)", int, 0, MAX_GILDED_STASH),
-        ("gundarz", "Gundarz Quest", bool, False, None),
+        ("gearing_up", "Gearing Up for Trouble", bool, False, None),
         ("quests", "World Quests", bool, False, None),
         ("timewalk", "Timewalk (0-5)", int, 0, MAX_TIMEWALK),
         ("notes", "Notes", str, "", None),
