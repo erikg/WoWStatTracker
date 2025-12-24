@@ -146,9 +146,10 @@ function WoWStatTracker:CollectCharacterData()
         -- Gilded stash (tier 11 bonus crests)
         gilded_stash = self:GetGildedStashStatus(),  -- {available, claimed, total}
 
-        -- Timestamps
+        -- Timestamps and week tracking
         lastLogin = time(),
         dataVersion = WoWStatTracker.version,
+        week_id = self:GetCurrentWeekId(),  -- Track which week this data is from
     }
     
     return data
@@ -571,21 +572,31 @@ end
 
 -- Timewalking weekly quest IDs (complete 5 dungeons)
 -- These are the "A [X] Path Through Time" quests
-local TIMEWALKING_QUEST_IDS = {
+-- The War Within (11.x) uses 833xx IDs, older expansions used 727xx
+-- Shared via WoWStatTracker object so EventHandler.lua can use it too
+WoWStatTracker.TIMEWALKING_QUEST_IDS = {
+    -- The War Within (current)
+    83363,  -- A Burning Path Through Time (BC)
+    83365,  -- A Frozen Path Through Time (WotLK)
+    83359,  -- A Shattered Path Through Time (Cataclysm)
+    83362,  -- A Shrouded Path Through Time (MoP)
+    83364,  -- A Savage Path Through Time (WoD)
+    83360,  -- A Fel Path Through Time (Legion)
+    83274,  -- An Original Path Through Time (Classic)
+    -- Legacy IDs (pre-War Within, kept for compatibility)
     72727,  -- A Burning Path Through Time (BC)
     72726,  -- A Frozen Path Through Time (WotLK)
     72810,  -- A Shattered Path Through Time (Cataclysm)
     72725,  -- A Shrouded Path Through Time (MoP)
     72724,  -- A Savage Path Through Time (WoD)
     72719,  -- A Fel Path Through Time (Legion)
-    86731,  -- An Original Path Through Time (Classic)
 }
 
 -- Get timewalking progress
 function WoWStatTracker:GetTimewalkingCompleted()
     local debugMode = WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode
 
-    for _, questId in ipairs(TIMEWALKING_QUEST_IDS) do
+    for _, questId in ipairs(self.TIMEWALKING_QUEST_IDS) do
         -- Check if quest is in log (active this week)
         if C_QuestLog.IsOnQuest(questId) then
             -- Get objectives to see progress (X/5 dungeons)

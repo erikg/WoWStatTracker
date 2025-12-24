@@ -9,6 +9,7 @@ import platform
 import shutil
 import subprocess
 from dataclasses import dataclass, asdict
+from datetime import datetime, timezone, timedelta
 
 
 # Application name for config directories
@@ -480,3 +481,30 @@ def detect_system_theme() -> bool:
 
     # Default to light theme if detection fails
     return False
+
+
+def get_current_week_id() -> str:
+    """Calculate the current WoW week ID based on Tuesday 15:00 UTC reset.
+
+    Returns a string in YYYYMMDD format representing the reset date for the
+    current week. This matches the logic used in the WoW addon.
+    """
+    # WoW resets on Tuesday at 15:00 UTC (7:00 AM PST)
+    RESET_WEEKDAY = 1  # Tuesday (Monday=0 in Python)
+    RESET_HOUR = 15  # 15:00 UTC
+
+    now = datetime.now(timezone.utc)
+
+    # Calculate days since last Tuesday reset
+    days_since_reset = (now.weekday() - RESET_WEEKDAY) % 7
+
+    # If it's Tuesday but before reset time, count as previous week
+    if now.weekday() == RESET_WEEKDAY and now.hour < RESET_HOUR:
+        days_since_reset = 7
+
+    # Get the last reset timestamp
+    last_reset = now - timedelta(days=days_since_reset)
+    # Normalize to reset hour
+    last_reset = last_reset.replace(hour=RESET_HOUR, minute=0, second=0, microsecond=0)
+
+    return last_reset.strftime("%Y%m%d")

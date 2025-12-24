@@ -22,6 +22,7 @@ from model import (
     Config,
     LockManager,
     get_config_dir,
+    get_current_week_id,
     migrate_old_files,
     THEME_AUTO,
     THEME_LIGHT,
@@ -74,6 +75,9 @@ class WoWStatTracker:
         self.config.load()
 
         self.debug_enabled = self.config.get("debug", False)
+
+        # Check for weekly reset and auto-clear if needed
+        self._weekly_reset_occurred = self._check_weekly_reset()
 
         # Timer and geometry tracking
         self._config_timer = None
@@ -567,14 +571,44 @@ class WoWStatTracker:
 
     # ==================== Helper Methods ====================
 
+    def _check_weekly_reset(self) -> bool:
+        """Check if weekly reset has occurred and auto-clear data if needed.
+
+        Returns True if a reset was performed.
+        """
+        current_week = get_current_week_id()
+        last_week = self.config.get("last_week_id")
+
+        if self.debug_enabled:
+            print(f"[DEBUG] Weekly reset check: current={current_week}, last={last_week}")
+
+        if last_week is None:
+            # First run - just record the current week
+            self.config.set("last_week_id", current_week)
+            self.config.save()
+            return False
+
+        if current_week != last_week:
+            # Week has changed - reset weekly data
+            if self.debug_enabled:
+                print(f"[DEBUG] Weekly reset detected! Clearing weekly data.")
+            self.store.reset_weekly_all()
+            self.store.save()
+            self.config.set("last_week_id", current_week)
+            self.config.save()
+            return True
+
+        return False
+
     def _save_and_refresh(self):
         """Save data and refresh the table."""
-        # Debug: check item_level before save
-        for c in self.store.characters[:3]:
-            print(f"[DEBUG] Before save: {c.name} item_level={c.item_level} (type: {type(c.item_level).__name__})")
+        if self.debug_enabled:
+            for c in self.store.characters[:3]:
+                print(f"[DEBUG] Before save: {c.name} item_level={c.item_level} (type: {type(c.item_level).__name__})")
         try:
             self.store.save()
-            print(f"[DEBUG] Saved to {self.store.data_file}")
+            if self.debug_enabled:
+                print(f"[DEBUG] Saved to {self.store.data_file}")
         except IOError as e:
             show_error(self.window, "Failed to save", str(e))
         self.table.populate(self.store.characters)
@@ -615,6 +649,19 @@ class WoWStatTracker:
             # Update characters
             updated = 0
             added = 0
+            stale_skipped = 0
+
+            # Weekly fields to skip if data is from a different week
+            weekly_fields = {
+                "vault_visited",
+                "delves",
+                "gilded_stash",
+                "gundarz",
+                "quests",
+                "timewalk",
+            }
+
+            current_week = get_current_week_id()
 
             for addon_char in addon_chars:
                 name = addon_char.get("name", "").strip()
@@ -622,6 +669,17 @@ class WoWStatTracker:
 
                 if not name or not realm:
                     continue
+
+                # Check if addon data is from the current week
+                addon_week = addon_char.get("week_id")
+                is_current_week = addon_week == current_week
+
+                if not is_current_week and addon_week:
+                    stale_skipped += 1
+                    if self.debug_enabled:
+                        print(
+                            f"[DEBUG] {name}: Stale weekly data (addon week {addon_week} != current {current_week})"
+                        )
 
                 # Find existing
                 existing_idx = None
@@ -636,28 +694,45 @@ class WoWStatTracker:
                 if existing_idx is not None:
                     # Update existing
                     existing = self.store.characters[existing_idx]
-                    # Debug: track item_level changes
-                    old_ilevel = existing.item_level
-                    new_ilevel = addon_char.get("item_level")
+                    old_ilevel = existing.item_level if self.debug_enabled else None
+                    new_ilevel = addon_char.get("item_level") if self.debug_enabled else None
                     for key, value in addon_char.items():
+                        # Skip week_id (internal tracking only)
+                        if key == "week_id":
+                            continue
+                        # Skip weekly fields if data is stale
+                        if not is_current_week and key in weekly_fields:
+                            continue
                         if hasattr(existing, key) and value:
                             setattr(existing, key, value)
-                    print(f"[DEBUG] {name}: item_level {old_ilevel} -> {existing.item_level} (addon had: {new_ilevel}, type: {type(new_ilevel).__name__ if new_ilevel else 'None'})")
+                    if self.debug_enabled:
+                        print(
+                            f"[DEBUG] {name}: item_level {old_ilevel} -> {existing.item_level} "
+                            f"(addon had: {new_ilevel}, type: {type(new_ilevel).__name__ if new_ilevel else 'None'})"
+                        )
                     updated += 1
                 else:
-                    # Add new
-                    new_char = Character(
-                        **{k: v for k, v in addon_char.items() if hasattr(Character, k)}
-                    )
+                    # Add new - filter weekly fields if stale
+                    char_data = {
+                        k: v
+                        for k, v in addon_char.items()
+                        if hasattr(Character, k)
+                        and k != "week_id"
+                        and (is_current_week or k not in weekly_fields)
+                    }
+                    new_char = Character(**char_data)
                     self.store.add(new_char)
                     added += 1
 
             if updated > 0 or added > 0:
                 self._save_and_refresh()
+                msg = f"Updated {updated} characters, added {added} new characters."
+                if stale_skipped > 0:
+                    msg += f"\n\n{stale_skipped} character(s) had stale weekly data (not logged in since reset) - only gear info was imported."
                 show_info(
                     self.window,
                     "Successfully imported data from WoW Stat Tracker addon!",
-                    f"Updated {updated} characters, added {added} new characters.",
+                    msg,
                 )
             else:
                 show_info(
@@ -816,9 +891,20 @@ class WoWStatTracker:
             ("veteran_items", r'\["veteran_items"\]\s*=\s*(\d+)'),
             ("adventure_items", r'\["adventure_items"\]\s*=\s*(\d+)'),
             ("old_items", r'\["old_items"\]\s*=\s*(\d+)'),
-            ("delves", r'\["vault_delves"\]\s*=\s*\{[^}]*\["count"\]\s*=\s*(\d+)'),
             ("timewalk", r'\["timewalking_quest"\]\s*=\s*\{[^}]*\["progress"\]\s*=\s*(\d+)'),
         ]
+
+        # Get delve count from vault (World activities)
+        # vault_delves.count includes both delves AND world boss kills
+        vault_delves_match = re.search(r'\["vault_delves"\]\s*=\s*\{[^}]*\["count"\]\s*=\s*(\d+)', lua_data)
+        vault_delves_count = int(vault_delves_match.group(1)) if vault_delves_match else 0
+
+        # Check if gundarz (world boss) was killed - if so, subtract 1 from vault count
+        gundarz_match = re.search(r'\["gundarz"\]\s*=\s*(true|false)', lua_data)
+        gundarz_done = gundarz_match and gundarz_match.group(1) == "true"
+
+        # Actual delves = vault count minus world boss if applicable
+        result["delves"] = max(0, vault_delves_count - (1 if gundarz_done else 0))
 
         # Gilded stash is a table with claimed field
         gilded_match = re.search(
@@ -851,12 +937,31 @@ class WoWStatTracker:
         if notes_match:
             result["notes"] = notes_match.group(1)
 
+        # Week ID for staleness detection
+        week_id_match = re.search(r'\["week_id"\]\s*=\s*"(\d+)"', lua_data)
+        if week_id_match:
+            result["week_id"] = week_id_match.group(1)
+
         return result
 
     def run(self):
         """Start the application."""
         self.window.show_all()
+
+        # Show notification if weekly reset occurred
+        if self._weekly_reset_occurred:
+            GLib.idle_add(self._show_weekly_reset_notification)
+
         Gtk.main()
+
+    def _show_weekly_reset_notification(self):
+        """Show notification that weekly data was auto-reset."""
+        show_info(
+            self.window,
+            "Weekly Reset",
+            "A new WoW week has started. Weekly tracking data has been automatically reset.",
+        )
+        return False  # Don't repeat
 
 
 # Import Gdk for window state constants
