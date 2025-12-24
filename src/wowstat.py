@@ -913,9 +913,8 @@ class WoWStatTracker:
         )
 
         # Check if "Gearing Up for Trouble" quest was done - if so, subtract 1 from vault count
-        # Support both old "gundarz" and new "gearing_up" field names for compatibility
         gearing_up_match = re.search(
-            r'\["(?:gearing_up|gundarz)"\]\s*=\s*(true|false)', lua_data
+            r'\["gearing_up"\]\s*=\s*(true|false)', lua_data
         )
         gearing_up_done = gearing_up_match and gearing_up_match.group(1) == "true"
 
@@ -936,8 +935,7 @@ class WoWStatTracker:
 
         bool_patterns = [
             ("vault_visited", r'\["vault_visited"\]\s*=\s*(true|false)'),
-            # Support both old "gundarz" and new "gearing_up" field names
-            ("gearing_up", r'\["(?:gearing_up|gundarz)"\]\s*=\s*(true|false)'),
+            ("gearing_up", r'\["gearing_up"\]\s*=\s*(true|false)'),
             ("quests", r'\["quests"\]\s*=\s*(true|false)'),
         ]
 
