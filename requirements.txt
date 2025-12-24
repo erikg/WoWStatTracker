@@ -1,5 +1,6 @@
 # Runtime dependencies
 PyGObject
+slpp
 
 # Development/testing dependencies
 pytest

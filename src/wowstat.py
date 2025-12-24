@@ -43,6 +43,19 @@ from view import (
     show_folder_chooser,
 )
 
+from notification_model import (
+    Notification,
+    NotificationStore,
+    NOTIFY_INFO,
+    NOTIFY_SUCCESS,
+    NOTIFY_WARNING,
+)
+
+from notification_view import (
+    StatusBar,
+    NotificationHistoryPopover,
+)
+
 
 class WoWStatTracker:
     """Main application controller."""
@@ -73,6 +86,11 @@ class WoWStatTracker:
 
         self.config = Config(config_file)
         self.config.load()
+
+        # Initialize notification store
+        notifications_file = os.path.join(self.config_dir, "notifications.json")
+        self.notification_store = NotificationStore(notifications_file)
+        self.notification_store.load()
 
         self.debug_enabled = self.config.get("debug", False)
 
@@ -141,6 +159,11 @@ class WoWStatTracker:
             on_notes_edited=self._on_notes_edited,
         )
         scrolled.add(self.table.treeview)
+
+        # Create status bar at the bottom
+        self.status_bar = StatusBar(on_history_clicked=self._on_history_clicked)
+        vbox.pack_end(self.status_bar, False, False, 0)
+        self._update_notification_badge()
 
     def _create_menu_bar(self) -> Gtk.MenuBar:
         """Create the application menu bar."""
@@ -345,7 +368,7 @@ class WoWStatTracker:
             if os.path.exists(os.path.join(path, "_retail_")):
                 self.config.set("wow_path", path)
                 self.config.save()
-                show_info(self.window, "Path Updated", f"WoW path set to:\n{path}")
+                self.notify(f"WoW path set to: {path}", NOTIFY_SUCCESS)
             else:
                 show_warning(
                     self.window,
@@ -380,12 +403,7 @@ class WoWStatTracker:
             if os.path.exists(dest_path):
                 shutil.rmtree(dest_path)
             shutil.copytree(addon_source, dest_path)
-            show_info(
-                self.window,
-                "Addon Installed",
-                f"WoWStatTracker addon installed to:\n{dest_path}\n\n"
-                "Restart WoW to load the addon.",
-            )
+            self.notify("Addon installed. Restart WoW to load.", NOTIFY_SUCCESS)
         except Exception as e:
             show_error(self.window, "Installation Failed", str(e))
 
@@ -732,20 +750,12 @@ class WoWStatTracker:
 
             if updated > 0 or added > 0:
                 self._save_and_refresh()
-                msg = f"Updated {updated} characters, added {added} new characters."
+                msg = f"Updated {updated}, added {added} characters."
                 if stale_skipped > 0:
-                    msg += f"\n\n{stale_skipped} character(s) had stale weekly data (not logged in since reset) - only gear info was imported."
-                show_info(
-                    self.window,
-                    "Successfully imported data from WoW Stat Tracker addon!",
-                    msg,
-                )
+                    msg += f" ({stale_skipped} stale)"
+                self.notify(msg, NOTIFY_SUCCESS)
             else:
-                show_info(
-                    self.window,
-                    "No updates needed.",
-                    "All characters are already up to date.",
-                )
+                self.notify("All characters already up to date.", NOTIFY_INFO)
 
         except Exception as e:
             show_error(
@@ -850,38 +860,97 @@ class WoWStatTracker:
         return None
 
     def parse_wow_addon_data(self, file_path):
-        """Parse WoW Stat Tracker addon SavedVariables file."""
+        """Parse WoW Stat Tracker addon SavedVariables file using slpp."""
+        try:
+            from slpp import slpp as lua
+
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Remove the "WoWStatTrackerDB = " prefix to get pure Lua table
+            content = content.replace("WoWStatTrackerDB = ", "", 1)
+
+            # Parse the Lua table
+            data = lua.decode(content)
+            if not data:
+                return []
+
+            characters = []
+            char_table = data.get("characters", {})
+
+            for char_key, char_data in char_table.items():
+                # char_key is "Name-Realm"
+                if "-" not in char_key:
+                    continue
+
+                name, realm = char_key.rsplit("-", 1)
+
+                # Build character dict with the fields we care about
+                char = {
+                    "name": name,
+                    "realm": realm,
+                    "guild": char_data.get("guild", ""),
+                    "item_level": char_data.get("item_level", 0),
+                    "heroic_items": char_data.get("heroic_items", 0),
+                    "champion_items": char_data.get("champion_items", 0),
+                    "veteran_items": char_data.get("veteran_items", 0),
+                    "adventure_items": char_data.get("adventure_items", 0),
+                    "old_items": char_data.get("old_items", 0),
+                    "vault_visited": char_data.get("vault_visited", False),
+                    "gearing_up": char_data.get("gearing_up", False),
+                    "quests": char_data.get("quests", False),
+                    "week_id": char_data.get("week_id", ""),
+                }
+
+                # Delves: vault_delves.count minus 1 if gearing_up was done
+                vault_delves = char_data.get("vault_delves", {})
+                delves_count = vault_delves.get("count", 0) if isinstance(vault_delves, dict) else 0
+                char["delves"] = max(0, delves_count - (1 if char["gearing_up"] else 0))
+
+                # Gilded stash
+                gilded = char_data.get("gilded_stash", {})
+                char["gilded_stash"] = gilded.get("claimed", 0) if isinstance(gilded, dict) else 0
+
+                # Timewalking quest progress
+                tw = char_data.get("timewalking_quest", {})
+                char["timewalk"] = tw.get("progress", 0) if isinstance(tw, dict) else 0
+
+                characters.append(char)
+
+            return characters
+
+        except ImportError:
+            print("[VERBOSE] slpp not installed, falling back to regex parser")
+            return self._parse_wow_addon_data_regex(file_path)
+        except Exception as e:
+            print(f"[VERBOSE] Error parsing addon data: {e}")
+            return []
+
+    def _parse_wow_addon_data_regex(self, file_path):
+        """Fallback regex-based parser if slpp is not available."""
+        # This is kept as a fallback but slpp should be preferred
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             characters = []
-            # Find all character header positions using position-based matching
-            # This handles nested tables correctly
             header_pattern = r'\["([^"]+)-([^"]+)"\]\s*=\s*\{'
-            headers = list(re.finditer(header_pattern, content))
-
-            for i, match in enumerate(headers):
+            for match in re.finditer(header_pattern, content):
                 name, realm = match.groups()
+                # Simple extraction - just get the data after this header
                 start = match.end()
-                # End is either next header or a reasonable boundary
-                if i + 1 < len(headers):
-                    end = headers[i + 1].start()
-                else:
-                    end = start + 2000  # reasonable limit for last character
-
+                end = start + 2000
                 data = content[start:end]
                 char_data = {"name": name, "realm": realm}
-                char_data.update(self.parse_lua_character_data(data))
+                char_data.update(self._parse_lua_fields(data))
                 characters.append(char_data)
 
             return characters
-
         except Exception as e:
-            print(f"[VERBOSE] Error parsing addon data: {e}")
+            print(f"[VERBOSE] Fallback parser error: {e}")
             return []
 
-    def parse_lua_character_data(self, lua_data):
+    def _parse_lua_fields(self, lua_data):
         """Extract character fields from Lua table data."""
         result = {}
 
@@ -959,6 +1028,43 @@ class WoWStatTracker:
 
         return result
 
+    # ==================== Notification System ====================
+
+    def notify(self, message: str, notification_type: str = NOTIFY_INFO) -> None:
+        """Show a notification and add to history."""
+        notification = Notification.create(message, notification_type)
+        self.notification_store.add(notification)
+        self.notification_store.save()
+        self.status_bar.show_notification(message, notification_type)
+        self._update_notification_badge()
+
+    def _on_history_clicked(self) -> None:
+        """Handle history button click - show notification history popover."""
+        popover = NotificationHistoryPopover(
+            relative_to=self.status_bar.get_history_button(),
+            on_clear_all=self._on_clear_all_notifications,
+            on_remove=self._on_remove_notification,
+        )
+        popover.populate(self.notification_store.get_all())
+        popover.popup()
+
+    def _on_clear_all_notifications(self) -> None:
+        """Clear all notification history."""
+        self.notification_store.clear_all()
+        self.notification_store.save()
+        self._update_notification_badge()
+
+    def _on_remove_notification(self, notification_id: str) -> None:
+        """Remove a specific notification from history."""
+        self.notification_store.remove(notification_id)
+        self.notification_store.save()
+        self._update_notification_badge()
+
+    def _update_notification_badge(self) -> None:
+        """Update the notification badge count on status bar."""
+        count = self.notification_store.count()
+        self.status_bar.update_badge(count)
+
     def run(self):
         """Start the application."""
         self.window.show_all()
@@ -971,11 +1077,7 @@ class WoWStatTracker:
 
     def _show_weekly_reset_notification(self):
         """Show notification that weekly data was auto-reset."""
-        show_info(
-            self.window,
-            "Weekly Reset",
-            "A new WoW week has started. Weekly tracking data has been automatically reset.",
-        )
+        self.notify("Weekly data auto-reset for new WoW week.", NOTIFY_INFO)
         return False  # Don't repeat
 
 
