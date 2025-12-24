@@ -87,6 +87,16 @@ dialog {
     background-color: #2d2d2d;
     color: #ffffff;
 }
+
+.notification-badge {
+    background-color: #cc3333;
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 1px 5px;
+    font-size: 10px;
+    font-weight: bold;
+    min-width: 14px;
+}
 """
 
 # CSS for light theme
@@ -104,6 +114,16 @@ treeview {
 treeview:selected {
     background-color: #4a90d9;
     color: #ffffff;
+}
+
+.notification-badge {
+    background-color: #cc3333;
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 1px 5px;
+    font-size: 10px;
+    font-weight: bold;
+    min-width: 14px;
 }
 """
 
