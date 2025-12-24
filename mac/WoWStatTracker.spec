@@ -80,9 +80,10 @@ gtk_binaries, gtk_datas = find_gtk_libraries()
 addon_datas = [('WoWStatTracker_Addon', 'WoWStatTracker_Addon')]
 
 a = Analysis(
-    ['wowstat.py'],
+    ['src/wowstat.py'],
     pathex=[
         str(spec_root),
+        str(spec_root / 'src'),
         '/usr/local/lib/python3.13/site-packages',
         '/usr/local/opt/pygobject3/lib/python3.13/site-packages',
     ],
@@ -108,7 +109,7 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=['pyi_rth_gtk.py'],
+    runtime_hooks=['mac/pyi_rth_gtk.py'],
     excludes=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -150,7 +151,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='WoWStatTracker.app',
-    icon='icon.icns',
+    icon='mac/icon.icns',
     bundle_identifier='com.wowstattracker.app',
     version='1.0.0',
     info_plist={
