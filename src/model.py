@@ -62,7 +62,9 @@ WOW_DEFAULT_PATHS = {
     ],
     "Linux": [
         os.path.expanduser("~/.wine/drive_c/Program Files (x86)/World of Warcraft"),
-        os.path.expanduser("~/Games/world-of-warcraft/drive_c/Program Files (x86)/World of Warcraft"),
+        os.path.expanduser(
+            "~/Games/world-of-warcraft/drive_c/Program Files (x86)/World of Warcraft"
+        ),
     ],
 }
 

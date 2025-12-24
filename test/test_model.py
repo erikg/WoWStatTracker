@@ -6,8 +6,10 @@ import sys
 
 import pytest
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add src directory to path for imports
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+)
 
 from model import (
     Character,
@@ -415,6 +417,7 @@ class TestCharacterStore:
 
         # Mock shutil.move to fail after temp file is created
         import shutil
+
         original_move = shutil.move
 
         def failing_move(src, dst):
@@ -692,48 +695,58 @@ class TestGetConfigDir:
     def test_macos_path(self, monkeypatch):
         """Test macOS returns Application Support path."""
         import platform as plat
+
         monkeypatch.setattr(plat, "system", lambda: "Darwin")
         monkeypatch.setenv("HOME", "/Users/testuser")
         # Need to reimport to pick up the mock
         from model import get_config_dir as get_dir
+
         result = get_dir()
         assert "Library/Application Support/wowstat" in result
 
     def test_linux_path_default(self, monkeypatch):
         """Test Linux uses ~/.config by default."""
         import platform as plat
+
         monkeypatch.setattr(plat, "system", lambda: "Linux")
         monkeypatch.setenv("HOME", "/home/testuser")
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         from model import get_config_dir as get_dir
+
         result = get_dir()
         assert ".config/wowstat" in result
 
     def test_linux_path_xdg(self, monkeypatch):
         """Test Linux respects XDG_CONFIG_HOME."""
         import platform as plat
+
         monkeypatch.setattr(plat, "system", lambda: "Linux")
         monkeypatch.setenv("XDG_CONFIG_HOME", "/custom/config")
         from model import get_config_dir as get_dir
+
         result = get_dir()
         assert result == "/custom/config/wowstat"
 
     def test_windows_path_appdata(self, monkeypatch):
         """Test Windows uses APPDATA."""
         import platform as plat
+
         monkeypatch.setattr(plat, "system", lambda: "Windows")
         monkeypatch.setenv("APPDATA", "C:\\Users\\testuser\\AppData\\Roaming")
         from model import get_config_dir as get_dir
+
         result = get_dir()
         assert "AppData" in result and "wowstat" in result
 
     def test_windows_path_fallback(self, monkeypatch):
         """Test Windows fallback when APPDATA not set."""
         import platform as plat
+
         monkeypatch.setattr(plat, "system", lambda: "Windows")
         monkeypatch.delenv("APPDATA", raising=False)
         monkeypatch.setenv("HOME", "/home/testuser")
         from model import get_config_dir as get_dir
+
         result = get_dir()
         assert "wowstat" in result
 

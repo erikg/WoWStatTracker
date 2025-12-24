@@ -326,7 +326,7 @@ class WoWStatTracker:
             self.theme_manager.set_preference(theme_preference)
             self.config.set("theme", theme_preference)
             self.config.save()
-            if hasattr(self, 'table'):
+            if hasattr(self, "table"):
                 self.table.refresh_backgrounds()
 
     def _on_import_wow_addon(self, widget):
@@ -580,7 +580,9 @@ class WoWStatTracker:
         last_week = self.config.get("last_week_id")
 
         if self.debug_enabled:
-            print(f"[DEBUG] Weekly reset check: current={current_week}, last={last_week}")
+            print(
+                f"[DEBUG] Weekly reset check: current={current_week}, last={last_week}"
+            )
 
         if last_week is None:
             # First run - just record the current week
@@ -604,7 +606,9 @@ class WoWStatTracker:
         """Save data and refresh the table."""
         if self.debug_enabled:
             for c in self.store.characters[:3]:
-                print(f"[DEBUG] Before save: {c.name} item_level={c.item_level} (type: {type(c.item_level).__name__})")
+                print(
+                    f"[DEBUG] Before save: {c.name} item_level={c.item_level} (type: {type(c.item_level).__name__})"
+                )
         try:
             self.store.save()
             if self.debug_enabled:
@@ -695,7 +699,9 @@ class WoWStatTracker:
                     # Update existing
                     existing = self.store.characters[existing_idx]
                     old_ilevel = existing.item_level if self.debug_enabled else None
-                    new_ilevel = addon_char.get("item_level") if self.debug_enabled else None
+                    new_ilevel = (
+                        addon_char.get("item_level") if self.debug_enabled else None
+                    )
                     for key, value in addon_char.items():
                         # Skip week_id (internal tracking only)
                         if key == "week_id":
@@ -891,13 +897,20 @@ class WoWStatTracker:
             ("veteran_items", r'\["veteran_items"\]\s*=\s*(\d+)'),
             ("adventure_items", r'\["adventure_items"\]\s*=\s*(\d+)'),
             ("old_items", r'\["old_items"\]\s*=\s*(\d+)'),
-            ("timewalk", r'\["timewalking_quest"\]\s*=\s*\{[^}]*\["progress"\]\s*=\s*(\d+)'),
+            (
+                "timewalk",
+                r'\["timewalking_quest"\]\s*=\s*\{[^}]*\["progress"\]\s*=\s*(\d+)',
+            ),
         ]
 
         # Get delve count from vault (World activities)
         # vault_delves.count includes both delves AND world boss kills
-        vault_delves_match = re.search(r'\["vault_delves"\]\s*=\s*\{[^}]*\["count"\]\s*=\s*(\d+)', lua_data)
-        vault_delves_count = int(vault_delves_match.group(1)) if vault_delves_match else 0
+        vault_delves_match = re.search(
+            r'\["vault_delves"\]\s*=\s*\{[^}]*\["count"\]\s*=\s*(\d+)', lua_data
+        )
+        vault_delves_count = (
+            int(vault_delves_match.group(1)) if vault_delves_match else 0
+        )
 
         # Check if gundarz (world boss) was killed - if so, subtract 1 from vault count
         gundarz_match = re.search(r'\["gundarz"\]\s*=\s*(true|false)', lua_data)

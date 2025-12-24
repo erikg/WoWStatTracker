@@ -16,7 +16,7 @@ A standalone Mac application for tracking World of Warcraft character statistics
 1. Download the `WoWStatTracker.app` from the `dist/` folder
 2. Run the installation script:
    ```bash
-   ./install_mac_app.sh
+   ./mac/install_mac_app.sh
    ```
 3. The app will be installed to your Applications folder
 
@@ -28,11 +28,11 @@ A standalone Mac application for tracking World of Warcraft character statistics
    ```
 2. Build the app:
    ```bash
-   ./build_mac_app.sh
+   ./mac/build_mac_app.sh
    ```
 3. Install the built app:
    ```bash
-   ./install_mac_app.sh
+   ./mac/install_mac_app.sh
    ```
 
 ## System Requirements
@@ -73,7 +73,7 @@ The app stores data in `~/Library/Application Support/wowstat/`:
 ### "ModuleNotFoundError: No module named 'gi'" Error
 This has been fixed in the latest build. If you encounter this error:
 1. Ensure you have the latest version of the app
-2. Rebuild using the updated build script: `./build_mac_app.sh`
+2. Rebuild using the updated build script: `./mac/build_mac_app.sh`
 3. The app now includes all necessary GTK libraries in the bundle
 
 ### "App is damaged" Message
@@ -96,18 +96,25 @@ pipx install pyinstaller
 brew install pygobject3 gtk+3
 
 # Build the app
-./build_mac_app.sh
+./mac/build_mac_app.sh
 
 # Install locally
-./install_mac_app.sh
+./mac/install_mac_app.sh
 ```
 
 ### Project Structure
-- `wowstat.py` - Main application code
-- `WoWStatTracker.spec` - PyInstaller configuration
-- `build_mac_app.sh` - Build script
-- `icon.icns` - App icon
-- `create_icon.py` - Icon generation script
+- `src/` - GUI source code
+  - `wowstat.py` - Main application entry point
+  - `model.py` - Data model and business logic
+  - `view.py` - UI components
+- `mac/` - macOS build files
+  - `WoWStatTracker.spec` - PyInstaller configuration
+  - `build_mac_app.sh` - Build script
+  - `install_mac_app.sh` - Installation script
+  - `create_dmg.sh` - DMG creation script
+  - `icon.icns` - App icon
+- `WoWStatTracker_Addon/` - WoW addon for data collection
+- `test/` - Test suite
 
 ## License
 
