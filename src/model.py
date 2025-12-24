@@ -40,7 +40,7 @@ COL_OLD_ITEMS = 8
 COL_VAULT_VISITED = 9
 COL_DELVES = 10
 COL_GILDED_STASH = 11
-COL_GUNDARZ = 12
+COL_GEARING_UP = 12
 COL_QUESTS = 13
 COL_TIMEWALK = 14
 COL_NOTES = 15
@@ -85,7 +85,7 @@ class Character:
     vault_visited: bool = False
     delves: int = 0
     gilded_stash: int = 0
-    gundarz: bool = False
+    gearing_up: bool = False
     quests: bool = False
     timewalk: int = 0
     notes: str = ""
@@ -144,7 +144,7 @@ class Character:
             "vault_visited": False,
             "delves": 0,
             "gilded_stash": 0,
-            "gundarz": False,
+            "gearing_up": False,
             "quests": False,
             "timewalk": 0,
             "notes": "",
@@ -161,7 +161,7 @@ class Character:
         self.vault_visited = False
         self.delves = 0
         self.gilded_stash = 0
-        self.gundarz = False
+        self.gearing_up = False
         self.quests = False
         self.timewalk = 0
 

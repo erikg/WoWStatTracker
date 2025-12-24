@@ -28,7 +28,7 @@ from model import (
     THEME_LIGHT,
     THEME_DARK,
     COL_VAULT_VISITED,
-    COL_GUNDARZ,
+    COL_GEARING_UP,
     COL_QUESTS,
     WOW_DEFAULT_PATHS,
 )
@@ -291,8 +291,8 @@ class WoWStatTracker:
 
         if col_id == COL_VAULT_VISITED:
             character.vault_visited = new_value
-        elif col_id == COL_GUNDARZ:
-            character.gundarz = new_value
+        elif col_id == COL_GEARING_UP:
+            character.gearing_up = new_value
         elif col_id == COL_QUESTS:
             character.quests = new_value
 
@@ -660,7 +660,7 @@ class WoWStatTracker:
                 "vault_visited",
                 "delves",
                 "gilded_stash",
-                "gundarz",
+                "gearing_up",
                 "quests",
                 "timewalk",
             }
@@ -912,12 +912,15 @@ class WoWStatTracker:
             int(vault_delves_match.group(1)) if vault_delves_match else 0
         )
 
-        # Check if gundarz (world boss) was killed - if so, subtract 1 from vault count
-        gundarz_match = re.search(r'\["gundarz"\]\s*=\s*(true|false)', lua_data)
-        gundarz_done = gundarz_match and gundarz_match.group(1) == "true"
+        # Check if "Gearing Up for Trouble" quest was done - if so, subtract 1 from vault count
+        # Support both old "gundarz" and new "gearing_up" field names for compatibility
+        gearing_up_match = re.search(
+            r'\["(?:gearing_up|gundarz)"\]\s*=\s*(true|false)', lua_data
+        )
+        gearing_up_done = gearing_up_match and gearing_up_match.group(1) == "true"
 
         # Actual delves = vault count minus world boss if applicable
-        result["delves"] = max(0, vault_delves_count - (1 if gundarz_done else 0))
+        result["delves"] = max(0, vault_delves_count - (1 if gearing_up_done else 0))
 
         # Gilded stash is a table with claimed field
         gilded_match = re.search(
@@ -933,7 +936,8 @@ class WoWStatTracker:
 
         bool_patterns = [
             ("vault_visited", r'\["vault_visited"\]\s*=\s*(true|false)'),
-            ("gundarz", r'\["gundarz"\]\s*=\s*(true|false)'),
+            # Support both old "gundarz" and new "gearing_up" field names
+            ("gearing_up", r'\["(?:gearing_up|gundarz)"\]\s*=\s*(true|false)'),
             ("quests", r'\["quests"\]\s*=\s*(true|false)'),
         ]
 

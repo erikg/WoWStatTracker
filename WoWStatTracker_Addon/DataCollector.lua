@@ -140,7 +140,7 @@ function WoWStatTracker:CollectCharacterData()
         timewalking_quest = self:GetTimewalkingQuestStatus(),  -- {questId, accepted, completed, progress}
 
         -- Other weekly progress
-        gundarz = self:HasKilledGundarz(),
+        gearing_up = self:HasCompletedGearingUp(),
         quests = self:GetWeeklyQuestsCompleted(),
 
         -- Gilded stash (tier 11 bonus crests)
@@ -540,8 +540,8 @@ end
 -- "Gearing Up for Trouble" - Awakening the Machine weekly quest
 local GEARING_UP_QUEST_ID = 83333
 
--- Check if Awakening the Machine weekly quest is completed
-function WoWStatTracker:HasKilledGundarz()
+-- Check if "Gearing Up for Trouble" weekly quest is completed
+function WoWStatTracker:HasCompletedGearingUp()
     -- Check if quest is completed this week
     if C_QuestLog.IsQuestFlaggedCompleted(GEARING_UP_QUEST_ID) then
         if WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode then

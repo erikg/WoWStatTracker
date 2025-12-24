@@ -59,7 +59,7 @@ Files:
 | Vault Visited | Checkbox | Weekly Great Vault completion |
 | Delves | Number | Weekly delves completed (0-8) |
 | Gilded | Number | Gilded stash keys collected (0-3) |
-| Gundarz | Checkbox | Weekly Gundarz quest |
+| Gearing Up | Checkbox | "Gearing Up for Trouble" weekly quest |
 | Quests | Checkbox | Weekly quests completion |
 | Timewalk | Number | Timewalking dungeons (0-5) |
 | Notes | Text | Free-form notes |
@@ -89,7 +89,7 @@ On first import, the app will auto-detect the WoW installation path. If detectio
 
 ### Weekly Reset
 
-**File > Reset Weekly Data** clears all weekly progress columns (Vault, Delves, Gundarz, Quests, Timewalk) for all characters.
+**File > Reset Weekly Data** clears all weekly progress columns (Vault, Delves, Gearing Up, Quests, Timewalk) for all characters.
 
 ### Themes
 

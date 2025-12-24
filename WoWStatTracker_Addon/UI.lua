@@ -52,7 +52,7 @@ function WoWStatTracker:ExportData()
             old_items = charData.old_items or 0,
             vault_visited = charData.vault_visited or false,
             delves = charData.delves or 0,
-            gundarz = charData.gundarz or false,
+            gearing_up = charData.gearing_up or false,
             quests = charData.quests or false,
             timewalk = charData.timewalk or 0,
             
