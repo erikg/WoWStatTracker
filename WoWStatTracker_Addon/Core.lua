@@ -99,10 +99,9 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         -- Player fully logged in, safe to collect data
         WoWStatTracker:ScheduleUpdate(10)
     elseif event == "PLAYER_LOGOUT" then
-        -- Final update before logout
-        if WoWStatTrackerDB.settings.exportOnLogout then
-            WoWStatTracker:UpdateCharacterData()
-            WoWStatTracker:Debug("Final update on logout")
-        end
+        -- Don't update on logout - game APIs may not work correctly during logout
+        -- and could overwrite good data with incorrect values.
+        -- Data should already be up-to-date from regular updates and /wst update.
+        WoWStatTracker:Debug("Logout - skipping update (APIs unreliable during logout)")
     end
 end)

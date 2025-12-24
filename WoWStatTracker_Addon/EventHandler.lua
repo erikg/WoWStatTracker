@@ -441,20 +441,11 @@ end
 -- TIMEWALKING QUEST TRACKING
 -- ============================================
 
--- Timewalking weekly quest IDs
-local TIMEWALKING_QUEST_IDS = {
-    72727,  -- A Burning Path Through Time (BC)
-    72726,  -- A Frozen Path Through Time (WotLK)
-    72810,  -- A Shattered Path Through Time (Cataclysm)
-    72725,  -- A Shrouded Path Through Time (MoP)
-    72724,  -- A Savage Path Through Time (WoD)
-    72719,  -- A Fel Path Through Time (Legion)
-    86731,  -- An Original Path Through Time (Classic)
-}
+-- Uses WoWStatTracker.TIMEWALKING_QUEST_IDS defined in DataCollector.lua
 
 -- Track quest acceptance
 function WoWStatTracker:OnQuestAccepted(questId)
-    for _, twQuestId in ipairs(TIMEWALKING_QUEST_IDS) do
+    for _, twQuestId in ipairs(self.TIMEWALKING_QUEST_IDS) do
         if questId == twQuestId then
             local charKey = self:GetCharacterKey()
             if not WoWStatTrackerDB.timewalking then
@@ -480,7 +471,7 @@ function WoWStatTracker:GetTimewalkingQuestStatus()
         progress = 0,
     }
 
-    for _, questId in ipairs(TIMEWALKING_QUEST_IDS) do
+    for _, questId in ipairs(self.TIMEWALKING_QUEST_IDS) do
         if C_QuestLog.IsOnQuest(questId) then
             result.questId = questId
             result.accepted = true
