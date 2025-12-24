@@ -54,7 +54,7 @@ echo "✅ GTK libraries found"
 
 # Build the app
 echo "🔨 Building Mac application bundle..."
-pyinstaller WoWStatTracker.spec --clean --noconfirm
+pyinstaller mac/WoWStatTracker.spec --clean --noconfirm
 
 # Check if build was successful
 if [ -d "dist/WoWStatTracker.app" ]; then
