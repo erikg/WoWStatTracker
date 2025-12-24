@@ -727,7 +727,7 @@ class WoWStatTracker:
                         # Skip weekly fields if data is stale
                         if not is_current_week and key in weekly_fields:
                             continue
-                        if hasattr(existing, key) and value:
+                        if hasattr(existing, key) and value is not None:
                             setattr(existing, key, value)
                     if self.debug_enabled:
                         print(

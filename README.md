@@ -34,7 +34,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install Python dependencies
-pip install PyGObject pytest pytest-cov black
+pip install -r requirements.txt
 ```
 
 ### Ubuntu/Debian
@@ -47,7 +47,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install Python dependencies
-pip install PyGObject pytest pytest-cov black
+pip install -r requirements.txt
 ```
 
 ## Usage
