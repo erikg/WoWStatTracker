@@ -57,12 +57,12 @@ class Notification:
         )
 
     def format_timestamp(self) -> str:
-        """Format timestamp for display (e.g., '12:34 PM')."""
+        """Format timestamp for display (e.g., 'Dec 24, 4:30 PM')."""
         if not self.timestamp:
             return ""
         try:
             dt = datetime.fromisoformat(self.timestamp)
-            return dt.strftime("%I:%M %p").lstrip("0")
+            return dt.strftime("%b %-d, %-I:%M %p")
         except ValueError:
             return self.timestamp
 

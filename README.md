@@ -5,20 +5,28 @@ A GUI application for tracking World of Warcraft character statistics including 
 ## Features
 
 - Track character realm, name, item level, and gear counts
-- Weekly progress tracking for vault visits, delves, Gearing Up for Trouble, quests, and timewalk
-- Visual indicators with color-coded backgrounds:
-  - **Delves**: Green (4+), Yellow (2-3), Red (<2)
-  - **Gearing Up**: Green (completed), Red (not completed)
-  - **Quests**: Green (completed), Red (not completed)
-  - **Timewalk**: Green (5+), Red (<5)
-- Reset button for weekly data
+- Import character data directly from the WoW addon
+- Weekly progress tracking for vault visits, delves, gilded stash, Gearing Up for Trouble, quests, and timewalk
+- Visual indicators with color-coded backgrounds for weekly activities
+- Status bar notifications with auto-dismiss and history
+- Auto-import when window is focused (optional)
+- Customizable toolbar (icons, text, both, or hidden)
+- Light/dark theme support with system auto-detection
 - Persistent data storage in JSON format
+
+## Menu Structure
+
+- **File**: Properties, Quit
+- **Characters**: Add Character, Reset Weekly Data
+- **Addon**: Import from Addon, Set WoW Location, Install Addon, Uninstall Addon
+- **View**: Theme selection
 
 ## Requirements
 
 - Python 3.6+
 - GTK+ 3.0
 - PyGObject (GI Python bindings for GTK)
+- slpp (Lua table parser)
 
 ## Installation
 
@@ -59,12 +67,19 @@ python3 src/wowstat.py
 ## Interface
 
 The main table displays:
-- **Static columns**: Realm, Name, Item Level, Heroic Items, Champion Items, Veteran Items, Adventure Items, Old Items
-- **Weekly columns**: Vault Visited, Delves Completed, Gearing Up, Quests, Timewalk
+- **Static columns**: Realm, Name, Guild, Item Level, Heroic/Champion/Veteran/Adventure/Old Items
+- **Weekly columns**: Vault Visited, Delves, Gilded Stash, Gearing Up, Quests, Timewalk, Notes
 
-Double-click any row to edit character data. Use "Add Character" to create new entries and "Reset Weekly Data" to clear weekly progress for all characters.
+Double-click any row to edit character data. Use Characters → Add Character to create new entries and Characters → Reset Weekly Data to clear weekly progress.
 
-Data is automatically saved to `wowstat_data.json` in the same directory.
+### Properties Dialog (File → Properties)
+
+- **Game Location**: Set your WoW installation path
+- **Theme**: Auto (system), Light, or Dark
+- **Toolbar**: Icons and Text, Icons Only, Text Only, or Hidden
+- **Auto-import**: Automatically import from addon when window gains focus
+
+Data is automatically saved to the user's config directory (`~/Library/Application Support/wowstat/` on macOS).
 
 ## License
 

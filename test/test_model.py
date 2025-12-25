@@ -774,3 +774,81 @@ class TestWowDefaultPaths:
         """Test each platform has fallback paths."""
         for platform_name, paths in WOW_DEFAULT_PATHS.items():
             assert len(paths) >= 2, f"{platform_name} should have multiple fallbacks"
+
+
+class TestVersionComparison:
+    """Tests for the version comparison function."""
+
+    def test_equal_versions(self):
+        """Test equal versions return 0."""
+        from model import _compare_versions
+
+        assert _compare_versions("1.0.0", "1.0.0") == 0
+        assert _compare_versions("2.1.3", "2.1.3") == 0
+
+    def test_newer_version(self):
+        """Test newer version returns 1."""
+        from model import _compare_versions
+
+        assert _compare_versions("1.0.1", "1.0.0") == 1
+        assert _compare_versions("1.1.0", "1.0.0") == 1
+        assert _compare_versions("2.0.0", "1.9.9") == 1
+
+    def test_older_version(self):
+        """Test older version returns -1."""
+        from model import _compare_versions
+
+        assert _compare_versions("1.0.0", "1.0.1") == -1
+        assert _compare_versions("1.0.0", "1.1.0") == -1
+        assert _compare_versions("1.9.9", "2.0.0") == -1
+
+    def test_different_length_versions(self):
+        """Test versions with different number of parts."""
+        from model import _compare_versions
+
+        assert _compare_versions("1.0", "1.0.0") == 0
+        assert _compare_versions("1.0.0.1", "1.0.0") == 1
+        assert _compare_versions("1.0", "1.0.1") == -1
+
+    def test_version_with_prefix(self):
+        """Test versions with non-numeric suffixes."""
+        from model import _compare_versions
+
+        # Only numeric parts are compared
+        assert _compare_versions("1.0.0-beta", "1.0.0") == 0
+        assert _compare_versions("1.0.1-rc1", "1.0.0") == 1
+
+
+class TestVersionConstant:
+    """Tests for version constant."""
+
+    def test_version_exists(self):
+        """Test __version__ is defined."""
+        from model import __version__
+
+        assert __version__ is not None
+        assert isinstance(__version__, str)
+        assert len(__version__) > 0
+
+    def test_version_format(self):
+        """Test version follows semver format."""
+        from model import __version__
+
+        parts = __version__.split(".")
+        assert len(parts) >= 2  # At least major.minor
+        for part in parts:
+            assert part.isdigit()
+
+
+class TestGitHubRepo:
+    """Tests for GitHub repo constant."""
+
+    def test_github_repo_format(self):
+        """Test GITHUB_REPO has owner/repo format."""
+        from model import GITHUB_REPO
+
+        assert "/" in GITHUB_REPO
+        parts = GITHUB_REPO.split("/")
+        assert len(parts) == 2
+        assert len(parts[0]) > 0  # owner
+        assert len(parts[1]) > 0  # repo
