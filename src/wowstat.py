@@ -11,10 +11,12 @@ from gi.repository import Gtk, GLib
 
 import os
 import platform
-import re
 import shutil
 import sys
 import threading
+import time
+
+from slpp import slpp as lua
 
 from model import (
     Character,
@@ -24,6 +26,8 @@ from model import (
     get_config_dir,
     get_current_week_id,
     migrate_old_files,
+    check_for_updates,
+    __version__,
     THEME_AUTO,
     THEME_LIGHT,
     THEME_DARK,
@@ -37,10 +41,15 @@ from view import (
     ThemeManager,
     CharacterTable,
     CharacterDialog,
+    PropertiesDialog,
     show_error,
     show_warning,
     show_info,
     show_folder_chooser,
+    TOOLBAR_BOTH,
+    TOOLBAR_ICONS,
+    TOOLBAR_TEXT,
+    TOOLBAR_HIDDEN,
 )
 
 from notification_model import (
@@ -100,12 +109,14 @@ class WoWStatTracker:
         # Timer and geometry tracking
         self._config_timer = None
         self._last_window_geometry = None
+        self._last_import_time = 0  # For debouncing auto-import
 
         # Create main window
         self.window = Gtk.Window(title="WoW Character Stat Tracker")
         self.window.connect("destroy", self._on_destroy)
         self.window.connect("configure-event", self._on_window_configure)
         self.window.connect("window-state-event", self._on_window_state_event)
+        self.window.connect("focus-in-event", self._on_focus_in)
 
         # Initialize theme manager
         theme_pref = self.config.get("theme", THEME_AUTO)
@@ -135,8 +146,9 @@ class WoWStatTracker:
         vbox.pack_start(menubar, False, False, 0)
 
         # Create toolbar
-        toolbar = self._create_toolbar()
-        vbox.pack_start(toolbar, False, False, 0)
+        self.toolbar = self._create_toolbar()
+        vbox.pack_start(self.toolbar, False, False, 0)
+        self._apply_toolbar_style(self.config.get("toolbar_style", TOOLBAR_BOTH))
 
         # Content area with margins
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -175,35 +187,55 @@ class WoWStatTracker:
         file_menu_item.set_submenu(file_menu)
         menubar.append(file_menu_item)
 
-        add_item = Gtk.MenuItem(label="Add Character")
-        add_item.connect("activate", self._on_add_character)
-        file_menu.append(add_item)
-
-        file_menu.append(Gtk.SeparatorMenuItem())
-
-        reset_item = Gtk.MenuItem(label="Reset Weekly Data")
-        reset_item.connect("activate", self._on_reset_weekly)
-        file_menu.append(reset_item)
-
-        file_menu.append(Gtk.SeparatorMenuItem())
-
-        addon_item = Gtk.MenuItem(label="Import from WoW Addon")
-        addon_item.connect("activate", self._on_import_wow_addon)
-        file_menu.append(addon_item)
-
-        set_path_item = Gtk.MenuItem(label="Set WoW Location...")
-        set_path_item.connect("activate", self._on_set_wow_path)
-        file_menu.append(set_path_item)
-
-        install_addon_item = Gtk.MenuItem(label="Install Addon to WoW")
-        install_addon_item.connect("activate", self._on_install_addon)
-        file_menu.append(install_addon_item)
+        properties_item = Gtk.MenuItem(label="Properties")
+        properties_item.connect("activate", self._on_properties)
+        file_menu.append(properties_item)
 
         file_menu.append(Gtk.SeparatorMenuItem())
 
         quit_item = Gtk.MenuItem(label="Quit")
         quit_item.connect("activate", lambda w: self.window.close())
         file_menu.append(quit_item)
+
+        # Characters menu
+        chars_menu_item = Gtk.MenuItem(label="Characters")
+        chars_menu = Gtk.Menu()
+        chars_menu_item.set_submenu(chars_menu)
+        menubar.append(chars_menu_item)
+
+        add_item = Gtk.MenuItem(label="Add Character")
+        add_item.connect("activate", self._on_add_character)
+        chars_menu.append(add_item)
+
+        chars_menu.append(Gtk.SeparatorMenuItem())
+
+        reset_item = Gtk.MenuItem(label="Reset Weekly Data")
+        reset_item.connect("activate", self._on_reset_weekly)
+        chars_menu.append(reset_item)
+
+        # Addon menu
+        addon_menu_item = Gtk.MenuItem(label="Addon")
+        addon_menu = Gtk.Menu()
+        addon_menu_item.set_submenu(addon_menu)
+        menubar.append(addon_menu_item)
+
+        import_item = Gtk.MenuItem(label="Import from Addon")
+        import_item.connect("activate", self._on_import_wow_addon)
+        addon_menu.append(import_item)
+
+        addon_menu.append(Gtk.SeparatorMenuItem())
+
+        set_path_item = Gtk.MenuItem(label="Set WoW Location...")
+        set_path_item.connect("activate", self._on_set_wow_path)
+        addon_menu.append(set_path_item)
+
+        install_addon_item = Gtk.MenuItem(label="Install Addon")
+        install_addon_item.connect("activate", self._on_install_addon)
+        addon_menu.append(install_addon_item)
+
+        uninstall_addon_item = Gtk.MenuItem(label="Uninstall Addon")
+        uninstall_addon_item.connect("activate", self._on_uninstall_addon)
+        addon_menu.append(uninstall_addon_item)
 
         # View menu
         view_menu_item = Gtk.MenuItem(label="View")
@@ -238,6 +270,22 @@ class WoWStatTracker:
         if current_pref == THEME_DARK:
             dark_theme_item.set_active(True)
         theme_submenu.append(dark_theme_item)
+
+        # Help menu
+        help_menu_item = Gtk.MenuItem(label="Help")
+        help_menu = Gtk.Menu()
+        help_menu_item.set_submenu(help_menu)
+        menubar.append(help_menu_item)
+
+        check_updates_item = Gtk.MenuItem(label="Check for Updates...")
+        check_updates_item.connect("activate", self._on_check_updates)
+        help_menu.append(check_updates_item)
+
+        help_menu.append(Gtk.SeparatorMenuItem())
+
+        about_item = Gtk.MenuItem(label="About")
+        about_item.connect("activate", self._on_about)
+        help_menu.append(about_item)
 
         return menubar
 
@@ -352,6 +400,62 @@ class WoWStatTracker:
             if hasattr(self, "table"):
                 self.table.refresh_backgrounds()
 
+    def _on_properties(self, widget):
+        """Handle Properties menu item."""
+        dialog = PropertiesDialog(self.window)
+        result = dialog.show(
+            wow_path=self.config.get("wow_path", ""),
+            theme=self.config.get("theme", THEME_AUTO),
+            toolbar_style=self.config.get("toolbar_style", TOOLBAR_BOTH),
+            auto_import=self.config.get("auto_import", False),
+            check_updates=self.config.get("check_updates", False),
+            on_browse_path=self._on_invalid_wow_path,
+        )
+
+        if result:
+            # Apply WoW path
+            if result["wow_path"] != self.config.get("wow_path", ""):
+                self.config.set("wow_path", result["wow_path"])
+
+            # Apply theme
+            if result["theme"] != self.config.get("theme", THEME_AUTO):
+                self.theme_manager.set_preference(result["theme"])
+                self.config.set("theme", result["theme"])
+                if hasattr(self, "table"):
+                    self.table.refresh_backgrounds()
+
+            # Apply toolbar style
+            if result["toolbar_style"] != self.config.get("toolbar_style", TOOLBAR_BOTH):
+                self._apply_toolbar_style(result["toolbar_style"])
+                self.config.set("toolbar_style", result["toolbar_style"])
+
+            # Apply behavior settings
+            self.config.set("auto_import", result["auto_import"])
+            self.config.set("check_updates", result["check_updates"])
+
+            self.config.save()
+
+    def _on_invalid_wow_path(self, path):
+        """Handle invalid WoW path selection in properties dialog."""
+        show_warning(
+            self.window,
+            "Invalid Selection",
+            "The selected folder must contain a '_retail_' directory.",
+        )
+
+    def _apply_toolbar_style(self, style: str):
+        """Apply toolbar style setting."""
+        if style == TOOLBAR_HIDDEN:
+            self.toolbar.hide()
+        else:
+            self.toolbar.show()
+            if style == TOOLBAR_BOTH:
+                self.toolbar.set_style(Gtk.ToolbarStyle.BOTH)
+            elif style == TOOLBAR_ICONS:
+                self.toolbar.set_style(Gtk.ToolbarStyle.ICONS)
+            elif style == TOOLBAR_TEXT:
+                self.toolbar.set_style(Gtk.ToolbarStyle.TEXT)
+
     def _on_import_wow_addon(self, widget):
         """Handle Import from WoW Addon menu item."""
         self.update_from_wow_addon(widget)
@@ -406,6 +510,48 @@ class WoWStatTracker:
             self.notify("Addon installed. Restart WoW to load.", NOTIFY_SUCCESS)
         except Exception as e:
             show_error(self.window, "Installation Failed", str(e))
+
+    def _on_uninstall_addon(self, widget):
+        """Uninstall WoW addon from WoW's AddOns folder."""
+        wow_path = self.get_wow_path()
+        if not wow_path:
+            return
+
+        addon_path = os.path.join(
+            wow_path, "_retail_", "Interface", "AddOns", "WoWStatTracker_Addon"
+        )
+
+        if not os.path.exists(addon_path):
+            show_warning(
+                self.window,
+                "Addon Not Installed",
+                "The WoWStatTracker addon is not currently installed.",
+            )
+            return
+
+        # Confirm uninstall
+        dialog = Gtk.MessageDialog(
+            parent=self.window,
+            modal=True,
+            message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.YES_NO,
+            text="Uninstall WoWStatTracker Addon?",
+        )
+        dialog.format_secondary_text(
+            "This will remove the addon from WoW.\n"
+            "Your saved character data will not be affected."
+        )
+        response = dialog.run()
+        dialog.destroy()
+
+        if response != Gtk.ResponseType.YES:
+            return
+
+        try:
+            shutil.rmtree(addon_path)
+            self.notify("Addon uninstalled.", NOTIFY_SUCCESS)
+        except Exception as e:
+            show_error(self.window, "Uninstall Failed", str(e))
 
     def _find_addon_source(self) -> str | None:
         """Find the addon source directory (bundled or development)."""
@@ -517,6 +663,20 @@ class WoWStatTracker:
         if "window" not in self.config.data:
             self.config.data["window"] = {}
         self.config.data["window"]["maximized"] = is_maximized
+
+    def _on_focus_in(self, window, event):
+        """Handle window focus gained - auto-import if enabled."""
+        if not self.config.get("auto_import", False):
+            return False
+
+        # Debounce: don't import if we imported within the last 5 seconds
+        now = time.time()
+        if now - self._last_import_time < 5:
+            return False
+
+        self._last_import_time = now
+        GLib.idle_add(self._auto_import_from_addon)
+        return False
 
     def _save_window_geometry(self):
         """Save window geometry to config."""
@@ -637,8 +797,13 @@ class WoWStatTracker:
 
     # ==================== Import Methods ====================
 
-    def update_from_wow_addon(self, widget):
-        """Import character data from WoW Stat Tracker addon."""
+    def update_from_wow_addon(self, widget, silent: bool = False):
+        """Import character data from WoW Stat Tracker addon.
+
+        Args:
+            widget: The widget that triggered this (can be None)
+            silent: If True, don't show notifications (used for auto-import)
+        """
         if self.debug_enabled:
             print("[DEBUG] ========== WoW Addon Update Started ===========")
 
@@ -714,12 +879,9 @@ class WoWStatTracker:
                         break
 
                 if existing_idx is not None:
-                    # Update existing
+                    # Update existing - only count as updated if something changed
                     existing = self.store.characters[existing_idx]
-                    old_ilevel = existing.item_level if self.debug_enabled else None
-                    new_ilevel = (
-                        addon_char.get("item_level") if self.debug_enabled else None
-                    )
+                    changed = False
                     for key, value in addon_char.items():
                         # Skip week_id (internal tracking only)
                         if key == "week_id":
@@ -728,13 +890,12 @@ class WoWStatTracker:
                         if not is_current_week and key in weekly_fields:
                             continue
                         if hasattr(existing, key) and value is not None:
-                            setattr(existing, key, value)
-                    if self.debug_enabled:
-                        print(
-                            f"[DEBUG] {name}: item_level {old_ilevel} -> {existing.item_level} "
-                            f"(addon had: {new_ilevel}, type: {type(new_ilevel).__name__ if new_ilevel else 'None'})"
-                        )
-                    updated += 1
+                            old_value = getattr(existing, key)
+                            if old_value != value:
+                                setattr(existing, key, value)
+                                changed = True
+                    if changed:
+                        updated += 1
                 else:
                     # Add new - filter weekly fields if stale
                     char_data = {
@@ -750,12 +911,22 @@ class WoWStatTracker:
 
             if updated > 0 or added > 0:
                 self._save_and_refresh()
-                msg = f"Updated {updated}, added {added} characters."
-                if stale_skipped > 0:
-                    msg += f" ({stale_skipped} stale)"
-                self.notify(msg, NOTIFY_SUCCESS)
-            else:
-                self.notify("All characters already up to date.", NOTIFY_INFO)
+                if not silent:
+                    # Build concise message
+                    if updated > 0 and added > 0:
+                        char_word = "character" if updated + added == 1 else "characters"
+                        msg = f"Updated {updated}, added {added} {char_word}."
+                    elif updated > 0:
+                        char_word = "character" if updated == 1 else "characters"
+                        msg = f"Updated {updated} {char_word}."
+                    else:
+                        char_word = "character" if added == 1 else "characters"
+                        msg = f"Added {added} {char_word}."
+                    if stale_skipped > 0:
+                        msg += f" ({stale_skipped} stale)"
+                    self.notify(msg, NOTIFY_SUCCESS)
+            elif not silent:
+                self.notify("All characters up to date.", NOTIFY_INFO)
 
         except Exception as e:
             show_error(
@@ -862,8 +1033,6 @@ class WoWStatTracker:
     def parse_wow_addon_data(self, file_path):
         """Parse WoW Stat Tracker addon SavedVariables file using slpp."""
         try:
-            from slpp import slpp as lua
-
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
@@ -919,114 +1088,9 @@ class WoWStatTracker:
 
             return characters
 
-        except ImportError:
-            print("[VERBOSE] slpp not installed, falling back to regex parser")
-            return self._parse_wow_addon_data_regex(file_path)
         except Exception as e:
             print(f"[VERBOSE] Error parsing addon data: {e}")
             return []
-
-    def _parse_wow_addon_data_regex(self, file_path):
-        """Fallback regex-based parser if slpp is not available."""
-        # This is kept as a fallback but slpp should be preferred
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            characters = []
-            header_pattern = r'\["([^"]+)-([^"]+)"\]\s*=\s*\{'
-            for match in re.finditer(header_pattern, content):
-                name, realm = match.groups()
-                # Simple extraction - just get the data after this header
-                start = match.end()
-                end = start + 2000
-                data = content[start:end]
-                char_data = {"name": name, "realm": realm}
-                char_data.update(self._parse_lua_fields(data))
-                characters.append(char_data)
-
-            return characters
-        except Exception as e:
-            print(f"[VERBOSE] Fallback parser error: {e}")
-            return []
-
-    def _parse_lua_fields(self, lua_data):
-        """Extract character fields from Lua table data."""
-        result = {}
-
-        # Float field (item_level supports decimals)
-        ilevel_match = re.search(r'\["item_level"\]\s*=\s*([\d.]+)', lua_data)
-        if ilevel_match:
-            result["item_level"] = float(ilevel_match.group(1))
-
-        # Integer fields
-        int_patterns = [
-            ("heroic_items", r'\["heroic_items"\]\s*=\s*(\d+)'),
-            ("champion_items", r'\["champion_items"\]\s*=\s*(\d+)'),
-            ("veteran_items", r'\["veteran_items"\]\s*=\s*(\d+)'),
-            ("adventure_items", r'\["adventure_items"\]\s*=\s*(\d+)'),
-            ("old_items", r'\["old_items"\]\s*=\s*(\d+)'),
-            (
-                "timewalk",
-                r'\["timewalking_quest"\]\s*=\s*\{[^}]*\["progress"\]\s*=\s*(\d+)',
-            ),
-        ]
-
-        # Get delve count from vault (World activities)
-        # vault_delves.count includes both delves AND world boss kills
-        vault_delves_match = re.search(
-            r'\["vault_delves"\]\s*=\s*\{[^}]*\["count"\]\s*=\s*(\d+)', lua_data
-        )
-        vault_delves_count = (
-            int(vault_delves_match.group(1)) if vault_delves_match else 0
-        )
-
-        # Check if "Gearing Up for Trouble" quest was done - if so, subtract 1 from vault count
-        gearing_up_match = re.search(
-            r'\["gearing_up"\]\s*=\s*(true|false)', lua_data
-        )
-        gearing_up_done = gearing_up_match and gearing_up_match.group(1) == "true"
-
-        # Actual delves = vault count minus world boss if applicable
-        result["delves"] = max(0, vault_delves_count - (1 if gearing_up_done else 0))
-
-        # Gilded stash is a table with claimed field
-        gilded_match = re.search(
-            r'\["gilded_stash"\]\s*=\s*\{[^}]*\["claimed"\]\s*=\s*(\d+)', lua_data
-        )
-        if gilded_match:
-            result["gilded_stash"] = int(gilded_match.group(1))
-
-        for field, pattern in int_patterns:
-            match = re.search(pattern, lua_data)
-            if match:
-                result[field] = int(match.group(1))
-
-        bool_patterns = [
-            ("vault_visited", r'\["vault_visited"\]\s*=\s*(true|false)'),
-            ("gearing_up", r'\["gearing_up"\]\s*=\s*(true|false)'),
-            ("quests", r'\["quests"\]\s*=\s*(true|false)'),
-        ]
-
-        for field, pattern in bool_patterns:
-            match = re.search(pattern, lua_data)
-            if match:
-                result[field] = match.group(1) == "true"
-
-        guild_match = re.search(r'\["guild"\]\s*=\s*"([^"]*)"', lua_data)
-        if guild_match:
-            result["guild"] = guild_match.group(1)
-
-        notes_match = re.search(r'\["notes"\]\s*=\s*"([^"]*)"', lua_data)
-        if notes_match:
-            result["notes"] = notes_match.group(1)
-
-        # Week ID for staleness detection
-        week_id_match = re.search(r'\["week_id"\]\s*=\s*"(\d+)"', lua_data)
-        if week_id_match:
-            result["week_id"] = week_id_match.group(1)
-
-        return result
 
     # ==================== Notification System ====================
 
@@ -1065,15 +1129,82 @@ class WoWStatTracker:
         count = self.notification_store.count()
         self.status_bar.update_badge(count)
 
+    # ==================== Update Check ====================
+
+    def _on_check_updates(self, widget):
+        """Handle Check for Updates menu item."""
+        self._check_for_updates(show_no_update=True)
+
+    def _check_for_updates(self, show_no_update: bool = False):
+        """Check for updates and show notification if available."""
+        result = check_for_updates()
+
+        if result is None:
+            if show_no_update:
+                self.notify("Could not check for updates.", NOTIFY_WARNING)
+            return
+
+        if result["update_available"]:
+            msg = f"Update available: v{result['latest_version']} (current: v{result['current_version']})"
+            self.notify(msg, NOTIFY_INFO)
+            # Show dialog with download link
+            dialog = Gtk.MessageDialog(
+                parent=self.window,
+                modal=True,
+                message_type=Gtk.MessageType.INFO,
+                buttons=Gtk.ButtonsType.OK,
+                text="Update Available",
+            )
+            dialog.format_secondary_markup(
+                f"A new version is available: <b>v{result['latest_version']}</b>\n"
+                f"Current version: v{result['current_version']}\n\n"
+                f"Download from:\n{result['download_url']}"
+            )
+            dialog.run()
+            dialog.destroy()
+        elif show_no_update:
+            self.notify(f"You're running the latest version (v{__version__}).", NOTIFY_SUCCESS)
+
+    def _on_about(self, widget):
+        """Handle About menu item."""
+        dialog = Gtk.AboutDialog(parent=self.window)
+        dialog.set_program_name("WoW Stat Tracker")
+        dialog.set_version(f"v{__version__}")
+        dialog.set_comments("Track World of Warcraft character statistics and weekly progress.")
+        dialog.set_website("https://github.com/erikg/WoWStatTracker")
+        dialog.set_website_label("GitHub Repository")
+        dialog.set_license_type(Gtk.License.BSD_3)
+        dialog.run()
+        dialog.destroy()
+
     def run(self):
         """Start the application."""
         self.window.show_all()
+
+        # Re-apply toolbar style after show_all (needed for hidden state)
+        toolbar_style = self.config.get("toolbar_style", TOOLBAR_BOTH)
+        if toolbar_style == TOOLBAR_HIDDEN:
+            self.toolbar.hide()
 
         # Show notification if weekly reset occurred
         if self._weekly_reset_occurred:
             GLib.idle_add(self._show_weekly_reset_notification)
 
+        # Check for updates on startup if enabled
+        if self.config.get("check_updates", False):
+            GLib.idle_add(self._check_for_updates)
+
         Gtk.main()
+
+    def _auto_import_from_addon(self):
+        """Auto-import from addon when window gains focus."""
+        try:
+            addon_file = self.find_wow_addon_data()
+            if addon_file:
+                self.update_from_wow_addon(None, silent=True)
+        except Exception:
+            pass  # Silently fail on auto-import
+        return False  # Don't repeat
 
     def _show_weekly_reset_notification(self):
         """Show notification that weekly data was auto-reset."""

@@ -44,38 +44,39 @@ class StatusBar(Gtk.Box):
 
     def _setup_ui(self) -> None:
         """Set up the status bar UI layout."""
-        self.set_margin_start(10)
-        self.set_margin_end(10)
-        self.set_margin_top(4)
-        self.set_margin_bottom(4)
+        self.set_margin_start(6)
+        self.set_margin_end(6)
+        self.set_margin_top(0)
+        self.set_margin_bottom(0)
 
         # Left: Icon for notification type
         self._icon = Gtk.Image()
-        self._icon.set_from_icon_name("dialog-information", Gtk.IconSize.SMALL_TOOLBAR)
+        self._icon.set_from_icon_name("dialog-information", Gtk.IconSize.MENU)
         self._icon.set_no_show_all(True)
         self.pack_start(self._icon, False, False, 0)
 
         # Center: Message label in a clipped container for scrolling
         self._scroll_container = Gtk.DrawingArea()
         self._scroll_container.set_hexpand(True)
-        self._scroll_container.set_size_request(-1, 20)
+        self._scroll_container.set_size_request(-1, 10)
         self._scroll_container.connect("draw", self._on_draw)
         self._scroll_container.set_no_show_all(True)
         self.pack_start(self._scroll_container, True, True, 0)
 
         # Right side container for history button
-        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         self.pack_end(right_box, False, False, 0)
 
         # History button with badge overlay
         self._history_button = Gtk.Button()
         self._history_button.set_relief(Gtk.ReliefStyle.NONE)
         self._history_button.set_tooltip_text("Notification History")
+        self._history_button.set_size_request(-1, 16)
         self._history_button.connect("clicked", self._on_history_button_clicked)
 
         # Button content: icon and badge
-        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
-        history_icon = Gtk.Image.new_from_icon_name("document-open-recent", Gtk.IconSize.SMALL_TOOLBAR)
+        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=1)
+        history_icon = Gtk.Image.new_from_icon_name("document-open-recent", Gtk.IconSize.MENU)
         button_box.pack_start(history_icon, False, False, 0)
 
         # Badge for unread count
@@ -280,7 +281,7 @@ class NotificationHistoryPopover(Gtk.Popover):
 
     def _setup_ui(self) -> None:
         """Set up the popover UI."""
-        self.set_size_request(350, -1)
+        self.set_size_request(450, -1)
 
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         main_box.set_margin_start(8)
@@ -309,8 +310,8 @@ class NotificationHistoryPopover(Gtk.Popover):
         # Scrolled list of notifications
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_min_content_height(100)
-        scrolled.set_max_content_height(300)
+        scrolled.set_min_content_height(150)
+        scrolled.set_max_content_height(400)
 
         self._list_box = Gtk.ListBox()
         self._list_box.set_selection_mode(Gtk.SelectionMode.NONE)

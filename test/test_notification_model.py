@@ -115,13 +115,13 @@ class TestNotification:
         """Test timestamp formatting for display."""
         n = Notification(timestamp="2025-01-15T14:30:00")
         formatted = n.format_timestamp()
-        assert formatted == "2:30 PM"
+        assert formatted == "Jan 15, 2:30 PM"
 
     def test_format_timestamp_morning(self):
         """Test timestamp formatting for morning time."""
         n = Notification(timestamp="2025-01-15T09:05:00")
         formatted = n.format_timestamp()
-        assert formatted == "9:05 AM"
+        assert formatted == "Jan 15, 9:05 AM"
 
     def test_format_timestamp_empty(self):
         """Test format_timestamp with empty timestamp."""

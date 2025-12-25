@@ -12,8 +12,10 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone, timedelta
 
 
-# Application name for config directories
+# Application name and version
 APP_NAME = "wowstat"
+__version__ = "1.0.0"
+GITHUB_REPO = "erikg/WoWStatTracker"
 
 # Validation constants
 MAX_ITEM_LEVEL = 1000
@@ -510,3 +512,84 @@ def get_current_week_id() -> str:
     last_reset = last_reset.replace(hour=RESET_HOUR, minute=0, second=0, microsecond=0)
 
     return last_reset.strftime("%Y%m%d")
+
+
+def check_for_updates() -> dict | None:
+    """Check GitHub for a newer version.
+
+    Returns:
+        dict with 'update_available', 'latest_version', 'current_version', 'download_url'
+        or None if check failed
+    """
+    import urllib.request
+    import urllib.error
+
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+
+    try:
+        request = urllib.request.Request(
+            api_url,
+            headers={
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": f"WoWStatTracker/{__version__}",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+
+        tag_name = data.get("tag_name", "")
+        # Strip 'v' prefix if present (e.g., "v1.2.0" -> "1.2.0")
+        latest_version = tag_name.lstrip("v")
+
+        # Compare versions
+        update_available = _compare_versions(latest_version, __version__) > 0
+
+        return {
+            "update_available": update_available,
+            "latest_version": latest_version,
+            "current_version": __version__,
+            "download_url": data.get("html_url", ""),
+            "release_name": data.get("name", ""),
+        }
+
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError,
+            KeyError, TimeoutError, OSError):
+        return None
+
+
+def _compare_versions(v1: str, v2: str) -> int:
+    """Compare two version strings.
+
+    Returns:
+        1 if v1 > v2
+        0 if v1 == v2
+        -1 if v1 < v2
+    """
+    def parse_version(v: str) -> list[int]:
+        """Parse version string into list of integers."""
+        parts = []
+        for part in v.split("."):
+            # Handle versions like "1.2.3-beta" by taking only the numeric part
+            numeric = ""
+            for char in part:
+                if char.isdigit():
+                    numeric += char
+                else:
+                    break
+            parts.append(int(numeric) if numeric else 0)
+        return parts
+
+    parts1 = parse_version(v1)
+    parts2 = parse_version(v2)
+
+    # Pad shorter version with zeros
+    max_len = max(len(parts1), len(parts2))
+    parts1.extend([0] * (max_len - len(parts1)))
+    parts2.extend([0] * (max_len - len(parts2)))
+
+    for p1, p2 in zip(parts1, parts2):
+        if p1 > p2:
+            return 1
+        elif p1 < p2:
+            return -1
+    return 0

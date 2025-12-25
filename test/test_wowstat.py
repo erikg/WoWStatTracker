@@ -116,6 +116,99 @@ class TestLuaParsing:
         assert "DataStore_CharactersDB" in content
 
 
+class TestSlppParsing:
+    """Tests for slpp-based addon data parsing."""
+
+    def test_parse_addon_character(self, tmp_path):
+        """Test parsing a WoWStatTracker addon file."""
+        from slpp import slpp as lua
+
+        addon_content = '''WoWStatTrackerDB = {
+    ["characters"] = {
+        ["TestChar-TestRealm"] = {
+            ["name"] = "TestChar",
+            ["realm"] = "TestRealm",
+            ["guild"] = "Test Guild",
+            ["item_level"] = 715.5,
+            ["heroic_items"] = 14,
+            ["champion_items"] = 2,
+            ["veteran_items"] = 0,
+            ["adventure_items"] = 0,
+            ["old_items"] = 0,
+            ["vault_visited"] = true,
+            ["gearing_up"] = true,
+            ["quests"] = false,
+            ["week_id"] = "20251223",
+        },
+    },
+}'''
+        content = addon_content.replace("WoWStatTrackerDB = ", "", 1)
+        data = lua.decode(content)
+
+        assert "characters" in data
+        assert "TestChar-TestRealm" in data["characters"]
+        char = data["characters"]["TestChar-TestRealm"]
+        assert char["name"] == "TestChar"
+        assert char["item_level"] == 715.5
+        assert char["heroic_items"] == 14
+        assert char["vault_visited"] is True
+        assert char["gearing_up"] is True
+        assert char["quests"] is False
+
+    def test_parse_unicode_character_name(self):
+        """Test parsing character names with unicode."""
+        from slpp import slpp as lua
+
+        content = '''{
+    ["characters"] = {
+        ["Muffïn-Norgannon"] = {
+            ["name"] = "Muffïn",
+            ["realm"] = "Norgannon",
+        },
+    },
+}'''
+        data = lua.decode(content)
+        assert "Muffïn-Norgannon" in data["characters"]
+        assert data["characters"]["Muffïn-Norgannon"]["name"] == "Muffïn"
+
+    def test_parse_nested_structures(self):
+        """Test parsing nested addon structures like vault_delves."""
+        from slpp import slpp as lua
+
+        content = '''{
+    ["characters"] = {
+        ["Test-Realm"] = {
+            ["vault_delves"] = {
+                ["count"] = 5,
+            },
+            ["gilded_stash"] = {
+                ["claimed"] = 3,
+            },
+            ["timewalking_quest"] = {
+                ["progress"] = 2,
+                ["completed"] = false,
+            },
+        },
+    },
+}'''
+        data = lua.decode(content)
+        char = data["characters"]["Test-Realm"]
+        assert char["vault_delves"]["count"] == 5
+        assert char["gilded_stash"]["claimed"] == 3
+        assert char["timewalking_quest"]["progress"] == 2
+
+    def test_parse_empty_characters_table(self):
+        """Test parsing addon with no characters."""
+        from slpp import slpp as lua
+
+        content = '''{
+    ["characters"] = {
+    },
+}'''
+        data = lua.decode(content)
+        assert data["characters"] == {}
+
+
 class TestCharacterValidation:
     """Tests for character data validation."""
 

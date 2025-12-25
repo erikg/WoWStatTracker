@@ -7,7 +7,7 @@ import gi
 import os
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from gi.repository import Gtk, GLib
 
 from model import (
     Character,
@@ -29,6 +29,7 @@ from model import (
     COL_NOTES,
     COL_INDEX,
     THEME_AUTO,
+    THEME_LIGHT,
     THEME_DARK,
     detect_system_theme,
     MAX_ITEM_LEVEL,
@@ -250,10 +251,53 @@ class CharacterTable:
 
         # Create tree view
         self.treeview = Gtk.TreeView(model=self.store)
+        # External dict tracks visual sort order (keyed by "name-realm")
+        # This avoids modifying the model which would trigger recursive sorts
+        self._sort_indices = {}
+        self._setup_sort_functions()
         self._setup_columns()
 
         if on_row_activated:
             self.treeview.connect("row-activated", self._handle_row_activated)
+
+    def _setup_sort_functions(self) -> None:
+        """Set up stable sort functions for all columns."""
+        for _, _, col_id in self.COLUMNS:
+            if col_id == COL_INDEX:
+                continue  # Don't set sort func for index column
+            self.store.set_sort_func(col_id, self._stable_sort_func, col_id)
+        # Update sort indices after each sort to enable true stable sorting
+        self.store.connect("sort-column-changed", self._on_sort_changed)
+
+    def _on_sort_changed(self, model) -> None:
+        """Update sort indices after sort completes."""
+        # Defer to after sort completes
+        GLib.idle_add(self._update_sort_indices)
+
+    def _update_sort_indices(self) -> bool:
+        """Update external sort indices dict to reflect current visual order."""
+        for i, row in enumerate(self.store):
+            key = f"{row[COL_NAME]}-{row[COL_REALM]}"
+            self._sort_indices[key] = i
+        return False  # Don't repeat
+
+    def _stable_sort_func(self, model, iter1, iter2, col_id) -> int:
+        """Compare two rows by column value, using previous sort order as tiebreaker."""
+        val1 = model[iter1][col_id]
+        val2 = model[iter2][col_id]
+
+        # Primary comparison
+        if val1 < val2:
+            return -1
+        elif val1 > val2:
+            return 1
+        else:
+            # Tiebreaker: use sort indices dict to preserve previous order
+            key1 = f"{model[iter1][COL_NAME]}-{model[iter1][COL_REALM]}"
+            key2 = f"{model[iter2][COL_NAME]}-{model[iter2][COL_REALM]}"
+            idx1 = self._sort_indices.get(key1, 0)
+            idx2 = self._sort_indices.get(key2, 0)
+            return idx1 - idx2
 
     def _setup_columns(self) -> None:
         """Create and configure all columns."""
@@ -391,6 +435,7 @@ class CharacterTable:
     def populate(self, characters: list[Character]) -> None:
         """Populate table with character data."""
         self.store.clear()
+        self._sort_indices.clear()
         for i, char in enumerate(characters):
             self.store.append(
                 [
@@ -410,9 +455,12 @@ class CharacterTable:
                     char.quests,
                     char.timewalk,
                     char.notes,
-                    i,  # Store original index
+                    i,  # Store original index for data store lookup
                 ]
             )
+            # Initialize sort index for stable sorting
+            key = f"{char.name}-{char.realm}"
+            self._sort_indices[key] = i
 
     def update_row(self, index: int, char: Character) -> None:
         """Update a single row."""
@@ -694,3 +742,164 @@ def show_folder_chooser(
     result = dialog.get_filename() if response == Gtk.ResponseType.OK else None
     dialog.destroy()
     return result
+
+
+# Toolbar style constants
+TOOLBAR_BOTH = "both"
+TOOLBAR_ICONS = "icons"
+TOOLBAR_TEXT = "text"
+TOOLBAR_HIDDEN = "hidden"
+
+
+class PropertiesDialog:
+    """Dialog for application properties/settings."""
+
+    THEME_OPTIONS = [
+        (THEME_AUTO, "Auto (System)"),
+        (THEME_LIGHT, "Light"),
+        (THEME_DARK, "Dark"),
+    ]
+
+    TOOLBAR_OPTIONS = [
+        (TOOLBAR_BOTH, "Icons and Text"),
+        (TOOLBAR_ICONS, "Icons Only"),
+        (TOOLBAR_TEXT, "Text Only"),
+        (TOOLBAR_HIDDEN, "Hidden"),
+    ]
+
+    def __init__(self, parent: Gtk.Window):
+        self.parent = parent
+        self.result = None
+
+    def show(
+        self,
+        wow_path: str = "",
+        theme: str = THEME_AUTO,
+        toolbar_style: str = TOOLBAR_BOTH,
+        auto_import: bool = False,
+        check_updates: bool = False,
+        on_browse_path=None,
+    ) -> dict | None:
+        """Show properties dialog. Returns dict of settings or None if cancelled."""
+        dialog = Gtk.Dialog(
+            title="Properties",
+            parent=self.parent,
+            modal=True,
+        )
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        dialog.add_button("OK", Gtk.ResponseType.OK)
+        dialog.set_default_size(450, -1)
+
+        content = dialog.get_content_area()
+        content.set_spacing(15)
+        content.set_margin_start(15)
+        content.set_margin_end(15)
+        content.set_margin_top(15)
+        content.set_margin_bottom(15)
+
+        # Game Location section
+        location_frame = Gtk.Frame(label=" Game Location ")
+        location_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        location_box.set_margin_start(10)
+        location_box.set_margin_end(10)
+        location_box.set_margin_top(10)
+        location_box.set_margin_bottom(10)
+        location_frame.add(location_box)
+
+        self.path_entry = Gtk.Entry()
+        self.path_entry.set_text(wow_path)
+        self.path_entry.set_hexpand(True)
+        self.path_entry.set_placeholder_text("World of Warcraft installation path")
+        location_box.pack_start(self.path_entry, True, True, 0)
+
+        browse_btn = Gtk.Button(label="Browse...")
+        browse_btn.connect("clicked", self._on_browse_clicked, on_browse_path)
+        location_box.pack_start(browse_btn, False, False, 0)
+
+        content.pack_start(location_frame, False, False, 0)
+
+        # Appearance section
+        appearance_frame = Gtk.Frame(label=" Appearance ")
+        appearance_grid = Gtk.Grid()
+        appearance_grid.set_column_spacing(15)
+        appearance_grid.set_row_spacing(10)
+        appearance_grid.set_margin_start(10)
+        appearance_grid.set_margin_end(10)
+        appearance_grid.set_margin_top(10)
+        appearance_grid.set_margin_bottom(10)
+        appearance_frame.add(appearance_grid)
+
+        # Theme
+        theme_label = Gtk.Label(label="Theme:")
+        theme_label.set_halign(Gtk.Align.END)
+        appearance_grid.attach(theme_label, 0, 0, 1, 1)
+
+        self.theme_combo = Gtk.ComboBoxText()
+        for value, label in self.THEME_OPTIONS:
+            self.theme_combo.append(value, label)
+        self.theme_combo.set_active_id(theme)
+        self.theme_combo.set_hexpand(True)
+        appearance_grid.attach(self.theme_combo, 1, 0, 1, 1)
+
+        # Toolbar style
+        toolbar_label = Gtk.Label(label="Toolbar:")
+        toolbar_label.set_halign(Gtk.Align.END)
+        appearance_grid.attach(toolbar_label, 0, 1, 1, 1)
+
+        self.toolbar_combo = Gtk.ComboBoxText()
+        for value, label in self.TOOLBAR_OPTIONS:
+            self.toolbar_combo.append(value, label)
+        self.toolbar_combo.set_active_id(toolbar_style)
+        appearance_grid.attach(self.toolbar_combo, 1, 1, 1, 1)
+
+        content.pack_start(appearance_frame, False, False, 0)
+
+        # Behavior section
+        behavior_frame = Gtk.Frame(label=" Behavior ")
+        behavior_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        behavior_box.set_margin_start(10)
+        behavior_box.set_margin_end(10)
+        behavior_box.set_margin_top(10)
+        behavior_box.set_margin_bottom(10)
+        behavior_frame.add(behavior_box)
+
+        self.auto_import_check = Gtk.CheckButton(label="Auto-import when window is focused")
+        self.auto_import_check.set_active(auto_import)
+        behavior_box.pack_start(self.auto_import_check, False, False, 0)
+
+        self.check_updates_check = Gtk.CheckButton(label="Check for updates on startup")
+        self.check_updates_check.set_active(check_updates)
+        behavior_box.pack_start(self.check_updates_check, False, False, 0)
+
+        content.pack_start(behavior_frame, False, False, 0)
+
+        dialog.show_all()
+        response = dialog.run()
+
+        result = None
+        if response == Gtk.ResponseType.OK:
+            result = {
+                "wow_path": self.path_entry.get_text().strip(),
+                "theme": self.theme_combo.get_active_id(),
+                "toolbar_style": self.toolbar_combo.get_active_id(),
+                "auto_import": self.auto_import_check.get_active(),
+                "check_updates": self.check_updates_check.get_active(),
+            }
+
+        dialog.destroy()
+        return result
+
+    def _on_browse_clicked(self, button, callback):
+        """Handle browse button click."""
+        current = self.path_entry.get_text().strip()
+        path = show_folder_chooser(
+            self.parent,
+            "Select World of Warcraft Folder",
+            initial_folder=current if current and os.path.exists(current) else None,
+        )
+        if path:
+            # Validate it looks like a WoW installation
+            if os.path.exists(os.path.join(path, "_retail_")):
+                self.path_entry.set_text(path)
+            elif callback:
+                callback(path)  # Let caller handle validation message
