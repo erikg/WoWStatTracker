@@ -10,15 +10,17 @@ echo "🚀 Building WoW Stat Tracker Mac App..."
 # Change to project root directory
 cd "$(dirname "$0")/.."
 
-# Add pipx to PATH if not already there
-if ! command -v pyinstaller &> /dev/null; then
-    export PATH="/Users/$USER/.local/bin:$PATH"
+# Ensure venv exists with system site-packages (for Homebrew GTK)
+if [ ! -d "venv" ]; then
+    echo "📦 Creating virtual environment..."
+    python3 -m venv --system-site-packages venv
+    ./venv/bin/pip install --upgrade pip
 fi
 
-# Check if PyInstaller is available
-if ! command -v pyinstaller &> /dev/null; then
-    echo "❌ PyInstaller not found. Please install it with: pipx install pyinstaller"
-    exit 1
+# Install PyInstaller in venv if not present
+if [ ! -f "./venv/bin/pyinstaller" ]; then
+    echo "📦 Installing PyInstaller in venv..."
+    ./venv/bin/pip install pyinstaller pyinstaller-hooks-contrib
 fi
 
 # Clean previous builds
@@ -26,7 +28,7 @@ echo "🧹 Cleaning previous builds..."
 rm -rf build/ dist/ __pycache__/
 
 # Check for GTK installation
-if ! python3 -c "import gi" 2>/dev/null; then
+if ! ./venv/bin/python3 -c "import gi" 2>/dev/null; then
     echo "❌ GTK/PyGObject not found. Please install with: brew install pygobject3 gtk+3"
     exit 1
 fi
@@ -54,7 +56,7 @@ echo "✅ GTK libraries found"
 
 # Build the app
 echo "🔨 Building Mac application bundle..."
-pyinstaller mac/WoWStatTracker.spec --clean --noconfirm
+./venv/bin/pyinstaller mac/WoWStatTracker.spec --clean --noconfirm
 
 # Check if build was successful
 if [ -d "dist/WoWStatTracker.app" ]; then
