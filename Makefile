@@ -8,7 +8,12 @@
 #   make lint     - Check code formatting
 #   make clean    - Remove build artifacts
 
-.PHONY: help test test-quick build dmg format check-format lint clean install-deps run all
+.PHONY: help test test-quick build dmg format check-format lint clean install-deps run all venv
+
+# Venv paths
+VENV := venv
+PYTHON := $(VENV)/bin/python
+PIP := $(VENV)/bin/pip
 
 # Default target
 all: format lint test
@@ -24,25 +29,29 @@ help:
 	@echo "  make check-format - Check formatting (no changes)"
 	@echo "  make lint        - Run flake8 linter"
 	@echo "  make clean       - Remove build artifacts"
-	@echo "  make install-deps - Install Python dependencies"
+	@echo "  make install-deps - Install Python dependencies in venv"
 	@echo "  make run         - Run the application"
 	@echo "  make all         - Format, lint, and test"
 	@echo ""
 
-# Find Python with required modules
-# Check if python3 in PATH has pytest, otherwise try common locations
-PYTHON := $(shell python3 -c "import pytest" 2>/dev/null && echo python3 || \
-	(/usr/local/bin/python3 -c "import pytest" 2>/dev/null && echo /usr/local/bin/python3 || echo python3))
+# Create venv if it doesn't exist
+$(VENV)/bin/activate:
+	@echo "Creating virtual environment..."
+	python3 -m venv --system-site-packages $(VENV)
+	$(PIP) install --upgrade pip
+
+# Ensure venv exists
+venv: $(VENV)/bin/activate
 
 # Run tests with coverage
-test:
+test: venv
 	@echo "Running tests with coverage..."
 	$(PYTHON) -m pytest test/ -v --cov=. --cov-report=html --cov-report=term-missing --cov-config=.coveragerc
 	@echo ""
 	@echo "Coverage report generated in htmlcov/"
 
 # Run tests without coverage (faster)
-test-quick:
+test-quick: venv
 	@echo "Running tests..."
 	$(PYTHON) -m pytest test/ -v
 
@@ -57,18 +66,18 @@ dmg: build
 	./mac/create_dmg.sh
 
 # Format code with black
-format:
+format: venv
 	@echo "Formatting code with black..."
 	$(PYTHON) -m black src/ test/ --line-length 88
 
 # Check formatting without making changes
-check-format:
+check-format: venv
 	@echo "Checking code formatting..."
 	$(PYTHON) -m black src/ test/ --check --line-length 88
 	@echo "All files formatted correctly!"
 
 # Run flake8 linter
-lint:
+lint: venv
 	@echo "Running flake8 linter..."
 	$(PYTHON) -m flake8 src/ test/
 
@@ -82,16 +91,16 @@ clean:
 	@echo "Clean complete!"
 
 # Install Python dependencies
-install-deps:
+install-deps: venv
 	@echo "Installing dependencies..."
-	pip3 install PyGObject pytest pytest-cov black
+	$(PIP) install pytest pytest-cov black flake8 slpp pyinstaller pyinstaller-hooks-contrib
 	@echo ""
 	@echo "Note: GTK dependencies must be installed separately:"
-	@echo "  macOS:  brew install gtk+3 gobject-introspection"
+	@echo "  macOS:  brew install gtk+3 gobject-introspection pygobject3"
 	@echo "  Ubuntu: sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-gtk-3.0"
 
 # Run the application
-run:
+run: venv
 	@echo "Starting WoW Stat Tracker..."
 	$(PYTHON) src/wowstat.py
 
@@ -108,10 +117,12 @@ uninstall:
 	@echo "Uninstalled"
 
 # Check for required tools
-check-tools:
+check-tools: venv
 	@echo "Checking for required tools..."
 	@echo "  python: $(PYTHON)"
-	@$(PYTHON) -c "import pytest" 2>/dev/null && echo "  pytest: OK" || echo "  pytest: not found (run: pip3 install pytest)"
-	@$(PYTHON) -c "import black" 2>/dev/null && echo "  black: OK" || echo "  black: not found (run: pip3 install black)"
-	@$(PYTHON) -c "import pytest_cov" 2>/dev/null && echo "  pytest-cov: OK" || echo "  pytest-cov: not found (run: pip3 install pytest-cov)"
+	@$(PYTHON) -c "import pytest" 2>/dev/null && echo "  pytest: OK" || echo "  pytest: not found (run: make install-deps)"
+	@$(PYTHON) -c "import black" 2>/dev/null && echo "  black: OK" || echo "  black: not found (run: make install-deps)"
+	@$(PYTHON) -c "import pytest_cov" 2>/dev/null && echo "  pytest-cov: OK" || echo "  pytest-cov: not found (run: make install-deps)"
+	@$(PYTHON) -c "import flake8" 2>/dev/null && echo "  flake8: OK" || echo "  flake8: not found (run: make install-deps)"
+	@$(PYTHON) -c "import slpp" 2>/dev/null && echo "  slpp: OK" || echo "  slpp: not found (run: make install-deps)"
 	@echo ""
