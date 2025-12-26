@@ -76,8 +76,11 @@ def find_gtk_libraries():
 # Get GTK binaries and data
 gtk_binaries, gtk_datas = find_gtk_libraries()
 
-# Include WoW addon in bundle Resources
-addon_datas = [(str(spec_root / 'WoWStatTracker_Addon'), 'WoWStatTracker_Addon')]
+# Include WoW addon and manual in bundle Resources
+addon_datas = [
+    (str(spec_root / 'WoWStatTracker_Addon'), 'WoWStatTracker_Addon'),
+    (str(spec_root / 'MANUAL.txt'), '.'),
+]
 
 a = Analysis(
     [str(spec_root / 'src' / 'wowstat.py')],

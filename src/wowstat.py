@@ -42,6 +42,7 @@ from view import (
     CharacterTable,
     CharacterDialog,
     PropertiesDialog,
+    ManualDialog,
     show_error,
     show_warning,
     show_info,
@@ -276,6 +277,10 @@ class WoWStatTracker:
         help_menu = Gtk.Menu()
         help_menu_item.set_submenu(help_menu)
         menubar.append(help_menu_item)
+
+        manual_item = Gtk.MenuItem(label="Manual")
+        manual_item.connect("activate", self._on_manual)
+        help_menu.append(manual_item)
 
         check_updates_item = Gtk.MenuItem(label="Check for Updates...")
         check_updates_item.connect("activate", self._on_check_updates)
@@ -1164,6 +1169,52 @@ class WoWStatTracker:
             dialog.destroy()
         elif show_no_update:
             self.notify(f"You're running the latest version (v{__version__}).", NOTIFY_SUCCESS)
+
+    def _on_manual(self, widget):
+        """Handle Manual menu item - show user manual dialog."""
+        manual_path = self._find_manual_file()
+        if manual_path and os.path.exists(manual_path):
+            try:
+                with open(manual_path, "r", encoding="utf-8") as f:
+                    manual_text = f.read()
+                dialog = ManualDialog(self.window)
+                dialog.show(manual_text)
+            except IOError:
+                show_error(self.window, "Error", "Could not read manual file.")
+        else:
+            show_error(self.window, "Error", "Manual file not found.")
+
+    def _find_manual_file(self) -> str | None:
+        """Find the manual file (bundled or development)."""
+        # Check if running from bundle (frozen)
+        if getattr(sys, "frozen", False):
+            # PyInstaller bundle - manual in Resources
+            bundle_path = os.path.join(
+                os.path.dirname(sys.executable),
+                "..",
+                "Resources",
+                "MANUAL.txt",
+            )
+            if os.path.exists(bundle_path):
+                return os.path.realpath(bundle_path)
+
+        # Development mode - manual in project root
+        dev_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "MANUAL.txt",
+        )
+        if os.path.exists(dev_path):
+            return dev_path
+
+        # Also check same directory as script
+        script_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "MANUAL.txt",
+        )
+        if os.path.exists(script_path):
+            return script_path
+
+        return None
 
     def _on_about(self, widget):
         """Handle About menu item."""

@@ -1,0 +1,167 @@
+WoW Stat Tracker - User Manual
+===============================
+
+OVERVIEW
+--------
+WoW Stat Tracker helps you monitor your World of Warcraft characters'
+gear and weekly progress across all your alts. It works with a companion
+WoW addon that collects data from the game.
+
+
+GETTING STARTED
+---------------
+1. Install the WoW addon: Addon → Install Addon
+2. Log into WoW and play on your characters
+3. In WoW, type: /wst update
+4. Log out or /reload to save the data
+5. In this app: Addon → Import from Addon
+
+
+MENUS
+-----
+
+File
+  Properties     - Configure settings (see Settings below)
+  Quit           - Exit the application
+
+Characters
+  Add Character  - Manually add a new character
+  Reset Weekly   - Clear all weekly progress data
+
+Addon
+  Import         - Import character data from the WoW addon
+  Set WoW Location - Manually set your WoW install path
+  Install Addon  - Install/update the addon in WoW
+  Uninstall Addon - Remove the addon from WoW
+
+View
+  Theme          - Choose Light, Dark, or Auto (system)
+
+Help
+  Manual         - View this manual
+  Check for Updates - Check GitHub for new versions
+  About          - Version and license info
+
+
+SETTINGS (File → Properties)
+-----------------------------
+
+Game Location
+  Path to your World of Warcraft installation folder.
+  The app will auto-detect common locations.
+
+Theme
+  - Auto: Follow your system's light/dark preference
+  - Light: Light background with dark text
+  - Dark: Dark background with light text
+
+Toolbar
+  - Icons and Text: Show both icons and labels
+  - Icons Only: Compact toolbar with just icons
+  - Text Only: Labels without icons
+  - Hidden: Hide the toolbar entirely
+
+Auto-import when focused
+  Automatically import from the addon whenever you switch
+  to this app. Useful when alt-tabbing from WoW.
+
+Check for updates on startup
+  Check GitHub for new releases when the app starts.
+
+
+THE CHARACTER TABLE
+-------------------
+
+Columns:
+  Realm, Name, Guild    - Character identity
+  Item Level            - Average equipped item level
+  Heroic/Champion/etc.  - Count of items at each tier
+  Vault Visited         - Checked the Great Vault this week
+  Delves                - Vault-eligible delves completed (0-8)
+  Gilded                - Gilded Stash claims this week (0-3)
+  Gearing Up            - "Gearing Up for Trouble" quest done
+  Quests                - World quests completed
+  Timewalk              - Timewalking dungeons done (0-5)
+  Notes                 - Your personal notes
+
+Color Coding:
+  Green  - Activity completed / good status
+  Yellow - Partial progress
+  Red    - Needs attention (e.g., vault ready but not visited)
+
+Interactions:
+  - Click column headers to sort
+  - Double-click a row to edit that character
+  - Click checkboxes to toggle boolean values
+  - Click the Notes cell to edit notes directly
+
+
+THE WOW ADDON
+-------------
+
+In-Game Commands:
+  /wst           - Show addon help
+  /wst update    - Update character data
+  /wst status    - Show current character's tracked data
+
+The addon automatically tracks:
+  - Item level and gear tier counts
+  - Vault-eligible delve completions
+  - Gilded Stash claims
+  - Weekly quest progress
+  - Timewalking dungeon completions
+
+Important: After running /wst update, you must /reload or log out
+to save the data to disk so the desktop app can read it.
+
+
+WEEKLY RESET
+------------
+WoW resets weekly on Tuesday at 15:00 UTC (7:00 AM Pacific).
+
+The app automatically detects when a new week starts and clears
+weekly progress data (delves, quests, vault status, etc.).
+You'll see a notification when this happens.
+
+
+KEYBOARD SHORTCUTS
+------------------
+The app follows standard GTK conventions:
+  Ctrl+Q  - Quit (on some systems)
+
+
+DATA STORAGE
+------------
+Your data is stored in:
+  macOS:   ~/Library/Application Support/wowstat/
+  Linux:   ~/.config/wowstat/
+  Windows: %APPDATA%\wowstat\
+
+Files:
+  wowstat_data.json   - Your character data
+  wowstat_config.json - App settings
+  notifications.json  - Notification history
+
+
+TROUBLESHOOTING
+---------------
+
+"Addon Data Not Found"
+  - Make sure the addon is installed (Addon → Install Addon)
+  - Log into WoW and run /wst update
+  - /reload or log out to save data
+  - Check that WoW path is correct (File → Properties)
+
+Characters not updating
+  - Run /wst update in WoW after playing
+  - Make sure to /reload or log out before importing
+  - Check if addon data is from current week (stale data is skipped)
+
+Wrong item counts
+  - The addon reads equipped gear when you run /wst update
+  - Make sure you're wearing your best gear when updating
+
+
+SUPPORT
+-------
+Report issues: https://github.com/erikg/WoWStatTracker/issues

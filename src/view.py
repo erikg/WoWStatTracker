@@ -751,6 +751,60 @@ TOOLBAR_TEXT = "text"
 TOOLBAR_HIDDEN = "hidden"
 
 
+class ManualDialog:
+    """Dialog for displaying the user manual."""
+
+    def __init__(self, parent: Gtk.Window):
+        self.parent = parent
+
+    def show(self, manual_text: str) -> None:
+        """Show the manual dialog."""
+        dialog = Gtk.Dialog(
+            title="User Manual",
+            parent=self.parent,
+            modal=False,
+        )
+        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+        dialog.set_default_size(600, 500)
+
+        content = dialog.get_content_area()
+        content.set_margin_start(10)
+        content.set_margin_end(10)
+        content.set_margin_top(10)
+        content.set_margin_bottom(10)
+
+        # Scrolled window for the text
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_vexpand(True)
+        scrolled.set_hexpand(True)
+        content.pack_start(scrolled, True, True, 0)
+
+        # Text view with monospace font for nice formatting
+        textview = Gtk.TextView()
+        textview.set_editable(False)
+        textview.set_cursor_visible(False)
+        textview.set_wrap_mode(Gtk.WrapMode.WORD)
+        textview.set_left_margin(10)
+        textview.set_right_margin(10)
+        textview.set_top_margin(10)
+        textview.set_bottom_margin(10)
+
+        # Use monospace font for consistent formatting
+        font_desc = textview.get_pango_context().get_font_description()
+        font_desc.set_family("monospace")
+        textview.override_font(font_desc)
+
+        buffer = textview.get_buffer()
+        buffer.set_text(manual_text)
+
+        scrolled.add(textview)
+
+        dialog.show_all()
+        dialog.run()
+        dialog.destroy()
+
+
 class PropertiesDialog:
     """Dialog for application properties/settings."""
 
