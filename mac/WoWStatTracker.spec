@@ -87,8 +87,6 @@ a = Analysis(
     pathex=[
         str(spec_root),
         str(spec_root / 'src'),
-        '/usr/local/lib/python3.13/site-packages',
-        '/usr/local/opt/pygobject3/lib/python3.13/site-packages',
     ],
     binaries=gtk_binaries,
     datas=gtk_datas + addon_datas,
