@@ -23,8 +23,8 @@ if exist "dist\%ZIP_NAME%" del "dist\%ZIP_NAME%"
 
 echo Creating ZIP archive...
 
-REM Create ZIP using PowerShell
-powershell -Command "Compress-Archive -Path '%APP_PATH%' -DestinationPath 'dist\%ZIP_NAME%' -Force"
+REM Create ZIP using PowerShell (compress contents, not the directory itself)
+powershell -Command "Compress-Archive -Path '%APP_PATH%\*' -DestinationPath 'dist\%ZIP_NAME%' -Force"
 
 if exist "dist\%ZIP_NAME%" (
     echo.
