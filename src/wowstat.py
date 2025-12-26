@@ -828,7 +828,7 @@ class WoWStatTracker:
                 return
 
             # Parse addon data
-            addon_chars = self.parse_wow_addon_data(addon_file)
+            addon_chars, addon_version = self.parse_wow_addon_data(addon_file)
 
             if not addon_chars:
                 show_warning(
@@ -837,6 +837,10 @@ class WoWStatTracker:
                     "Could not parse character data from addon file.",
                 )
                 return
+
+            # Check for version mismatch between addon and GUI
+            if addon_version and addon_version != __version__:
+                self._show_version_mismatch_warning(addon_version)
 
             # Update characters
             updated = 0
@@ -1036,7 +1040,11 @@ class WoWStatTracker:
         return None
 
     def parse_wow_addon_data(self, file_path):
-        """Parse WoW Stat Tracker addon SavedVariables file using slpp."""
+        """Parse WoW Stat Tracker addon SavedVariables file using slpp.
+
+        Returns:
+            tuple: (characters list, addon_version string or None)
+        """
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
@@ -1047,7 +1055,11 @@ class WoWStatTracker:
             # Parse the Lua table
             data = lua.decode(content)
             if not data:
-                return []
+                return [], None
+
+            # Extract addon version from metadata
+            metadata = data.get("metadata", {})
+            addon_version = metadata.get("version") if isinstance(metadata, dict) else None
 
             characters = []
             char_table = data.get("characters", {})
@@ -1091,11 +1103,11 @@ class WoWStatTracker:
 
                 characters.append(char)
 
-            return characters
+            return characters, addon_version
 
         except Exception as e:
             print(f"[VERBOSE] Error parsing addon data: {e}")
-            return []
+            return [], None
 
     # ==================== Notification System ====================
 
@@ -1133,6 +1145,29 @@ class WoWStatTracker:
         """Update the notification badge count on status bar."""
         count = self.notification_store.count()
         self.status_bar.update_badge(count)
+
+    def _show_version_mismatch_warning(self, addon_version: str) -> None:
+        """Show notification and dialog when addon and GUI versions don't match."""
+        msg = f"Version mismatch: addon v{addon_version}, GUI v{__version__}"
+        self.notify(msg, NOTIFY_WARNING)
+
+        dialog = Gtk.MessageDialog(
+            parent=self.window,
+            modal=True,
+            message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.OK,
+            text="Addon Version Mismatch",
+        )
+        dialog.format_secondary_markup(
+            f"The WoW addon version (<b>v{addon_version}</b>) does not match "
+            f"the GUI version (<b>v{__version__}</b>).\n\n"
+            "This may cause data import issues. Please update both components "
+            "to the same version.\n\n"
+            "You can reinstall the addon from:\n"
+            "<b>Addon > Install Addon</b>"
+        )
+        dialog.run()
+        dialog.destroy()
 
     # ==================== Update Check ====================
 
