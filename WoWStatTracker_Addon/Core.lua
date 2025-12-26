@@ -36,6 +36,9 @@ function WoWStatTracker:Initialize()
         self:MergeDefaults(WoWStatTrackerDB, defaultDB)
         self:Debug("Loaded existing database with " .. #(WoWStatTrackerDB.characters or {}) .. " characters")
     end
+
+    -- Always update metadata version to current addon version
+    WoWStatTrackerDB.metadata.version = self.version
     
     -- Set up event handling
     self:SetupEvents()
