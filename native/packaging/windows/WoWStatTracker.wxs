@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WoW Stat Tracker - WiX Installer Definition
+  BSD 3-Clause License
+
+  Build with:
+    candle -dVersion=1.0.0 -dBuildDir=build\Release -dAddonDir=..\WoWStatTracker_Addon WoWStatTracker.wxs
+    light -ext WixUIExtension WoWStatTracker.wixobj
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+
+  <?define ProductName = "WoW Stat Tracker" ?>
+  <?define Manufacturer = "WoW Stat Tracker" ?>
+  <?define UpgradeCode = "12345678-1234-1234-1234-123456789ABC" ?>
+
+  <Product Id="*"
+           Name="$(var.ProductName)"
+           Language="1033"
+           Version="$(var.Version)"
+           Manufacturer="$(var.Manufacturer)"
+           UpgradeCode="$(var.UpgradeCode)">
+
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perUser"
+             Description="$(var.ProductName) Installer"
+             Comments="Track your World of Warcraft character statistics" />
+
+    <!-- Upgrade handling -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of $(var.ProductName) is already installed."
+                  AllowSameVersionUpgrades="yes" />
+
+    <!-- Embed files in MSI -->
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- Icon for Add/Remove Programs -->
+    <Icon Id="AppIcon" SourceFile="$(var.BuildDir)\WoWStatTracker.exe" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/yourusername/WoWStatTracker" />
+
+    <!-- Installation directory -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="INSTALLFOLDER" Name="WoWStatTracker">
+          <Directory Id="AddonFolder" Name="WoWStatTracker_Addon" />
+        </Directory>
+      </Directory>
+
+      <!-- Start Menu -->
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="$(var.ProductName)" />
+      </Directory>
+
+      <!-- Desktop -->
+      <Directory Id="DesktopFolder" Name="Desktop" />
+    </Directory>
+
+    <!-- Main executable -->
+    <ComponentGroup Id="MainComponents" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable" Guid="*">
+        <File Id="WoWStatTrackerEXE"
+              Source="$(var.BuildDir)\WoWStatTracker.exe"
+              KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="ApplicationProgramsFolder"
+                    Name="$(var.ProductName)"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Advertise="yes"
+                    Icon="AppIcon" />
+          <Shortcut Id="DesktopShortcut"
+                    Directory="DesktopFolder"
+                    Name="$(var.ProductName)"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Advertise="yes"
+                    Icon="AppIcon" />
+        </File>
+      </Component>
+    </ComponentGroup>
+
+    <!-- WoW Addon files -->
+    <ComponentGroup Id="AddonComponents" Directory="AddonFolder">
+      <Component Id="AddonTOC" Guid="*">
+        <File Id="AddonTOCFile"
+              Source="$(var.AddonDir)\WoWStatTracker.toc"
+              KeyPath="yes" />
+      </Component>
+      <Component Id="AddonDataCollector" Guid="*">
+        <File Id="DataCollectorLua"
+              Source="$(var.AddonDir)\DataCollector.lua" />
+      </Component>
+      <Component Id="AddonEventHandler" Guid="*">
+        <File Id="EventHandlerLua"
+              Source="$(var.AddonDir)\EventHandler.lua" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- Start Menu folder cleanup -->
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcutCleanup" Guid="*">
+        <RemoveFolder Id="CleanupShortcutFolder" On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\$(var.Manufacturer)\$(var.ProductName)"
+                       Name="installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Features -->
+    <Feature Id="MainFeature"
+             Title="$(var.ProductName)"
+             Level="1"
+             ConfigurableDirectory="INSTALLFOLDER">
+      <ComponentGroupRef Id="MainComponents" />
+      <ComponentRef Id="ApplicationShortcutCleanup" />
+    </Feature>
+
+    <Feature Id="AddonFeature"
+             Title="WoW Addon"
+             Description="In-game addon for data collection"
+             Level="1">
+      <ComponentGroupRef Id="AddonComponents" />
+    </Feature>
+
+    <!-- WiX UI -->
+    <UIRef Id="WixUI_FeatureTree" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.BuildDir)\..\..\..\LICENSE.rtf" />
+
+    <!-- Custom actions (optional) -->
+    <!-- Add launch after install checkbox -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch $(var.ProductName)" />
+    <Property Id="WixShellExecTarget" Value="[#WoWStatTrackerEXE]" />
+    <CustomAction Id="LaunchApplication"
+                  BinaryKey="WixCA"
+                  DllEntry="WixShellExec"
+                  Impersonate="yes" />
+
+  </Product>
+</Wix>

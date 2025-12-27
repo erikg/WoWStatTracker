@@ -149,6 +149,60 @@ if(WST_BUILD_GUI)
     endif()
 endif()
 
+# Installation rules
+if(WST_BUILD_GUI)
+    if(WST_PLATFORM_MACOS)
+        # Install app bundle to /Applications
+        install(TARGETS WoWStatTracker
+            BUNDLE DESTINATION .
+            COMPONENT Runtime
+        )
+
+        # Install addon to Resources
+        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../WoWStatTracker_Addon
+            DESTINATION WoWStatTracker.app/Contents/Resources
+            COMPONENT Runtime
+            OPTIONAL
+        )
+
+    elseif(WST_PLATFORM_WINDOWS)
+        # Install executable
+        install(TARGETS WoWStatTracker
+            RUNTIME DESTINATION .
+            COMPONENT Runtime
+        )
+
+        # Install addon
+        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../WoWStatTracker_Addon
+            DESTINATION .
+            COMPONENT Runtime
+            OPTIONAL
+        )
+    endif()
+
+    # CPack configuration
+    set(CPACK_PACKAGE_NAME "WoWStatTracker")
+    set(CPACK_PACKAGE_VENDOR "WoW Stat Tracker")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Track your World of Warcraft character statistics")
+    set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+    set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+    set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+    set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+    set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE")
+
+    if(WST_PLATFORM_MACOS)
+        set(CPACK_GENERATOR "DragNDrop")
+        set(CPACK_DMG_VOLUME_NAME "WoW Stat Tracker")
+        set(CPACK_DMG_FORMAT "UDZO")
+    elseif(WST_PLATFORM_WINDOWS)
+        set(CPACK_GENERATOR "ZIP;WIX")
+        set(CPACK_WIX_UPGRADE_GUID "12345678-1234-1234-1234-123456789ABC")
+        set(CPACK_WIX_PRODUCT_ICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/icon.ico")
+    endif()
+
+    include(CPack)
+endif()
+
 # Unit tests
 if(WST_BUILD_TESTS)
     enable_testing()
