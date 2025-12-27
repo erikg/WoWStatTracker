@@ -30,11 +30,16 @@ set(LUA_LIB_SRC
     src/linit.c
 )
 
-# Standard libraries (minimal set needed for parsing)
+# Standard libraries (all required by linit.c)
 set(LUA_STD_SRC
     src/lbaselib.c
     src/ltablib.c
     src/lstrlib.c
+    src/liolib.c
+    src/loslib.c
+    src/lmathlib.c
+    src/ldblib.c
+    src/loadlib.c
 )
 
 add_library(lua STATIC
