@@ -107,11 +107,15 @@ if(WST_BUILD_GUI)
     endif()
 
     if(WST_PLATFORM_MACOS)
+        set(MACOS_ICON ${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/icon.icns)
+        set_source_files_properties(${MACOS_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+
         add_executable(WoWStatTracker MACOSX_BUNDLE
             src/gui/macos/main.m
             src/gui/macos/AppDelegate.m
             src/gui/macos/MainWindowController.m
             src/gui/macos/CharacterTableView.m
+            ${MACOS_ICON}
         )
 
         target_include_directories(WoWStatTracker PRIVATE
@@ -126,6 +130,7 @@ if(WST_BUILD_GUI)
             MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
             MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
             MACOSX_BUNDLE_GUI_IDENTIFIER "com.wowstat.WoWStatTracker"
+            MACOSX_BUNDLE_ICON_FILE "icon"
         )
 
         find_library(COCOA Cocoa REQUIRED)
