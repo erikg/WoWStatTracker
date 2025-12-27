@@ -11,6 +11,10 @@ void test_character_store_suite(void);
 void test_config_suite(void);
 void test_week_id_suite(void);
 
+#ifdef WST_BUILD_PLATFORM
+void test_platform_suite(void);
+#endif
+
 void setUp(void) {
     /* Called before each test */
 }
@@ -27,6 +31,10 @@ int main(void) {
     test_character_store_suite();
     test_config_suite();
     test_week_id_suite();
+
+#ifdef WST_BUILD_PLATFORM
+    test_platform_suite();
+#endif
 
     return UNITY_END();
 }

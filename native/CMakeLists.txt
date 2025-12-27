@@ -71,11 +71,12 @@ if(WST_BUILD_PLATFORM)
         )
         target_include_directories(wst_platform PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/core
         )
         target_link_libraries(wst_platform PUBLIC wst_core)
         find_library(FOUNDATION Foundation REQUIRED)
-        find_library(COCOA Cocoa REQUIRED)
-        target_link_libraries(wst_platform PUBLIC ${FOUNDATION})
+        find_library(APPKIT AppKit REQUIRED)
+        target_link_libraries(wst_platform PUBLIC ${FOUNDATION} ${APPKIT})
     elseif(WST_PLATFORM_WINDOWS)
         add_library(wst_platform STATIC
             src/platform/windows/platform_windows.c
