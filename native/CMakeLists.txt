@@ -90,12 +90,23 @@ endif()
 
 # Main executable (Phase 3/4)
 if(WST_BUILD_GUI)
+    # GUI requires platform layer
+    if(NOT WST_BUILD_PLATFORM)
+        message(FATAL_ERROR "WST_BUILD_GUI requires WST_BUILD_PLATFORM=ON")
+    endif()
+
     if(WST_PLATFORM_MACOS)
         add_executable(WoWStatTracker MACOSX_BUNDLE
             src/gui/macos/main.m
             src/gui/macos/AppDelegate.m
             src/gui/macos/MainWindowController.m
             src/gui/macos/CharacterTableView.m
+        )
+
+        target_include_directories(WoWStatTracker PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/macos
         )
 
         set_target_properties(WoWStatTracker PROPERTIES
@@ -106,6 +117,7 @@ if(WST_BUILD_GUI)
             MACOSX_BUNDLE_GUI_IDENTIFIER "com.wowstat.WoWStatTracker"
         )
 
+        find_library(COCOA Cocoa REQUIRED)
         target_link_libraries(WoWStatTracker PRIVATE wst_platform ${COCOA})
 
     elseif(WST_PLATFORM_WINDOWS)
