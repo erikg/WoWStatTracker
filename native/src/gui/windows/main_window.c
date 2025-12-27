@@ -1,0 +1,1030 @@
+/*
+ * WoW Stat Tracker - Windows Main Window Implementation
+ * BSD 3-Clause License
+ */
+
+#define WIN32_LEAN_AND_MEAN
+#define UNICODE
+#define _UNICODE
+
+#include <windows.h>
+#include <windowsx.h>
+#include <commctrl.h>
+#include <dwmapi.h>
+#include <shlobj.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "main_window.h"
+#include "resource.h"
+#include "character.h"
+#include "character_store.h"
+#include "config.h"
+#include "notification.h"
+#include "lua_parser.h"
+#include "paths.h"
+#include "platform.h"
+#include "week_id.h"
+
+/* Forward declarations for external app state */
+extern CharacterStore* GetCharacterStore(void);
+extern Config* GetConfig(void);
+extern NotificationStore* GetNotificationStore(void);
+extern HINSTANCE GetAppInstance(void);
+
+/* Window class name */
+static const wchar_t CLASS_NAME[] = L"WoWStatTrackerMain";
+
+/* Global handles */
+static HWND g_hMainWindow = NULL;
+static HWND g_hListView = NULL;
+static HWND g_hToolbar = NULL;
+static HWND g_hStatusBar = NULL;
+
+/* Status message timer */
+#define STATUS_TIMEOUT_MS 5000
+
+/* Column definitions */
+typedef struct {
+    const wchar_t *title;
+    int width;
+    int format;
+} ColumnDef;
+
+static const ColumnDef g_columns[] = {
+    { L"Realm",       100, LVCFMT_LEFT },
+    { L"Name",        100, LVCFMT_LEFT },
+    { L"Guild",        80, LVCFMT_LEFT },
+    { L"iLvl",         50, LVCFMT_RIGHT },
+    { L"Heroic",       50, LVCFMT_RIGHT },
+    { L"Champion",     60, LVCFMT_RIGHT },
+    { L"Veteran",      55, LVCFMT_RIGHT },
+    { L"Adventure",    65, LVCFMT_RIGHT },
+    { L"Old",          40, LVCFMT_RIGHT },
+    { L"Vault",        45, LVCFMT_CENTER },
+    { L"Delves",       50, LVCFMT_RIGHT },
+    { L"Gilded",       50, LVCFMT_RIGHT },
+    { L"Gearing",      55, LVCFMT_CENTER },
+    { L"Quests",       50, LVCFMT_CENTER },
+    { L"Timewalk",     60, LVCFMT_RIGHT },
+    { L"Notes",       120, LVCFMT_LEFT },
+};
+static const int g_numColumns = sizeof(g_columns) / sizeof(g_columns[0]);
+
+/* Sorting state */
+static int g_sortColumn = 0;
+static BOOL g_sortAscending = TRUE;
+
+/* Dark mode state */
+static BOOL g_darkMode = FALSE;
+
+/* Forward declarations */
+static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+static void OnCreate(HWND hWnd);
+static void OnSize(HWND hWnd, UINT state, int cx, int cy);
+static void OnDestroy(HWND hWnd);
+static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify);
+static void OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh);
+static void OnTimer(HWND hWnd, UINT id);
+static void OnActivate(HWND hWnd, UINT state, HWND hWndActDeact, BOOL fMinimized);
+static void CreateListView(HWND hWnd);
+static void CreateToolbar(HWND hWnd);
+static void CreateStatusBar(HWND hWnd);
+static void SetupMenu(HWND hWnd);
+static void LoadWindowState(HWND hWnd);
+static void SaveWindowState(HWND hWnd);
+static void HandleColumnClick(HWND hWnd, int column);
+static void SortListView(void);
+static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
+static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult);
+
+/* Register window class */
+static BOOL RegisterMainWindowClass(HINSTANCE hInstance) {
+    WNDCLASSEXW wc = {
+        .cbSize = sizeof(WNDCLASSEXW),
+        .style = CS_HREDRAW | CS_VREDRAW,
+        .lpfnWndProc = MainWndProc,
+        .cbClsExtra = 0,
+        .cbWndExtra = 0,
+        .hInstance = hInstance,
+        .hIcon = LoadIconW(NULL, IDI_APPLICATION),
+        .hCursor = LoadCursorW(NULL, IDC_ARROW),
+        .hbrBackground = (HBRUSH)(COLOR_WINDOW + 1),
+        .lpszMenuName = MAKEINTRESOURCEW(IDM_MAINMENU),
+        .lpszClassName = CLASS_NAME,
+        .hIconSm = LoadIconW(NULL, IDI_APPLICATION),
+    };
+    return RegisterClassExW(&wc) != 0;
+}
+
+/* Create main window */
+HWND CreateMainWindow(HINSTANCE hInstance, int nCmdShow) {
+    /* Register window class */
+    if (!RegisterMainWindowClass(hInstance)) {
+        return NULL;
+    }
+
+    /* Create window */
+    g_hMainWindow = CreateWindowExW(
+        0,
+        CLASS_NAME,
+        L"WoW Stat Tracker",
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        1000, 600,
+        NULL,
+        NULL,
+        hInstance,
+        NULL
+    );
+
+    if (!g_hMainWindow) {
+        return NULL;
+    }
+
+    /* Load window state from config */
+    LoadWindowState(g_hMainWindow);
+
+    /* Show window */
+    ShowWindow(g_hMainWindow, nCmdShow);
+    UpdateWindow(g_hMainWindow);
+
+    return g_hMainWindow;
+}
+
+/* Main window procedure */
+static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch (uMsg) {
+        HANDLE_MSG(hWnd, WM_CREATE, OnCreate);
+        HANDLE_MSG(hWnd, WM_SIZE, OnSize);
+        HANDLE_MSG(hWnd, WM_DESTROY, OnDestroy);
+        HANDLE_MSG(hWnd, WM_COMMAND, OnCommand);
+        HANDLE_MSG(hWnd, WM_TIMER, OnTimer);
+        HANDLE_MSG(hWnd, WM_ACTIVATE, OnActivate);
+
+        case WM_NOTIFY: {
+            LPNMHDR pnmh = (LPNMHDR)lParam;
+            OnNotify(hWnd, (int)wParam, pnmh);
+            return 0;
+        }
+
+        case WM_GETMINMAXINFO: {
+            LPMINMAXINFO mmi = (LPMINMAXINFO)lParam;
+            mmi->ptMinTrackSize.x = 800;
+            mmi->ptMinTrackSize.y = 400;
+            return 0;
+        }
+
+        default:
+            return DefWindowProcW(hWnd, uMsg, wParam, lParam);
+    }
+    return 0;
+}
+
+/* WM_CREATE handler */
+static BOOL OnCreate(HWND hWnd, LPCREATESTRUCT lpcs) {
+    (void)lpcs;
+
+    /* Create child controls */
+    CreateToolbar(hWnd);
+    CreateListView(hWnd);
+    CreateStatusBar(hWnd);
+
+    /* Setup menu */
+    SetupMenu(hWnd);
+
+    /* Apply theme */
+    g_darkMode = ShouldUseDarkMode();
+    ApplyTheme(hWnd, g_darkMode);
+
+    /* Load characters */
+    RefreshCharacterList();
+
+    return TRUE;
+}
+
+/* WM_SIZE handler */
+static void OnSize(HWND hWnd, UINT state, int cx, int cy) {
+    (void)hWnd;
+    (void)state;
+
+    if (!g_hListView || !g_hToolbar || !g_hStatusBar) return;
+
+    /* Resize toolbar */
+    SendMessageW(g_hToolbar, TB_AUTOSIZE, 0, 0);
+
+    /* Get toolbar height */
+    RECT rcToolbar;
+    GetWindowRect(g_hToolbar, &rcToolbar);
+    int toolbarHeight = rcToolbar.bottom - rcToolbar.top;
+
+    /* Resize status bar */
+    SendMessageW(g_hStatusBar, WM_SIZE, 0, 0);
+
+    /* Get status bar height */
+    RECT rcStatus;
+    GetWindowRect(g_hStatusBar, &rcStatus);
+    int statusHeight = rcStatus.bottom - rcStatus.top;
+
+    /* Resize ListView to fill remaining space */
+    int listHeight = cy - toolbarHeight - statusHeight;
+    if (listHeight < 0) listHeight = 0;
+
+    SetWindowPos(g_hListView, NULL, 0, toolbarHeight, cx, listHeight,
+                 SWP_NOZORDER);
+}
+
+/* WM_DESTROY handler */
+static void OnDestroy(HWND hWnd) {
+    SaveWindowState(hWnd);
+    PostQuitMessage(0);
+}
+
+/* WM_COMMAND handler */
+static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify) {
+    (void)hWndCtl;
+    (void)codeNotify;
+
+    switch (id) {
+        /* File menu */
+        case IDM_FILE_PROPERTIES:
+            ShowPreferencesDialog(hWnd);
+            break;
+
+        case IDM_FILE_EXIT:
+            DestroyWindow(hWnd);
+            break;
+
+        /* Character menu */
+        case IDM_CHAR_ADD:
+        case IDT_ADD:
+            ShowCharacterDialog(hWnd, -1);
+            break;
+
+        case IDM_CHAR_RESET_WEEKLY:
+        case IDT_RESET: {
+            int result = MessageBoxW(hWnd,
+                L"Reset all weekly progress data for all characters?\n\n"
+                L"This will clear:\n"
+                L"- Vault visited status\n"
+                L"- Delves count\n"
+                L"- Gilded stash count\n"
+                L"- Gearing Up quest\n"
+                L"- World Quests\n"
+                L"- Timewalking progress",
+                L"Reset Weekly Data",
+                MB_YESNO | MB_ICONQUESTION);
+
+            if (result == IDYES) {
+                CharacterStore *store = GetCharacterStore();
+                if (store) {
+                    character_store_reset_weekly_all(store);
+                    character_store_save(store);
+                    RefreshCharacterList();
+                    ShowStatusMessage(L"Weekly data reset for all characters.", WST_NOTIFY_SUCCESS);
+                }
+            }
+            break;
+        }
+
+        /* Addon menu */
+        case IDM_ADDON_IMPORT:
+        case IDT_IMPORT:
+            DoAddonImport(hWnd);
+            break;
+
+        case IDM_ADDON_SET_PATH: {
+            BROWSEINFOW bi = {
+                .hwndOwner = hWnd,
+                .lpszTitle = L"Select World of Warcraft Installation Folder",
+                .ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE,
+            };
+            LPITEMIDLIST pidl = SHBrowseForFolderW(&bi);
+            if (pidl) {
+                wchar_t path[MAX_PATH];
+                if (SHGetPathFromIDListW(pidl, path)) {
+                    char pathUtf8[MAX_PATH * 3];
+                    WideCharToMultiByte(CP_UTF8, 0, path, -1, pathUtf8, sizeof(pathUtf8), NULL, NULL);
+
+                    Config *cfg = GetConfig();
+                    if (cfg) {
+                        config_set_string(cfg, "wow_path", pathUtf8);
+                        config_save(cfg);
+                        ShowStatusMessage(L"WoW path updated.", WST_NOTIFY_SUCCESS);
+                    }
+                }
+                CoTaskMemFree(pidl);
+            }
+            break;
+        }
+
+        case IDM_ADDON_INSTALL: {
+            /* TODO: Implement addon installation */
+            ShowStatusMessage(L"Addon installation not yet implemented.", WST_NOTIFY_INFO);
+            break;
+        }
+
+        case IDM_ADDON_UNINSTALL: {
+            /* TODO: Implement addon uninstallation */
+            ShowStatusMessage(L"Addon uninstallation not yet implemented.", WST_NOTIFY_INFO);
+            break;
+        }
+
+        /* View menu - Theme */
+        case IDM_VIEW_THEME_AUTO:
+        case IDM_VIEW_THEME_LIGHT:
+        case IDM_VIEW_THEME_DARK: {
+            Config *cfg = GetConfig();
+            if (cfg) {
+                const char *theme = "auto";
+                if (id == IDM_VIEW_THEME_LIGHT) theme = "light";
+                else if (id == IDM_VIEW_THEME_DARK) theme = "dark";
+
+                config_set_string(cfg, "theme", theme);
+                config_save(cfg);
+
+                /* Update theme */
+                g_darkMode = ShouldUseDarkMode();
+                ApplyTheme(hWnd, g_darkMode);
+                SetupMenu(hWnd);
+            }
+            break;
+        }
+
+        /* Help menu */
+        case IDM_HELP_MANUAL:
+            ShowManualDialog(hWnd);
+            break;
+
+        case IDM_HELP_UPDATE:
+            ShowStatusMessage(L"Update checking not yet implemented.", WST_NOTIFY_INFO);
+            break;
+
+        case IDM_HELP_ABOUT:
+            MessageBoxW(hWnd,
+                L"WoW Stat Tracker v1.0.0\n\n"
+                L"Track your World of Warcraft character statistics.\n\n"
+                L"BSD 3-Clause License\n"
+                L"https://github.com/yourusername/WoWStatTracker",
+                L"About WoW Stat Tracker",
+                MB_OK | MB_ICONINFORMATION);
+            break;
+    }
+}
+
+/* WM_NOTIFY handler */
+static void OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh) {
+    (void)idCtrl;
+
+    if (pnmh->hwndFrom == g_hListView) {
+        switch (pnmh->code) {
+            case NM_DBLCLK: {
+                /* Edit character on double-click */
+                LPNMITEMACTIVATE pnmia = (LPNMITEMACTIVATE)pnmh;
+                if (pnmia->iItem >= 0) {
+                    ShowCharacterDialog(hWnd, pnmia->iItem);
+                }
+                break;
+            }
+
+            case LVN_COLUMNCLICK: {
+                LPNMLISTVIEW pnmlv = (LPNMLISTVIEW)pnmh;
+                HandleColumnClick(hWnd, pnmlv->iSubItem);
+                break;
+            }
+
+            case NM_CUSTOMDRAW: {
+                LPNMLVCUSTOMDRAW pcd = (LPNMLVCUSTOMDRAW)pnmh;
+                LRESULT result = CDRF_DODEFAULT;
+                HandleListViewCustomDraw(pcd, &result);
+                SetWindowLongPtrW(hWnd, DWLP_MSGRESULT, result);
+                break;
+            }
+        }
+    }
+}
+
+/* WM_TIMER handler */
+static void OnTimer(HWND hWnd, UINT id) {
+    if (id == IDT_STATUS_DISMISS) {
+        ClearStatusMessage();
+        KillTimer(hWnd, IDT_STATUS_DISMISS);
+    }
+}
+
+/* WM_ACTIVATE handler */
+static void OnActivate(HWND hWnd, UINT state, HWND hWndActDeact, BOOL fMinimized) {
+    (void)hWndActDeact;
+    (void)fMinimized;
+
+    if (state != WA_INACTIVE) {
+        /* Window activated - check for auto-import */
+        Config *cfg = GetConfig();
+        if (cfg && config_get_bool(cfg, "auto_import", FALSE)) {
+            DoAddonImport(hWnd);
+        }
+    }
+}
+
+/* Create ListView control */
+static void CreateListView(HWND hWnd) {
+    g_hListView = CreateWindowExW(
+        WS_EX_CLIENTEDGE,
+        WC_LISTVIEWW,
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS |
+        LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL,
+        0, 0, 0, 0,
+        hWnd,
+        (HMENU)IDC_LISTVIEW,
+        GetAppInstance(),
+        NULL
+    );
+
+    /* Set extended styles */
+    ListView_SetExtendedListViewStyle(g_hListView,
+        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
+
+    /* Add columns */
+    for (int i = 0; i < g_numColumns; i++) {
+        LVCOLUMNW lvc = {
+            .mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM,
+            .fmt = g_columns[i].format,
+            .cx = g_columns[i].width,
+            .pszText = (LPWSTR)g_columns[i].title,
+            .iSubItem = i,
+        };
+        ListView_InsertColumn(g_hListView, i, &lvc);
+    }
+}
+
+/* Create toolbar */
+static void CreateToolbar(HWND hWnd) {
+    g_hToolbar = CreateWindowExW(
+        0,
+        TOOLBARCLASSNAMEW,
+        NULL,
+        WS_CHILD | WS_VISIBLE | TBSTYLE_FLAT | TBSTYLE_TOOLTIPS | CCS_TOP,
+        0, 0, 0, 0,
+        hWnd,
+        (HMENU)IDT_TOOLBAR,
+        GetAppInstance(),
+        NULL
+    );
+
+    /* Set button size */
+    SendMessageW(g_hToolbar, TB_BUTTONSTRUCTSIZE, sizeof(TBBUTTON), 0);
+
+    /* Add buttons */
+    TBBUTTON buttons[] = {
+        { I_IMAGENONE, IDT_ADD,    TBSTATE_ENABLED, BTNS_BUTTON, {0}, 0, (INT_PTR)L"Add" },
+        { I_IMAGENONE, IDT_IMPORT, TBSTATE_ENABLED, BTNS_BUTTON, {0}, 0, (INT_PTR)L"Import" },
+        { I_IMAGENONE, IDT_RESET,  TBSTATE_ENABLED, BTNS_BUTTON, {0}, 0, (INT_PTR)L"Reset Weekly" },
+    };
+
+    SendMessageW(g_hToolbar, TB_ADDBUTTONS, _countof(buttons), (LPARAM)buttons);
+    SendMessageW(g_hToolbar, TB_AUTOSIZE, 0, 0);
+}
+
+/* Create status bar */
+static void CreateStatusBar(HWND hWnd) {
+    g_hStatusBar = CreateWindowExW(
+        0,
+        STATUSCLASSNAMEW,
+        NULL,
+        WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
+        0, 0, 0, 0,
+        hWnd,
+        (HMENU)IDC_STATUSBAR,
+        GetAppInstance(),
+        NULL
+    );
+
+    /* Set parts */
+    int parts[] = { -1 };
+    SendMessageW(g_hStatusBar, SB_SETPARTS, 1, (LPARAM)parts);
+}
+
+/* Setup menu checkmarks based on current settings */
+static void SetupMenu(HWND hWnd) {
+    HMENU hMenu = GetMenu(hWnd);
+    if (!hMenu) return;
+
+    Config *cfg = GetConfig();
+    if (!cfg) return;
+
+    const char *theme = config_get_string(cfg, "theme", "auto");
+
+    HMENU hViewMenu = GetSubMenu(hMenu, 3); /* View menu */
+    if (hViewMenu) {
+        HMENU hThemeMenu = GetSubMenu(hViewMenu, 0);
+        if (hThemeMenu) {
+            CheckMenuRadioItem(hThemeMenu, IDM_VIEW_THEME_AUTO, IDM_VIEW_THEME_DARK,
+                strcmp(theme, "light") == 0 ? IDM_VIEW_THEME_LIGHT :
+                strcmp(theme, "dark") == 0 ? IDM_VIEW_THEME_DARK :
+                IDM_VIEW_THEME_AUTO,
+                MF_BYCOMMAND);
+        }
+    }
+}
+
+/* Load window position/size from config */
+static void LoadWindowState(HWND hWnd) {
+    Config *cfg = GetConfig();
+    if (!cfg) return;
+
+    int x = config_get_int(cfg, "window_x", CW_USEDEFAULT);
+    int y = config_get_int(cfg, "window_y", CW_USEDEFAULT);
+    int w = config_get_int(cfg, "window_width", 1000);
+    int h = config_get_int(cfg, "window_height", 600);
+    BOOL maximized = config_get_bool(cfg, "window_maximized", FALSE);
+
+    /* Validate position is on screen */
+    RECT workArea;
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &workArea, 0);
+
+    if (x != CW_USEDEFAULT && y != CW_USEDEFAULT) {
+        if (x < workArea.left || x > workArea.right - 100) x = CW_USEDEFAULT;
+        if (y < workArea.top || y > workArea.bottom - 100) y = CW_USEDEFAULT;
+    }
+
+    if (x != CW_USEDEFAULT && y != CW_USEDEFAULT) {
+        SetWindowPos(hWnd, NULL, x, y, w, h, SWP_NOZORDER);
+    } else {
+        SetWindowPos(hWnd, NULL, 0, 0, w, h, SWP_NOMOVE | SWP_NOZORDER);
+    }
+
+    if (maximized) {
+        ShowWindow(hWnd, SW_MAXIMIZE);
+    }
+
+    /* Load sort state */
+    g_sortColumn = config_get_int(cfg, "sort_column", 0);
+    g_sortAscending = config_get_bool(cfg, "sort_ascending", TRUE);
+}
+
+/* Save window position/size to config */
+static void SaveWindowState(HWND hWnd) {
+    Config *cfg = GetConfig();
+    if (!cfg) return;
+
+    WINDOWPLACEMENT wp = { .length = sizeof(WINDOWPLACEMENT) };
+    GetWindowPlacement(hWnd, &wp);
+
+    BOOL maximized = (wp.showCmd == SW_MAXIMIZE);
+    config_set_bool(cfg, "window_maximized", maximized);
+
+    if (!maximized) {
+        RECT rc = wp.rcNormalPosition;
+        config_set_int(cfg, "window_x", rc.left);
+        config_set_int(cfg, "window_y", rc.top);
+        config_set_int(cfg, "window_width", rc.right - rc.left);
+        config_set_int(cfg, "window_height", rc.bottom - rc.top);
+    }
+
+    config_set_int(cfg, "sort_column", g_sortColumn);
+    config_set_bool(cfg, "sort_ascending", g_sortAscending);
+
+    config_save(cfg);
+}
+
+/* Handle column header click for sorting */
+static void HandleColumnClick(HWND hWnd, int column) {
+    (void)hWnd;
+
+    if (column == g_sortColumn) {
+        g_sortAscending = !g_sortAscending;
+    } else {
+        g_sortColumn = column;
+        g_sortAscending = TRUE;
+    }
+
+    SortListView();
+}
+
+/* Sort ListView by current column */
+static void SortListView(void) {
+    ListView_SortItemsEx(g_hListView, CompareFunc, g_sortColumn);
+}
+
+/* Comparison function for ListView sorting */
+static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort) {
+    (void)lParamSort;
+
+    CharacterStore *store = GetCharacterStore();
+    if (!store) return 0;
+
+    Character *c1 = character_store_get(store, (int)lParam1);
+    Character *c2 = character_store_get(store, (int)lParam2);
+
+    if (!c1 || !c2) return 0;
+
+    int result = 0;
+
+    switch (g_sortColumn) {
+        case 0: result = strcmp(c1->realm ? c1->realm : "", c2->realm ? c2->realm : ""); break;
+        case 1: result = strcmp(c1->name ? c1->name : "", c2->name ? c2->name : ""); break;
+        case 2: result = strcmp(c1->guild ? c1->guild : "", c2->guild ? c2->guild : ""); break;
+        case 3: result = (c1->item_level > c2->item_level) - (c1->item_level < c2->item_level); break;
+        case 4: result = c1->heroic_items - c2->heroic_items; break;
+        case 5: result = c1->champion_items - c2->champion_items; break;
+        case 6: result = c1->veteran_items - c2->veteran_items; break;
+        case 7: result = c1->adventure_items - c2->adventure_items; break;
+        case 8: result = c1->old_items - c2->old_items; break;
+        case 9: result = c1->vault_visited - c2->vault_visited; break;
+        case 10: result = c1->delves - c2->delves; break;
+        case 11: result = c1->gilded_stash - c2->gilded_stash; break;
+        case 12: result = c1->gearing_up - c2->gearing_up; break;
+        case 13: result = c1->quests - c2->quests; break;
+        case 14: result = c1->timewalk - c2->timewalk; break;
+        case 15: result = strcmp(c1->notes ? c1->notes : "", c2->notes ? c2->notes : ""); break;
+        default: break;
+    }
+
+    return g_sortAscending ? result : -result;
+}
+
+/* Handle custom draw for cell coloring */
+static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
+    switch (pcd->nmcd.dwDrawStage) {
+        case CDDS_PREPAINT:
+            *pResult = CDRF_NOTIFYITEMDRAW;
+            break;
+
+        case CDDS_ITEMPREPAINT:
+            *pResult = CDRF_NOTIFYSUBITEMDRAW;
+            break;
+
+        case CDDS_SUBITEM | CDDS_ITEMPREPAINT: {
+            int itemIndex = (int)pcd->nmcd.lItemlParam;
+            int subItem = pcd->iSubItem;
+
+            CharacterStore *store = GetCharacterStore();
+            if (!store) {
+                *pResult = CDRF_DODEFAULT;
+                break;
+            }
+
+            Character *ch = character_store_get(store, itemIndex);
+            if (!ch) {
+                *pResult = CDRF_DODEFAULT;
+                break;
+            }
+
+            /* Default colors */
+            pcd->clrText = GetSysColor(COLOR_WINDOWTEXT);
+            pcd->clrTextBk = GetSysColor(COLOR_WINDOW);
+
+            /* Color definitions */
+            COLORREF green = RGB(144, 238, 144);    /* LightGreen */
+            COLORREF yellow = RGB(255, 255, 200);   /* LightYellow */
+            COLORREF red = RGB(255, 200, 200);      /* LightRed */
+
+            switch (subItem) {
+                case 9: /* Vault */
+                    if (ch->vault_visited) {
+                        pcd->clrTextBk = green;
+                    } else {
+                        /* Check if weeklies are incomplete */
+                        BOOL weekliesIncomplete = (ch->delves < 4 || ch->gilded_stash < 3 ||
+                                                   !ch->gearing_up || ch->timewalk < 5);
+                        if (weekliesIncomplete) {
+                            pcd->clrTextBk = yellow;
+                        } else {
+                            pcd->clrTextBk = red;
+                        }
+                    }
+                    break;
+
+                case 10: /* Delves */
+                    if (ch->delves >= 4) {
+                        pcd->clrTextBk = green;
+                    } else if (ch->delves >= 1) {
+                        pcd->clrTextBk = yellow;
+                    }
+                    break;
+
+                case 11: /* Gilded */
+                    if (ch->gilded_stash >= 3) {
+                        pcd->clrTextBk = green;
+                    } else if (ch->gilded_stash >= 1) {
+                        pcd->clrTextBk = yellow;
+                    }
+                    break;
+
+                case 12: /* Gearing Up */
+                    if (ch->gearing_up) {
+                        pcd->clrTextBk = green;
+                    } else {
+                        pcd->clrTextBk = yellow;
+                    }
+                    break;
+
+                case 14: /* Timewalk */
+                    if (ch->timewalk >= 5) {
+                        pcd->clrTextBk = green;
+                    } else if (ch->timewalk >= 1) {
+                        pcd->clrTextBk = yellow;
+                    }
+                    break;
+            }
+
+            *pResult = CDRF_NEWFONT;
+            break;
+        }
+
+        default:
+            *pResult = CDRF_DODEFAULT;
+            break;
+    }
+}
+
+/* Refresh character list from store */
+void RefreshCharacterList(void) {
+    if (!g_hListView) return;
+
+    CharacterStore *store = GetCharacterStore();
+    if (!store) return;
+
+    /* Clear existing items */
+    ListView_DeleteAllItems(g_hListView);
+
+    /* Add characters */
+    int count = character_store_count(store);
+    for (int i = 0; i < count; i++) {
+        Character *ch = character_store_get(store, i);
+        if (!ch) continue;
+
+        /* Convert strings to wide */
+        wchar_t realm[256], name[256], guild[256], notes[512];
+        MultiByteToWideChar(CP_UTF8, 0, ch->realm ? ch->realm : "", -1, realm, 256);
+        MultiByteToWideChar(CP_UTF8, 0, ch->name ? ch->name : "", -1, name, 256);
+        MultiByteToWideChar(CP_UTF8, 0, ch->guild ? ch->guild : "", -1, guild, 256);
+        MultiByteToWideChar(CP_UTF8, 0, ch->notes ? ch->notes : "", -1, notes, 512);
+
+        /* Insert item */
+        LVITEMW lvi = {
+            .mask = LVIF_TEXT | LVIF_PARAM,
+            .iItem = i,
+            .iSubItem = 0,
+            .pszText = realm,
+            .lParam = i,
+        };
+        int idx = ListView_InsertItem(g_hListView, &lvi);
+
+        /* Set subitems */
+        ListView_SetItemText(g_hListView, idx, 1, name);
+        ListView_SetItemText(g_hListView, idx, 2, guild);
+
+        wchar_t buf[64];
+
+        swprintf(buf, 64, L"%.1f", ch->item_level);
+        ListView_SetItemText(g_hListView, idx, 3, buf);
+
+        swprintf(buf, 64, L"%d", ch->heroic_items);
+        ListView_SetItemText(g_hListView, idx, 4, buf);
+
+        swprintf(buf, 64, L"%d", ch->champion_items);
+        ListView_SetItemText(g_hListView, idx, 5, buf);
+
+        swprintf(buf, 64, L"%d", ch->veteran_items);
+        ListView_SetItemText(g_hListView, idx, 6, buf);
+
+        swprintf(buf, 64, L"%d", ch->adventure_items);
+        ListView_SetItemText(g_hListView, idx, 7, buf);
+
+        swprintf(buf, 64, L"%d", ch->old_items);
+        ListView_SetItemText(g_hListView, idx, 8, buf);
+
+        ListView_SetItemText(g_hListView, idx, 9, ch->vault_visited ? L"Yes" : L"No");
+
+        swprintf(buf, 64, L"%d", ch->delves);
+        ListView_SetItemText(g_hListView, idx, 10, buf);
+
+        swprintf(buf, 64, L"%d", ch->gilded_stash);
+        ListView_SetItemText(g_hListView, idx, 11, buf);
+
+        ListView_SetItemText(g_hListView, idx, 12, ch->gearing_up ? L"Yes" : L"No");
+
+        ListView_SetItemText(g_hListView, idx, 13, ch->quests ? L"Yes" : L"No");
+
+        swprintf(buf, 64, L"%d", ch->timewalk);
+        ListView_SetItemText(g_hListView, idx, 14, buf);
+
+        ListView_SetItemText(g_hListView, idx, 15, notes);
+    }
+
+    /* Sort */
+    SortListView();
+}
+
+/* Show status message */
+void ShowStatusMessage(const wchar_t *message, WstNotifyType type) {
+    if (!g_hStatusBar) return;
+
+    (void)type; /* TODO: Use icon based on type */
+
+    SendMessageW(g_hStatusBar, SB_SETTEXTW, 0, (LPARAM)message);
+
+    /* Set auto-dismiss timer */
+    KillTimer(g_hMainWindow, IDT_STATUS_DISMISS);
+    SetTimer(g_hMainWindow, IDT_STATUS_DISMISS, STATUS_TIMEOUT_MS, NULL);
+
+    /* Store notification */
+    NotificationStore *ns = GetNotificationStore();
+    if (ns) {
+        char msgUtf8[1024];
+        WideCharToMultiByte(CP_UTF8, 0, message, -1, msgUtf8, sizeof(msgUtf8), NULL, NULL);
+
+        Notification *n = notification_create(msgUtf8, type);
+        if (n) {
+            notification_store_add(ns, n);
+            notification_store_save(ns);
+        }
+    }
+}
+
+/* Clear status message */
+void ClearStatusMessage(void) {
+    if (!g_hStatusBar) return;
+    SendMessageW(g_hStatusBar, SB_SETTEXTW, 0, (LPARAM)L"");
+}
+
+/* Get handles */
+HWND GetMainWindowHandle(void) { return g_hMainWindow; }
+HWND GetListViewHandle(void) { return g_hListView; }
+
+/* Import from addon */
+void DoAddonImport(HWND hWnd) {
+    (void)hWnd;
+
+    Config *cfg = GetConfig();
+    CharacterStore *store = GetCharacterStore();
+
+    if (!cfg || !store) {
+        ShowStatusMessage(L"Internal error: config or store not initialized.", WST_NOTIFY_WARNING);
+        return;
+    }
+
+    const char *wowPath = config_get_string(cfg, "wow_path", NULL);
+    if (!wowPath || strlen(wowPath) == 0) {
+        ShowStatusMessage(L"WoW path not set. Use Addon → Set WoW Location.", WST_NOTIFY_WARNING);
+        return;
+    }
+
+    /* Build SavedVariables path */
+    char svPath[MAX_PATH * 3];
+    snprintf(svPath, sizeof(svPath), "%s/_retail_/WTF/Account", wowPath);
+
+    /* Find SavedVariables file - look for WoWStatTracker.lua in any account folder */
+    /* For now, just try a pattern */
+    char pattern[MAX_PATH * 4];
+    snprintf(pattern, sizeof(pattern), "%s/*/SavedVariables/WoWStatTracker.lua", svPath);
+
+    /* Use FindFirstFile to search */
+    wchar_t patternW[MAX_PATH * 4];
+    MultiByteToWideChar(CP_UTF8, 0, pattern, -1, patternW, MAX_PATH * 4);
+
+    /* We need to do a directory search - simplified version */
+    char firstAccountPath[MAX_PATH * 4] = {0};
+
+    /* Try to find the account folder */
+    wchar_t accountSearchW[MAX_PATH * 3];
+    MultiByteToWideChar(CP_UTF8, 0, svPath, -1, accountSearchW, MAX_PATH * 3);
+    wcscat(accountSearchW, L"\\*");
+
+    WIN32_FIND_DATAW fd;
+    HANDLE hFind = FindFirstFileW(accountSearchW, &fd);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                if (wcscmp(fd.cFileName, L".") != 0 && wcscmp(fd.cFileName, L"..") != 0) {
+                    /* Try this account folder */
+                    char accountName[256];
+                    WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, accountName, 256, NULL, NULL);
+                    snprintf(firstAccountPath, sizeof(firstAccountPath),
+                             "%s/%s/SavedVariables/WoWStatTracker.lua", svPath, accountName);
+
+                    /* Check if file exists */
+                    DWORD attrs = GetFileAttributesA(firstAccountPath);
+                    if (attrs != INVALID_FILE_ATTRIBUTES) {
+                        break; /* Found it */
+                    }
+                    firstAccountPath[0] = 0;
+                }
+            }
+        } while (FindNextFileW(hFind, &fd));
+        FindClose(hFind);
+    }
+
+    if (firstAccountPath[0] == 0) {
+        ShowStatusMessage(L"No addon data found. Install addon and /reload in WoW.", WST_NOTIFY_WARNING);
+        return;
+    }
+
+    /* Parse the Lua file */
+    LuaParseResult *result = lua_parse_savedvars(firstAccountPath);
+    if (!result) {
+        ShowStatusMessage(L"Failed to parse addon data.", WST_NOTIFY_WARNING);
+        return;
+    }
+
+    if (result->error) {
+        wchar_t errorW[512];
+        MultiByteToWideChar(CP_UTF8, 0, result->error, -1, errorW, 512);
+        ShowStatusMessage(errorW, WST_NOTIFY_WARNING);
+        lua_parse_result_free(result);
+        return;
+    }
+
+    /* Get current week ID for comparison */
+    char *currentWeek = week_id_current();
+
+    /* Import characters */
+    int importedCount = 0;
+    int updatedCount = 0;
+
+    for (int i = 0; i < result->count; i++) {
+        ParsedCharacter *pc = &result->characters[i];
+
+        /* Find or create character */
+        int existingIdx = character_store_find(store, pc->realm, pc->name);
+        Character *ch = NULL;
+        BOOL isNew = FALSE;
+
+        if (existingIdx >= 0) {
+            ch = character_store_get(store, existingIdx);
+        } else {
+            ch = character_new();
+            if (!ch) continue;
+            character_set_realm(ch, pc->realm);
+            character_set_name(ch, pc->name);
+            isNew = TRUE;
+        }
+
+        /* Always update non-weekly fields */
+        if (pc->guild) character_set_guild(ch, pc->guild);
+        ch->item_level = pc->item_level;
+        ch->heroic_items = pc->heroic_items;
+        ch->champion_items = pc->champion_items;
+        ch->veteran_items = pc->veteran_items;
+        ch->adventure_items = pc->adventure_items;
+        ch->old_items = pc->old_items;
+
+        /* Only update weekly fields if from current week */
+        if (currentWeek && pc->week_id && week_id_equal(currentWeek, pc->week_id)) {
+            ch->vault_visited = pc->vault_visited;
+            ch->delves = pc->delves;
+            ch->gilded_stash = pc->gilded_stash;
+            ch->gearing_up = pc->gearing_up;
+            ch->quests = pc->quests;
+            ch->timewalk = pc->timewalk;
+        }
+
+        if (isNew) {
+            character_store_add(store, ch);
+            importedCount++;
+        } else {
+            updatedCount++;
+        }
+    }
+
+    free(currentWeek);
+    lua_parse_result_free(result);
+
+    /* Save and refresh */
+    character_store_save(store);
+    RefreshCharacterList();
+
+    /* Show result */
+    wchar_t msg[256];
+    swprintf(msg, 256, L"Imported %d new, updated %d characters.", importedCount, updatedCount);
+    ShowStatusMessage(msg, WST_NOTIFY_SUCCESS);
+}
+
+/* Check if dark mode should be used */
+BOOL ShouldUseDarkMode(void) {
+    Config *cfg = GetConfig();
+    if (!cfg) return FALSE;
+
+    const char *theme = config_get_string(cfg, "theme", "auto");
+
+    if (strcmp(theme, "dark") == 0) return TRUE;
+    if (strcmp(theme, "light") == 0) return FALSE;
+
+    /* Auto - check system setting */
+    return platform_is_dark_theme();
+}
+
+/* Apply theme to window */
+void ApplyTheme(HWND hWnd, BOOL dark) {
+    /* Use DWM to set dark mode for title bar (Windows 10 1809+) */
+    BOOL useDark = dark;
+
+    /* DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 20H1+) */
+    /* DWMWA_USE_IMMERSIVE_DARK_MODE = 19 (Windows 10 1809-1909) */
+    DwmSetWindowAttribute(hWnd, 20, &useDark, sizeof(useDark));
+
+    /* Force redraw */
+    RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+}
