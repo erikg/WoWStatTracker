@@ -40,8 +40,9 @@ if [ ! -d "$APP_BUNDLE" ]; then
     exit 1
 fi
 
-# Get version from Info.plist
-VERSION=$(defaults read "$APP_BUNDLE/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "1.2.0")
+# Get version from Info.plist (CMake sets this from PROJECT_VERSION)
+# Fallback to VERSION file if plist read fails
+VERSION=$(defaults read "$APP_BUNDLE/Contents/Info" CFBundleShortVersionString 2>/dev/null || cat "$BUILD_DIR/VERSION" 2>/dev/null || echo "0.0.0")
 DMG_NAME="WoWStatTracker-${VERSION}-macOS"
 DMG_PATH="$BUILD_DIR/$DMG_NAME.dmg"
 

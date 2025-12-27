@@ -39,8 +39,10 @@ typedef enum {
 
 /* Application info */
 #define WST_APP_NAME        "wowstat"
-#define WST_VERSION         "1.2.0"
 #define WST_GITHUB_REPO     "erikg/WoWStatTracker"
+
+/* Version is defined in generated version.h */
+#include "version.h"
 
 /* Forward declarations */
 typedef struct Character Character;

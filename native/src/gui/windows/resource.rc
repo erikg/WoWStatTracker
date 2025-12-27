@@ -5,6 +5,7 @@
 
 #include <windows.h>
 #include "resource.h"
+#include "version.h"
 
 /* Application manifest for common controls v6 */
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "WoWStatTracker.manifest"
@@ -136,10 +137,10 @@ BEGIN
     PUSHBUTTON      "Close", IDCANCEL, 345, 280, 50, 14
 END
 
-/* Version Info */
+/* Version Info - uses macros from version.h */
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,0,0,0
-PRODUCTVERSION  1,0,0,0
+FILEVERSION     WST_VERSION_RC
+PRODUCTVERSION  WST_VERSION_RC
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 FILEFLAGS       0
 FILEOS          VOS_NT_WINDOWS32
@@ -152,12 +153,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "WoW Stat Tracker"
             VALUE "FileDescription", "WoW Character Stat Tracker"
-            VALUE "FileVersion", "1.2.0"
+            VALUE "FileVersion", WST_VERSION
             VALUE "InternalName", "WoWStatTracker"
             VALUE "LegalCopyright", "BSD 3-Clause License"
             VALUE "OriginalFilename", "WoWStatTracker.exe"
             VALUE "ProductName", "WoW Stat Tracker"
-            VALUE "ProductVersion", "1.2.0"
+            VALUE "ProductVersion", WST_VERSION
         END
     END
     BLOCK "VarFileInfo"
