@@ -25,7 +25,7 @@ if not exist "%EXE_PATH%" (
 )
 
 REM Get version from resource
-set VERSION=1.0.0
+set VERSION=1.2.0
 
 REM Create package directory
 set PKG_NAME=WoWStatTracker-%VERSION%-windows-x64

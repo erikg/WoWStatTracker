@@ -39,7 +39,7 @@ typedef enum {
 
 /* Application info */
 #define WST_APP_NAME        "wowstat"
-#define WST_VERSION         "1.0.0"
+#define WST_VERSION         "1.2.0"
 #define WST_GITHUB_REPO     "erikg/WoWStatTracker"
 
 /* Forward declarations */

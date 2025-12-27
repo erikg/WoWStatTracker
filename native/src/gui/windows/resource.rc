@@ -152,12 +152,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "WoW Stat Tracker"
             VALUE "FileDescription", "WoW Character Stat Tracker"
-            VALUE "FileVersion", "1.0.0"
+            VALUE "FileVersion", "1.2.0"
             VALUE "InternalName", "WoWStatTracker"
             VALUE "LegalCopyright", "BSD 3-Clause License"
             VALUE "OriginalFilename", "WoWStatTracker.exe"
             VALUE "ProductName", "WoW Stat Tracker"
-            VALUE "ProductVersion", "1.0.0"
+            VALUE "ProductVersion", "1.2.0"
         END
     END
     BLOCK "VarFileInfo"

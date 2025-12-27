@@ -4,7 +4,7 @@
   BSD 3-Clause License
 
   Build with:
-    candle -dVersion=1.0.0 -dBuildDir=build\Release -dAddonDir=..\WoWStatTracker_Addon WoWStatTracker.wxs
+    candle -dVersion=1.2.0 -dBuildDir=build\Release -dAddonDir=..\WoWStatTracker_Addon WoWStatTracker.wxs
     light -ext WixUIExtension WoWStatTracker.wixobj
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">

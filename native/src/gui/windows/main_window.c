@@ -362,7 +362,7 @@ static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify) {
 
         case IDM_HELP_ABOUT:
             MessageBoxW(hWnd,
-                L"WoW Stat Tracker v1.0.0\n\n"
+                L"WoW Stat Tracker v1.2.0\n\n"
                 L"Track your World of Warcraft character statistics.\n\n"
                 L"BSD 3-Clause License\n"
                 L"https://github.com/yourusername/WoWStatTracker",
