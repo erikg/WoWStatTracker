@@ -36,6 +36,7 @@ static NSColor *kColorDefault;
 @interface CharacterTableView ()
 
 @property (nonatomic, assign) CharacterStore *characterStore;
+@property (nonatomic, strong) NSMutableArray<NSNumber *> *sortedIndices;
 
 @end
 
@@ -53,6 +54,7 @@ static NSColor *kColorDefault;
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
+        _sortedIndices = [NSMutableArray array];
         [self setupColumns];
         [self setDataSource:self];
         [self setDelegate:self];
@@ -70,31 +72,30 @@ static NSColor *kColorDefault;
 }
 
 - (void)setupColumns {
-    /* Column definitions: identifier, title, width, sortable */
+    /* Column definitions: identifier, title, width */
     NSArray *columnDefs = @[
-        @[kColRealm, @"Realm", @100, @YES],
-        @[kColName, @"Name", @120, @YES],
-        @[kColGuild, @"Guild", @100, @YES],
-        @[kColItemLevel, @"Item Level", @80, @YES],
-        @[kColHeroicItems, @"Heroic", @60, @YES],
-        @[kColChampionItems, @"Champion", @70, @YES],
-        @[kColVeteranItems, @"Veteran", @65, @YES],
-        @[kColAdventureItems, @"Adventure", @75, @YES],
-        @[kColOldItems, @"Old", @50, @YES],
-        @[kColVaultVisited, @"Vault", @50, @YES],
-        @[kColDelves, @"Delves", @55, @YES],
-        @[kColGildedStash, @"Gilded", @55, @YES],
-        @[kColGearingUp, @"Gearing Up", @80, @YES],
-        @[kColQuests, @"Quests", @55, @YES],
-        @[kColTimewalk, @"Timewalk", @70, @YES],
-        @[kColNotes, @"Notes", @150, @YES],
+        @[kColRealm, @"Realm", @100],
+        @[kColName, @"Name", @120],
+        @[kColGuild, @"Guild", @100],
+        @[kColItemLevel, @"Item Level", @80],
+        @[kColHeroicItems, @"Heroic", @60],
+        @[kColChampionItems, @"Champion", @70],
+        @[kColVeteranItems, @"Veteran", @65],
+        @[kColAdventureItems, @"Adventure", @75],
+        @[kColOldItems, @"Old", @50],
+        @[kColVaultVisited, @"Vault", @50],
+        @[kColDelves, @"Delves", @55],
+        @[kColGildedStash, @"Gilded", @55],
+        @[kColGearingUp, @"Gearing Up", @80],
+        @[kColQuests, @"Quests", @55],
+        @[kColTimewalk, @"Timewalk", @70],
+        @[kColNotes, @"Notes", @150],
     ];
 
     for (NSArray *def in columnDefs) {
         NSString *identifier = def[0];
         NSString *title = def[1];
         CGFloat width = [def[2] floatValue];
-        BOOL sortable = [def[3] boolValue];
 
         NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:identifier];
         [[column headerCell] setStringValue:title];
@@ -103,12 +104,10 @@ static NSColor *kColorDefault;
         [column setMaxWidth:400];
         [column setResizingMask:NSTableColumnUserResizingMask];
 
-        if (sortable) {
-            NSSortDescriptor *sort = [NSSortDescriptor sortDescriptorWithKey:identifier
-                                                                   ascending:YES
-                                                                    selector:@selector(compare:)];
-            [column setSortDescriptorPrototype:sort];
-        }
+        /* Enable sorting - all columns are sortable */
+        NSSortDescriptor *sort = [NSSortDescriptor sortDescriptorWithKey:identifier
+                                                               ascending:YES];
+        [column setSortDescriptorPrototype:sort];
 
         [self addTableColumn:column];
     }
@@ -118,24 +117,133 @@ static NSColor *kColorDefault;
 
 - (void)reloadWithCharacterStore:(CharacterStore *)store {
     self.characterStore = store;
+    [self rebuildSortedIndices];
     [self reloadData];
+}
+
+- (void)rebuildSortedIndices {
+    [self.sortedIndices removeAllObjects];
+
+    if (!self.characterStore) return;
+
+    size_t count = character_store_count(self.characterStore);
+    for (size_t i = 0; i < count; i++) {
+        [self.sortedIndices addObject:@(i)];
+    }
+
+    /* Apply current sort descriptors if any */
+    if ([[self sortDescriptors] count] > 0) {
+        [self applySortDescriptors];
+    }
+}
+
+- (void)applySortDescriptors {
+    NSArray<NSSortDescriptor *> *descriptors = [self sortDescriptors];
+    if ([descriptors count] == 0 || !self.characterStore) return;
+
+    CharacterStore *store = self.characterStore;
+
+    [self.sortedIndices sortUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) {
+        size_t idxA = [a unsignedIntegerValue];
+        size_t idxB = [b unsignedIntegerValue];
+
+        const Character *charA = character_store_get(store, idxA);
+        const Character *charB = character_store_get(store, idxB);
+
+        if (!charA || !charB) return NSOrderedSame;
+
+        for (NSSortDescriptor *desc in descriptors) {
+            NSString *key = [desc key];
+            NSComparisonResult result = NSOrderedSame;
+
+            if ([key isEqualToString:kColRealm]) {
+                NSString *sA = charA->realm ? [NSString stringWithUTF8String:charA->realm] : @"";
+                NSString *sB = charB->realm ? [NSString stringWithUTF8String:charB->realm] : @"";
+                result = [sA localizedCaseInsensitiveCompare:sB];
+            } else if ([key isEqualToString:kColName]) {
+                NSString *sA = charA->name ? [NSString stringWithUTF8String:charA->name] : @"";
+                NSString *sB = charB->name ? [NSString stringWithUTF8String:charB->name] : @"";
+                result = [sA localizedCaseInsensitiveCompare:sB];
+            } else if ([key isEqualToString:kColGuild]) {
+                NSString *sA = charA->guild ? [NSString stringWithUTF8String:charA->guild] : @"";
+                NSString *sB = charB->guild ? [NSString stringWithUTF8String:charB->guild] : @"";
+                result = [sA localizedCaseInsensitiveCompare:sB];
+            } else if ([key isEqualToString:kColItemLevel]) {
+                if (charA->item_level < charB->item_level) result = NSOrderedAscending;
+                else if (charA->item_level > charB->item_level) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColHeroicItems]) {
+                if (charA->heroic_items < charB->heroic_items) result = NSOrderedAscending;
+                else if (charA->heroic_items > charB->heroic_items) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColChampionItems]) {
+                if (charA->champion_items < charB->champion_items) result = NSOrderedAscending;
+                else if (charA->champion_items > charB->champion_items) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColVeteranItems]) {
+                if (charA->veteran_items < charB->veteran_items) result = NSOrderedAscending;
+                else if (charA->veteran_items > charB->veteran_items) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColAdventureItems]) {
+                if (charA->adventure_items < charB->adventure_items) result = NSOrderedAscending;
+                else if (charA->adventure_items > charB->adventure_items) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColOldItems]) {
+                if (charA->old_items < charB->old_items) result = NSOrderedAscending;
+                else if (charA->old_items > charB->old_items) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColVaultVisited]) {
+                if (charA->vault_visited < charB->vault_visited) result = NSOrderedAscending;
+                else if (charA->vault_visited > charB->vault_visited) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColDelves]) {
+                if (charA->delves < charB->delves) result = NSOrderedAscending;
+                else if (charA->delves > charB->delves) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColGildedStash]) {
+                if (charA->gilded_stash < charB->gilded_stash) result = NSOrderedAscending;
+                else if (charA->gilded_stash > charB->gilded_stash) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColGearingUp]) {
+                if (charA->gearing_up < charB->gearing_up) result = NSOrderedAscending;
+                else if (charA->gearing_up > charB->gearing_up) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColQuests]) {
+                if (charA->quests < charB->quests) result = NSOrderedAscending;
+                else if (charA->quests > charB->quests) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColTimewalk]) {
+                if (charA->timewalk < charB->timewalk) result = NSOrderedAscending;
+                else if (charA->timewalk > charB->timewalk) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColNotes]) {
+                NSString *sA = charA->notes ? [NSString stringWithUTF8String:charA->notes] : @"";
+                NSString *sB = charB->notes ? [NSString stringWithUTF8String:charB->notes] : @"";
+                result = [sA localizedCaseInsensitiveCompare:sB];
+            }
+
+            if (result != NSOrderedSame) {
+                return [desc ascending] ? result : -result;
+            }
+        }
+
+        return NSOrderedSame;
+    }];
 }
 
 - (void)refreshCellBackgrounds {
     [self reloadData];
 }
 
+/* Get the actual character store index for a display row */
+- (size_t)characterIndexForRow:(NSInteger)row {
+    if (row < 0 || (NSUInteger)row >= [self.sortedIndices count]) {
+        return (size_t)-1;
+    }
+    return [self.sortedIndices[(NSUInteger)row] unsignedIntegerValue];
+}
+
 #pragma mark - NSTableViewDataSource
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    if (!self.characterStore) return 0;
-    return (NSInteger)character_store_count(self.characterStore);
+    return (NSInteger)[self.sortedIndices count];
 }
 
 - (id)tableView:(NSTableView *)tableView objectValueForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     if (!self.characterStore) return nil;
 
-    const Character *character = character_store_get(self.characterStore, (size_t)row);
+    size_t charIndex = [self characterIndexForRow:row];
+    if (charIndex == (size_t)-1) return nil;
+
+    const Character *character = character_store_get(self.characterStore, charIndex);
     if (!character) return nil;
 
     NSString *identifier = [tableColumn identifier];
@@ -181,15 +289,15 @@ static NSColor *kColorDefault;
     NSString *identifier = [tableColumn identifier];
 
     if ([identifier isEqualToString:kColNotes]) {
-        if ([self.tableDelegate respondsToSelector:@selector(characterTableView:didEditNotes:forRow:)]) {
-            [self.tableDelegate characterTableView:self didEditNotes:object forRow:row];
+        size_t charIndex = [self characterIndexForRow:row];
+        if (charIndex != (size_t)-1 && [self.tableDelegate respondsToSelector:@selector(characterTableView:didEditNotes:forRow:)]) {
+            [self.tableDelegate characterTableView:self didEditNotes:object forRow:(NSInteger)charIndex];
         }
     }
 }
 
 - (void)tableView:(NSTableView *)tableView sortDescriptorsDidChange:(NSArray<NSSortDescriptor *> *)oldDescriptors {
-    /* Sorting is handled by the table view automatically for simple cases */
-    /* For proper sorting, we'd need to sort the character store and reload */
+    [self applySortDescriptors];
     [self reloadData];
 }
 
@@ -197,6 +305,9 @@ static NSColor *kColorDefault;
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     NSString *identifier = [tableColumn identifier];
+
+    size_t charIndex = [self characterIndexForRow:row];
+    if (charIndex == (size_t)-1) return nil;
 
     /* Check if this is a checkbox column */
     BOOL isCheckbox = [identifier isEqualToString:kColVaultVisited] ||
@@ -214,7 +325,7 @@ static NSColor *kColorDefault;
             [checkbox setAction:@selector(checkboxClicked:)];
         }
 
-        const Character *character = character_store_get(self.characterStore, (size_t)row);
+        const Character *character = character_store_get(self.characterStore, charIndex);
         if (character) {
             BOOL value = NO;
             if ([identifier isEqualToString:kColVaultVisited]) {
@@ -227,12 +338,12 @@ static NSColor *kColorDefault;
             [checkbox setState:value ? NSControlStateValueOn : NSControlStateValueOff];
         }
 
-        /* Store row and column info for click handler */
-        [checkbox setTag:row];
+        /* Store character index and column info for click handler */
+        [checkbox setTag:(NSInteger)charIndex];
         objc_setAssociatedObject(checkbox, "columnId", identifier, OBJC_ASSOCIATION_COPY);
 
         /* Apply background color */
-        NSColor *bgColor = [self backgroundColorForColumn:identifier row:row];
+        NSColor *bgColor = [self backgroundColorForColumn:identifier characterIndex:charIndex];
         if (bgColor) {
             NSView *container = [[NSView alloc] initWithFrame:NSZeroRect];
             [container setWantsLayer:YES];
@@ -270,11 +381,11 @@ static NSColor *kColorDefault;
         [textField setStringValue:value ?: @""];
     }
 
-    /* Store row for notes editing */
-    [textField setTag:row];
+    /* Store character index for notes editing */
+    [textField setTag:(NSInteger)charIndex];
 
     /* Apply background color for weekly columns */
-    NSColor *bgColor = [self backgroundColorForColumn:identifier row:row];
+    NSColor *bgColor = [self backgroundColorForColumn:identifier characterIndex:charIndex];
     if (bgColor) {
         NSView *container = [[NSView alloc] initWithFrame:NSZeroRect];
         [container setWantsLayer:YES];
@@ -293,10 +404,10 @@ static NSColor *kColorDefault;
     return textField;
 }
 
-- (NSColor *)backgroundColorForColumn:(NSString *)identifier row:(NSInteger)row {
+- (NSColor *)backgroundColorForColumn:(NSString *)identifier characterIndex:(size_t)charIndex {
     if (!self.characterStore) return nil;
 
-    const Character *character = character_store_get(self.characterStore, (size_t)row);
+    const Character *character = character_store_get(self.characterStore, charIndex);
     if (!character) return nil;
 
     BOOL useDark = platform_is_dark_theme();
@@ -349,13 +460,16 @@ static NSColor *kColorDefault;
 
 - (void)handleDoubleClick:(id)sender {
     NSInteger row = [self clickedRow];
-    if (row >= 0 && [self.tableDelegate respondsToSelector:@selector(characterTableView:didDoubleClickRow:)]) {
-        [self.tableDelegate characterTableView:self didDoubleClickRow:row];
+    if (row >= 0) {
+        size_t charIndex = [self characterIndexForRow:row];
+        if (charIndex != (size_t)-1 && [self.tableDelegate respondsToSelector:@selector(characterTableView:didDoubleClickRow:)]) {
+            [self.tableDelegate characterTableView:self didDoubleClickRow:(NSInteger)charIndex];
+        }
     }
 }
 
 - (void)checkboxClicked:(NSButton *)sender {
-    NSInteger row = [sender tag];
+    NSInteger charIndex = [sender tag];
     NSString *columnId = objc_getAssociatedObject(sender, "columnId");
     BOOL newValue = [sender state] == NSControlStateValueOn;
 
@@ -368,16 +482,16 @@ static NSColor *kColorDefault;
         } else if ([columnId isEqualToString:kColQuests]) {
             column = 13;
         }
-        [self.tableDelegate characterTableView:self didToggleColumn:column row:row newValue:newValue];
+        [self.tableDelegate characterTableView:self didToggleColumn:column row:charIndex newValue:newValue];
     }
 }
 
 - (void)notesEdited:(NSTextField *)sender {
-    NSInteger row = [sender tag];
+    NSInteger charIndex = [sender tag];
     NSString *notes = [sender stringValue];
 
     if ([self.tableDelegate respondsToSelector:@selector(characterTableView:didEditNotes:forRow:)]) {
-        [self.tableDelegate characterTableView:self didEditNotes:notes forRow:row];
+        [self.tableDelegate characterTableView:self didEditNotes:notes forRow:charIndex];
     }
 }
 

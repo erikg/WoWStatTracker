@@ -87,6 +87,7 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
     /* Create table view */
     self.tableView = [[CharacterTableView alloc] initWithFrame:NSZeroRect];
     [self.tableView setTableDelegate:self];
+    [self.tableView setCharacterStore:[self.appDelegate getCharacterStore]];
     [self.scrollView setDocumentView:self.tableView];
 
     /* Create status bar */
