@@ -382,7 +382,10 @@ static void OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh) {
                 /* Edit character on double-click */
                 LPNMITEMACTIVATE pnmia = (LPNMITEMACTIVATE)pnmh;
                 if (pnmia->iItem >= 0) {
-                    ShowCharacterDialog(hWnd, pnmia->iItem);
+                    /* Get the actual character index from lParam (may differ after sorting) */
+                    LVITEMW lvi = { .mask = LVIF_PARAM, .iItem = pnmia->iItem };
+                    ListView_GetItem(g_hListView, &lvi);
+                    ShowCharacterDialog(hWnd, (int)lvi.lParam);
                 }
                 break;
             }
@@ -591,8 +594,16 @@ static void SaveWindowState(HWND hWnd) {
 /* Handle column header click for sorting */
 static void HandleColumnClick(HWND hWnd, int column) {
     (void)hWnd;
-    (void)column;
-    /* Sorting disabled for now - would need to sort CharacterStore */
+
+    /* Toggle direction if same column, otherwise ascending */
+    if (column == g_sortColumn) {
+        g_sortAscending = !g_sortAscending;
+    } else {
+        g_sortColumn = column;
+        g_sortAscending = TRUE;
+    }
+
+    SortListView();
 }
 
 /* Sort ListView by current column */
@@ -607,8 +618,16 @@ static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSor
     CharacterStore *store = GetCharacterStore();
     if (!store) return 0;
 
-    Character *c1 = character_store_get(store, (int)lParam1);
-    Character *c2 = character_store_get(store, (int)lParam2);
+    /* ListView_SortItemsEx passes ListView item indices, not lParam values */
+    /* We need to get the lParam (character index) from each item */
+    LVITEMW lvi1 = { .mask = LVIF_PARAM, .iItem = (int)lParam1 };
+    LVITEMW lvi2 = { .mask = LVIF_PARAM, .iItem = (int)lParam2 };
+
+    ListView_GetItem(g_hListView, &lvi1);
+    ListView_GetItem(g_hListView, &lvi2);
+
+    Character *c1 = character_store_get(store, (int)lvi1.lParam);
+    Character *c2 = character_store_get(store, (int)lvi2.lParam);
 
     if (!c1 || !c2) return 0;
 
@@ -806,6 +825,9 @@ void RefreshCharacterList(void) {
 
         ListView_SetItemText(g_hListView, idx, 15, notes);
     }
+
+    /* Apply current sort order */
+    SortListView();
 }
 
 /* Show status message */
