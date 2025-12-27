@@ -1,6 +1,8 @@
-# WoW Character Stat Tracker
+# WoW Stat Tracker
 
-A GUI application for tracking World of Warcraft character statistics including gear and weekly progress.
+Native C implementation of WoW Stat Tracker with platform-specific GUIs:
+- **macOS**: Cocoa/AppKit (Objective-C)
+- **Windows**: Win32 API (C)
 
 ## Features
 
@@ -10,77 +12,129 @@ A GUI application for tracking World of Warcraft character statistics including 
 - Visual indicators with color-coded backgrounds for weekly activities
 - Status bar notifications with auto-dismiss and history
 - Auto-import when window is focused (optional)
-- Customizable toolbar (icons, text, both, or hidden)
 - Light/dark theme support with system auto-detection
 - Persistent data storage in JSON format
 
-## Menu Structure
+## Directory Structure
 
-- **File**: Properties, Quit
-- **Characters**: Add Character, Reset Weekly Data
-- **Addon**: Import from Addon, Set WoW Location, Install Addon, Uninstall Addon
-- **View**: Theme selection
-
-## Requirements
-
-- Python 3.6+
-- GTK+ 3.0
-- PyGObject (GI Python bindings for GTK)
-- slpp (Lua table parser)
-
-## Installation
-
-A virtual environment is recommended for Python dependencies.
-
-### macOS
-```bash
-# Install system dependencies
-brew install gtk+3 gobject-introspection
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install Python dependencies
-pip install -r requirements.txt
+```
+├── CMakeLists.txt          # Main build configuration
+├── deps/
+│   ├── cjson/              # JSON parsing (MIT license)
+│   └── lua-5.1/            # Lua parser for SavedVariables (MIT license)
+├── src/
+│   ├── core/               # Platform-agnostic C library
+│   │   ├── character.c/h   # Character data model
+│   │   ├── character_store.c/h  # CRUD operations, JSON persistence
+│   │   ├── config.c/h      # Key-value configuration
+│   │   ├── lua_parser.c/h  # Parse WoW SavedVariables
+│   │   ├── notification.c/h # Notification system
+│   │   ├── paths.c/h       # Platform config directories
+│   │   ├── week_id.c/h     # WoW weekly reset calculation
+│   │   ├── util.c/h        # String/memory helpers
+│   │   └── version.h.in    # Version template (CMake generates version.h)
+│   ├── platform/
+│   │   ├── platform.h      # Abstract platform interface
+│   │   ├── macos/          # macOS: theme, HTTP, file locking
+│   │   └── windows/        # Windows: theme, HTTP, file locking
+│   └── gui/
+│       ├── macos/          # Cocoa/AppKit GUI
+│       └── windows/        # Win32 GUI
+├── test/                   # Unity test framework
+├── packaging/
+│   ├── macos/              # DMG creation, Info.plist
+│   └── windows/            # ZIP/MSI packaging
+└── WoWStatTracker_Addon/   # WoW addon for data collection
 ```
 
-### Ubuntu/Debian
+## Building
+
+### Prerequisites
+
+**macOS:**
+- Xcode Command Line Tools: `xcode-select --install`
+- CMake 3.20+: `brew install cmake`
+
+**Windows:**
+- Visual Studio 2022 with C++ workload
+- CMake 3.20+ (included with VS or install separately)
+
+### Build Commands
+
+**macOS (Release):**
 ```bash
-# Install system dependencies
-sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-gtk-3.0
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install Python dependencies
-pip install -r requirements.txt
+mkdir build-macos-Release
+cd build-macos-Release
+cmake .. -DCMAKE_BUILD_TYPE=Release -DWST_BUILD_PLATFORM=ON -DWST_BUILD_GUI=ON
+cmake --build .
 ```
 
-## Usage
-
-```bash
-python3 src/wowstat.py
+**Windows (Release, from Developer Command Prompt):**
+```batch
+mkdir build-windows-Release
+cd build-windows-Release
+cmake .. -G "Visual Studio 17 2022" -DWST_BUILD_PLATFORM=ON -DWST_BUILD_GUI=ON
+cmake --build . --config Release
 ```
 
-## Interface
+### Build Options
 
-The main table displays:
-- **Static columns**: Realm, Name, Guild, Item Level, Heroic/Champion/Veteran/Adventure/Old Items
-- **Weekly columns**: Vault Visited, Delves, Gilded Stash, Gearing Up, Quests, Timewalk, Notes
+| Option | Default | Description |
+|--------|---------|-------------|
+| `WST_BUILD_TESTS` | ON | Build unit tests |
+| `WST_BUILD_PLATFORM` | OFF | Build platform abstraction layer |
+| `WST_BUILD_GUI` | OFF | Build GUI application (requires platform) |
+| `WST_ENABLE_LTO` | ON | Enable Link Time Optimization |
 
-Double-click any row to edit character data. Use Characters → Add Character to create new entries and Characters → Reset Weekly Data to clear weekly progress.
+## Testing
 
-### Properties Dialog (File → Properties)
+```bash
+# Configure with tests enabled
+mkdir build-test
+cd build-test
+cmake .. -DWST_BUILD_TESTS=ON -DWST_BUILD_PLATFORM=ON
 
-- **Game Location**: Set your WoW installation path
-- **Theme**: Auto (system), Light, or Dark
-- **Toolbar**: Icons and Text, Icons Only, Text Only, or Hidden
-- **Auto-import**: Automatically import from addon when window gains focus
+# Build and run tests
+cmake --build . --target wst_tests
+./test/wst_tests
+```
 
-Data is automatically saved to the user's config directory (`~/Library/Application Support/wowstat/` on macOS).
+## Version Management
+
+Version is defined in a single location (`CMakeLists.txt`) and automatically propagated:
+
+```cmake
+project(WoWStatTracker VERSION 1.2.0 LANGUAGES C)
+```
+
+CMake generates:
+- `generated/version.h` - C header with version macros
+- `VERSION` - Plain text file for packaging scripts
+
+## Packaging
+
+**macOS DMG:**
+```bash
+cd build-macos-Release
+../packaging/macos/create_dmg.sh
+```
+
+**Windows ZIP:**
+```batch
+cd build-windows-Release
+..\packaging\windows\package.bat
+```
+
+## Dependencies
+
+All dependencies are embedded (no external package managers required):
+
+| Library | Version | License | Purpose |
+|---------|---------|---------|---------|
+| cJSON | 1.7.18 | MIT | JSON parsing |
+| Lua | 5.1 | MIT | SavedVariables parsing |
+| Unity | 2.6.0 | MIT | Unit testing |
 
 ## License
 
-BSD 3-Clause License. See [LICENSE](LICENSE) for details.
+BSD 3-Clause License - see [LICENSE](LICENSE)
