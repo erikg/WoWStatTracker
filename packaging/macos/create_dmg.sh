@@ -70,11 +70,34 @@ echo "=== Creating DMG file ==="
 # Remove existing DMG
 rm -f "$DMG_PATH"
 
-# Create DMG using hdiutil
-hdiutil create -volname "WoW Stat Tracker" \
-    -srcfolder "$TEMP_DIR" \
-    -ov -format UDZO \
-    "$DMG_PATH"
+# Check if create-dmg is available for styled DMG
+if command -v create-dmg &> /dev/null; then
+    # Build create-dmg command
+    CREATE_DMG_ARGS=(
+        --volname "WoW Stat Tracker"
+        --window-pos 200 120
+        --window-size 600 400
+        --icon-size 100
+        --icon "WoWStatTracker.app" 140 200
+        --hide-extension "WoWStatTracker.app"
+        --app-drop-link 460 200
+    )
+
+    # Add background if it exists
+    BACKGROUND_IMG="$SCRIPT_DIR/dmg_background.png"
+    if [ -f "$BACKGROUND_IMG" ]; then
+        CREATE_DMG_ARGS+=(--background "$BACKGROUND_IMG")
+    fi
+
+    create-dmg "${CREATE_DMG_ARGS[@]}" "$DMG_PATH" "$APP_BUNDLE"
+else
+    # Fallback to basic hdiutil if create-dmg not installed
+    echo "Note: Install create-dmg for styled DMG (brew install create-dmg)"
+    hdiutil create -volname "WoW Stat Tracker" \
+        -srcfolder "$TEMP_DIR" \
+        -ov -format UDZO \
+        "$DMG_PATH"
+fi
 
 echo ""
 echo "=== DMG created ==="
