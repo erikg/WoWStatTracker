@@ -42,6 +42,11 @@ static NSColor *kColorDefault;
 
 @implementation CharacterTableView
 
+- (void)dealloc {
+    [_sortedIndices release];
+    [super dealloc];
+}
+
 + (void)initialize {
     if (self == [CharacterTableView class]) {
         kColorGreen = [NSColor colorWithRed:0.56 green:0.93 blue:0.56 alpha:1.0];  /* Light green #90EE90 */
@@ -54,7 +59,7 @@ static NSColor *kColorDefault;
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        _sortedIndices = [NSMutableArray array];
+        _sortedIndices = [[NSMutableArray alloc] init];  /* MRC: must alloc/init, not use autoreleased array */
         [self setupColumns];
         [self setDataSource:self];
         [self setDelegate:self];
