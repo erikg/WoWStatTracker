@@ -41,7 +41,7 @@ if [ ! -d "$APP_BUNDLE" ]; then
 fi
 
 # Get version from Info.plist
-VERSION=$(defaults read "$APP_BUNDLE/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "1.0.0")
+VERSION=$(defaults read "$APP_BUNDLE/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "1.2.0")
 DMG_NAME="WoWStatTracker-${VERSION}-macOS"
 DMG_PATH="$BUILD_DIR/$DMG_NAME.dmg"
 

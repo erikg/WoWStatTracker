@@ -22,7 +22,7 @@
 #include "week_id.h"
 
 /* Application version */
-#define APP_VERSION L"1.0.0"
+#define APP_VERSION L"1.2.0"
 
 /* Global application state */
 typedef struct {

@@ -23,7 +23,7 @@ NSString * const WSTNotifySuccess = @"success";
 NSString * const WSTNotifyWarning = @"warning";
 
 /* App version */
-static NSString * const kAppVersion = @"1.0.0";
+static NSString * const kAppVersion = @"1.2.0";
 
 /* Config keys */
 static NSString * const kConfigWowPath = @"wow_path";
