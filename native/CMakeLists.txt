@@ -124,8 +124,14 @@ if(WST_BUILD_GUI)
         add_executable(WoWStatTracker WIN32
             src/gui/windows/main.c
             src/gui/windows/main_window.c
-            src/gui/windows/character_table.c
+            src/gui/windows/dialogs.c
             src/gui/windows/resource.rc
+        )
+
+        target_include_directories(WoWStatTracker PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/windows
         )
 
         target_link_libraries(WoWStatTracker PRIVATE
@@ -133,6 +139,7 @@ if(WST_BUILD_GUI)
             comctl32
             uxtheme
             dwmapi
+            shlwapi
         )
 
         # Use static runtime on Windows
