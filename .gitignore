@@ -1,44 +1,37 @@
-# Virtual environment
-bin/
-include/
-lib/
-pyvenv.cfg
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-.eggs/
-*.egg-info/
-*.egg
-
-# Testing
-.pytest_cache/
-htmlcov/
-.coverage
-*.cover
-
-# Build artifacts
+# Build directories
+build-*/
 build/
-dist/
-*.spec.bak
-mac/dmg_background*.png
+generated/
 
-# IDE
-.idea/
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.dylib
+*.so
+
+# IDE files
 .vscode/
+.idea/
+*.xcodeproj/
+*.xcworkspace/
 *.swp
 *.swo
 *~
 
 # macOS
 .DS_Store
+*.dSYM/
 
 # Data files (user-specific)
 *.json
-!pytest.ini
 
 # Logs
 *.log

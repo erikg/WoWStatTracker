@@ -1,9 +1,0 @@
-# Runtime dependencies
-PyGObject
-slpp
-
-# Development/testing dependencies
-pytest
-pytest-cov
-black
-flake8

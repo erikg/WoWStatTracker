@@ -171,7 +171,7 @@ if(WST_BUILD_GUI)
         )
 
         # Install addon to Resources
-        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../WoWStatTracker_Addon
+        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/WoWStatTracker_Addon
             DESTINATION WoWStatTracker.app/Contents/Resources
             COMPONENT Runtime
             OPTIONAL
@@ -185,7 +185,7 @@ if(WST_BUILD_GUI)
         )
 
         # Install addon
-        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../WoWStatTracker_Addon
+        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/WoWStatTracker_Addon
             DESTINATION .
             COMPONENT Runtime
             OPTIONAL
@@ -200,7 +200,7 @@ if(WST_BUILD_GUI)
     set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
     set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
     set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
-    set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE")
+    set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 
     if(WST_PLATFORM_MACOS)
         set(CPACK_GENERATOR "DragNDrop")
