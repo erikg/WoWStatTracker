@@ -20,9 +20,12 @@
 #include "paths.h"
 #include "platform.h"
 #include "week_id.h"
+#include "version.h"
 
-/* Application version */
-#define APP_VERSION L"1.2.0"
+/* Application version - from generated version.h */
+#define APP_VERSION_W2(x) L ## x
+#define APP_VERSION_W(x) APP_VERSION_W2(x)
+#define APP_VERSION APP_VERSION_W(WST_VERSION)
 
 /* Global application state */
 typedef struct {

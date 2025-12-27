@@ -25,6 +25,7 @@
 #include "paths.h"
 #include "platform.h"
 #include "week_id.h"
+#include "version.h"
 
 /* Forward declarations for external app state */
 extern CharacterStore* GetCharacterStore(void);
@@ -360,15 +361,18 @@ static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify) {
             ShowStatusMessage(L"Update checking not yet implemented.", WST_NOTIFY_INFO);
             break;
 
-        case IDM_HELP_ABOUT:
-            MessageBoxW(hWnd,
-                L"WoW Stat Tracker v1.2.0\n\n"
+        case IDM_HELP_ABOUT: {
+            wchar_t aboutMsg[512];
+            swprintf(aboutMsg, 512,
+                L"WoW Stat Tracker v%d.%d.%d\n\n"
                 L"Track your World of Warcraft character statistics.\n\n"
                 L"BSD 3-Clause License\n"
                 L"https://github.com/yourusername/WoWStatTracker",
-                L"About WoW Stat Tracker",
+                WST_VERSION_MAJOR, WST_VERSION_MINOR, WST_VERSION_PATCH);
+            MessageBoxW(hWnd, aboutMsg, L"About WoW Stat Tracker",
                 MB_OK | MB_ICONINFORMATION);
             break;
+        }
     }
 }
 

@@ -24,8 +24,9 @@ if not exist "%EXE_PATH%" (
     exit /b 1
 )
 
-REM Get version from resource
-set VERSION=1.2.0
+REM Get version from CMake-generated VERSION file
+set /p VERSION=<"%BUILD_DIR%\VERSION"
+if "%VERSION%"=="" set VERSION=0.0.0
 
 REM Create package directory
 set PKG_NAME=WoWStatTracker-%VERSION%-windows-x64

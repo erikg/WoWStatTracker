@@ -5,6 +5,16 @@ project(WoWStatTracker VERSION 1.2.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# Generate version header from template
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/version.h
+    @ONLY
+)
+
+# Write plain VERSION file for scripts
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/VERSION "${PROJECT_VERSION}")
+
 # Build options
 option(WST_BUILD_TESTS "Build unit tests" ON)
 option(WST_ENABLE_LTO "Enable Link Time Optimization" ON)
@@ -53,6 +63,7 @@ add_library(wst_core STATIC
 
 target_include_directories(wst_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/cjson
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/lua-5.1/src
 )
@@ -130,6 +141,7 @@ if(WST_BUILD_GUI)
 
         target_include_directories(WoWStatTracker PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+            ${CMAKE_CURRENT_BINARY_DIR}/generated
             ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
             ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/windows
         )
