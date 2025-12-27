@@ -591,15 +591,8 @@ static void SaveWindowState(HWND hWnd) {
 /* Handle column header click for sorting */
 static void HandleColumnClick(HWND hWnd, int column) {
     (void)hWnd;
-
-    if (column == g_sortColumn) {
-        g_sortAscending = !g_sortAscending;
-    } else {
-        g_sortColumn = column;
-        g_sortAscending = TRUE;
-    }
-
-    SortListView();
+    (void)column;
+    /* Sorting disabled for now - would need to sort CharacterStore */
 }
 
 /* Sort ListView by current column */
@@ -813,9 +806,6 @@ void RefreshCharacterList(void) {
 
         ListView_SetItemText(g_hListView, idx, 15, notes);
     }
-
-    /* Sort */
-    SortListView();
 }
 
 /* Show status message */

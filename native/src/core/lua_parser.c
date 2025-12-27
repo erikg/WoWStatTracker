@@ -51,9 +51,18 @@ static char* read_file(const char* path) {
 }
 
 /*
- * Strip the "WoWStatTrackerDB = " prefix if present.
+ * Strip leading whitespace and the "WoWStatTrackerDB = " prefix if present.
  */
 static const char* strip_prefix(const char* content) {
+    /* Skip leading whitespace (including BOM, \r\n, etc.) */
+    while (*content && (*content == ' ' || *content == '\t' ||
+                        *content == '\r' || *content == '\n' ||
+                        (unsigned char)*content == 0xEF ||  /* UTF-8 BOM */
+                        (unsigned char)*content == 0xBB ||
+                        (unsigned char)*content == 0xBF)) {
+        content++;
+    }
+
     const char* prefix = "WoWStatTrackerDB = ";
     size_t prefix_len = strlen(prefix);
 
