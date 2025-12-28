@@ -73,6 +73,10 @@ static NSColor *kColorDefault;
         [self setAllowsColumnResizing:YES];
         [self setAllowsMultipleSelection:NO];
         [self setAllowsColumnSelection:NO];
+
+        /* Enable autosave for column widths and order */
+        [self setAutosaveName:@"CharacterTableColumns"];
+        [self setAutosaveTableColumns:YES];
     }
     return self;
 }
@@ -123,6 +127,17 @@ static NSColor *kColorDefault;
 
 - (void)reloadWithCharacterStore:(CharacterStore *)store {
     self.characterStore = store;
+
+    /* Restore saved sort order on first load */
+    if ([[self sortDescriptors] count] == 0) {
+        NSString *savedKey = [[NSUserDefaults standardUserDefaults] stringForKey:@"CharacterTableSortKey"];
+        if (savedKey) {
+            BOOL ascending = [[NSUserDefaults standardUserDefaults] boolForKey:@"CharacterTableSortAscending"];
+            NSSortDescriptor *sort = [NSSortDescriptor sortDescriptorWithKey:savedKey ascending:ascending];
+            [self setSortDescriptors:@[sort]];
+        }
+    }
+
     [self rebuildSortedIndices];
     [self reloadData];
 }
@@ -305,6 +320,14 @@ static NSColor *kColorDefault;
 - (void)tableView:(NSTableView *)tableView sortDescriptorsDidChange:(NSArray<NSSortDescriptor *> *)oldDescriptors {
     [self applySortDescriptors];
     [self reloadData];
+
+    /* Save sort order to user defaults */
+    NSArray<NSSortDescriptor *> *descriptors = [self sortDescriptors];
+    if ([descriptors count] > 0) {
+        NSSortDescriptor *primary = descriptors[0];
+        [[NSUserDefaults standardUserDefaults] setObject:[primary key] forKey:@"CharacterTableSortKey"];
+        [[NSUserDefaults standardUserDefaults] setBool:[primary ascending] forKey:@"CharacterTableSortAscending"];
+    }
 }
 
 #pragma mark - NSTableViewDelegate
