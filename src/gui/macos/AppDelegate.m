@@ -721,7 +721,7 @@ static NSString * const kConfigWindow = @"window";
 
     /* Development fallback */
     NSString *devPath = [[[NSBundle mainBundle] bundlePath]
-                         stringByAppendingPathComponent:@"../../../WoWStatTracker_Addon"];
+                         stringByAppendingPathComponent:@"../../WoWStatTracker_Addon"];
     if ([[NSFileManager defaultManager] fileExistsAtPath:devPath]) {
         return devPath;
     }
