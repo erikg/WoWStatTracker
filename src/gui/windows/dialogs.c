@@ -242,7 +242,7 @@ static INT_PTR CALLBACK CharacterDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LP
                     if (result == IDYES && g_editCharIndex >= 0) {
                         CharacterStore *store = GetCharacterStore();
                         if (store) {
-                            character_store_remove(store, g_editCharIndex);
+                            character_store_delete(store, (size_t)g_editCharIndex);
                             character_store_save(store);
                             RefreshCharacterList();
                         }

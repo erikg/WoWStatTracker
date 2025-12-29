@@ -13,6 +13,10 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <shlobj.h>
+/* S_ISDIR is not available in MSVC */
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
+#endif
 #else
 #include <unistd.h>
 #include <pwd.h>

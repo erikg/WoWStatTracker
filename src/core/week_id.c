@@ -39,17 +39,17 @@ static time_t calculate_last_reset(time_t now) {
     reset_tm.tm_sec = 0;
 
     /* Normalize the struct tm (handles month/day boundaries) */
+#ifdef _WIN32
+    time_t reset_time = _mkgmtime(&reset_tm);
+#else
     time_t reset_time = timegm(&reset_tm);
     if (reset_time == (time_t)-1) {
         /* If timegm isn't available or failed, use mktime and adjust */
-#ifdef _WIN32
-        reset_time = _mkgmtime(&reset_tm);
-#else
         reset_time = mktime(&reset_tm);
         /* Adjust for local timezone offset */
         reset_time += utc->tm_gmtoff;
-#endif
     }
+#endif
 
     return reset_time;
 }

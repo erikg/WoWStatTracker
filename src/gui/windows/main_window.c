@@ -79,9 +79,14 @@ static BOOL g_sortAscending = TRUE;
 /* Dark mode state */
 static BOOL g_darkMode = FALSE;
 
+/* Dark mode colors */
+#define DARK_BG_COLOR       RGB(32, 32, 32)
+#define DARK_TEXT_COLOR     RGB(230, 230, 230)
+#define DARK_HEADER_BG      RGB(45, 45, 45)
+
 /* Forward declarations */
 static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-static void OnCreate(HWND hWnd);
+static BOOL OnCreate(HWND hWnd, LPCREATESTRUCT lpcs);
 static void OnSize(HWND hWnd, UINT state, int cx, int cy);
 static void OnDestroy(HWND hWnd);
 static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify);
@@ -376,9 +381,37 @@ static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify) {
     }
 }
 
+/* Handle header custom draw for dark mode */
+static LRESULT HandleHeaderCustomDraw(LPNMCUSTOMDRAW pcd) {
+    switch (pcd->dwDrawStage) {
+        case CDDS_PREPAINT:
+            return CDRF_NOTIFYITEMDRAW;
+
+        case CDDS_ITEMPREPAINT:
+            if (g_darkMode) {
+                /* Set dark mode colors for header */
+                SetTextColor(pcd->hdc, DARK_TEXT_COLOR);
+                SetBkColor(pcd->hdc, DARK_HEADER_BG);
+                return CDRF_NEWFONT;
+            }
+            return CDRF_DODEFAULT;
+
+        default:
+            return CDRF_DODEFAULT;
+    }
+}
+
 /* WM_NOTIFY handler */
 static void OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh) {
     (void)idCtrl;
+
+    /* Check if notification is from the ListView header */
+    HWND hHeader = g_hListView ? ListView_GetHeader(g_hListView) : NULL;
+    if (hHeader && pnmh->hwndFrom == hHeader && pnmh->code == NM_CUSTOMDRAW) {
+        LRESULT result = HandleHeaderCustomDraw((LPNMCUSTOMDRAW)pnmh);
+        SetWindowLongPtrW(hWnd, DWLP_MSGRESULT, result);
+        return;
+    }
 
     if (pnmh->hwndFrom == g_hListView) {
         switch (pnmh->code) {
@@ -687,27 +720,45 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                 break;
             }
 
-            /* Default colors */
-            pcd->clrText = GetSysColor(COLOR_WINDOWTEXT);
-            pcd->clrTextBk = GetSysColor(COLOR_WINDOW);
+            /* Default colors based on theme */
+            if (g_darkMode) {
+                pcd->clrText = DARK_TEXT_COLOR;
+                pcd->clrTextBk = DARK_BG_COLOR;
+            } else {
+                pcd->clrText = GetSysColor(COLOR_WINDOWTEXT);
+                pcd->clrTextBk = GetSysColor(COLOR_WINDOW);
+            }
 
-            /* Color definitions */
-            COLORREF green = RGB(144, 238, 144);    /* LightGreen */
-            COLORREF yellow = RGB(255, 255, 200);   /* LightYellow */
-            COLORREF red = RGB(255, 200, 200);      /* LightRed */
+            /* Status color definitions - darker versions for dark mode */
+            COLORREF green, yellow, red;
+            if (g_darkMode) {
+                green = RGB(50, 120, 50);     /* Dark green */
+                yellow = RGB(120, 110, 40);   /* Dark yellow/olive */
+                red = RGB(120, 50, 50);       /* Dark red */
+            } else {
+                green = RGB(144, 238, 144);   /* Light green */
+                yellow = RGB(255, 255, 200);  /* Light yellow */
+                red = RGB(255, 200, 200);     /* Light red */
+            }
+
+            /* For colored cells, use dark text in light mode, light text in dark mode */
+            COLORREF coloredText = g_darkMode ? DARK_TEXT_COLOR : RGB(0, 0, 0);
 
             switch (subItem) {
                 case 9: /* Vault */
                     if (ch->vault_visited) {
                         pcd->clrTextBk = green;
+                        pcd->clrText = coloredText;
                     } else {
                         /* Check if weeklies are incomplete */
                         BOOL weekliesIncomplete = (ch->delves < 4 || ch->gilded_stash < 3 ||
                                                    !ch->gearing_up || ch->timewalk < 5);
                         if (weekliesIncomplete) {
                             pcd->clrTextBk = yellow;
+                            pcd->clrText = coloredText;
                         } else {
                             pcd->clrTextBk = red;
+                            pcd->clrText = coloredText;
                         }
                     }
                     break;
@@ -715,32 +766,40 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                 case 10: /* Delves */
                     if (ch->delves >= 4) {
                         pcd->clrTextBk = green;
+                        pcd->clrText = coloredText;
                     } else if (ch->delves >= 1) {
                         pcd->clrTextBk = yellow;
+                        pcd->clrText = coloredText;
                     }
                     break;
 
                 case 11: /* Gilded */
                     if (ch->gilded_stash >= 3) {
                         pcd->clrTextBk = green;
+                        pcd->clrText = coloredText;
                     } else if (ch->gilded_stash >= 1) {
                         pcd->clrTextBk = yellow;
+                        pcd->clrText = coloredText;
                     }
                     break;
 
                 case 12: /* Gearing Up */
                     if (ch->gearing_up) {
                         pcd->clrTextBk = green;
+                        pcd->clrText = coloredText;
                     } else {
                         pcd->clrTextBk = yellow;
+                        pcd->clrText = coloredText;
                     }
                     break;
 
                 case 14: /* Timewalk */
                     if (ch->timewalk >= 5) {
                         pcd->clrTextBk = green;
+                        pcd->clrText = coloredText;
                     } else if (ch->timewalk >= 1) {
                         pcd->clrTextBk = yellow;
+                        pcd->clrText = coloredText;
                     }
                     break;
             }
@@ -939,74 +998,58 @@ void DoAddonImport(HWND hWnd) {
     }
 
     /* Parse the Lua file */
-    LuaParseResult *result = lua_parse_savedvars(firstAccountPath);
-    if (!result) {
-        ShowStatusMessage(L"Failed to parse addon data.", WST_NOTIFY_WARNING);
+    LuaParseResult parseResult = lua_parser_parse_addon_file(firstAccountPath);
+    if (!parseResult.characters || parseResult.count == 0) {
+        ShowStatusMessage(L"No character data found in addon file.", WST_NOTIFY_WARNING);
+        lua_parser_free_result(&parseResult);
         return;
     }
-
-    if (result->error) {
-        wchar_t errorW[512];
-        MultiByteToWideChar(CP_UTF8, 0, result->error, -1, errorW, 512);
-        ShowStatusMessage(errorW, WST_NOTIFY_WARNING);
-        lua_parse_result_free(result);
-        return;
-    }
-
-    /* Get current week ID for comparison */
-    char *currentWeek = week_id_current();
 
     /* Import characters */
     int importedCount = 0;
     int updatedCount = 0;
 
-    for (int i = 0; i < result->count; i++) {
-        ParsedCharacter *pc = &result->characters[i];
+    for (size_t i = 0; i < parseResult.count; i++) {
+        Character *addonChar = parseResult.characters[i];
+
+        if (!addonChar || !addonChar->name || !addonChar->realm) {
+            continue;
+        }
 
         /* Find or create character */
-        int existingIdx = character_store_find(store, pc->realm, pc->name);
-        Character *ch = NULL;
-        BOOL isNew = FALSE;
+        int existingIdx = character_store_find(store, addonChar->realm, addonChar->name);
 
         if (existingIdx >= 0) {
-            ch = character_store_get(store, existingIdx);
+            /* Update existing character */
+            Character *existing = character_store_get(store, existingIdx);
+            if (existing) {
+                /* Update all fields from addon */
+                if (addonChar->guild) character_set_guild(existing, addonChar->guild);
+                existing->item_level = addonChar->item_level;
+                existing->heroic_items = addonChar->heroic_items;
+                existing->champion_items = addonChar->champion_items;
+                existing->veteran_items = addonChar->veteran_items;
+                existing->adventure_items = addonChar->adventure_items;
+                existing->old_items = addonChar->old_items;
+                existing->vault_visited = addonChar->vault_visited;
+                existing->delves = addonChar->delves;
+                existing->gilded_stash = addonChar->gilded_stash;
+                existing->gearing_up = addonChar->gearing_up;
+                existing->quests = addonChar->quests;
+                existing->timewalk = addonChar->timewalk;
+                updatedCount++;
+            }
         } else {
-            ch = character_new();
-            if (!ch) continue;
-            character_set_realm(ch, pc->realm);
-            character_set_name(ch, pc->name);
-            isNew = TRUE;
-        }
-
-        /* Always update non-weekly fields */
-        if (pc->guild) character_set_guild(ch, pc->guild);
-        ch->item_level = pc->item_level;
-        ch->heroic_items = pc->heroic_items;
-        ch->champion_items = pc->champion_items;
-        ch->veteran_items = pc->veteran_items;
-        ch->adventure_items = pc->adventure_items;
-        ch->old_items = pc->old_items;
-
-        /* Only update weekly fields if from current week */
-        if (currentWeek && pc->week_id && week_id_equal(currentWeek, pc->week_id)) {
-            ch->vault_visited = pc->vault_visited;
-            ch->delves = pc->delves;
-            ch->gilded_stash = pc->gilded_stash;
-            ch->gearing_up = pc->gearing_up;
-            ch->quests = pc->quests;
-            ch->timewalk = pc->timewalk;
-        }
-
-        if (isNew) {
-            character_store_add(store, ch);
-            importedCount++;
-        } else {
-            updatedCount++;
+            /* Add new character - make a copy since store takes ownership */
+            Character *newChar = character_copy(addonChar);
+            if (newChar) {
+                character_store_add(store, newChar);
+                importedCount++;
+            }
         }
     }
 
-    free(currentWeek);
-    lua_parse_result_free(result);
+    lua_parser_free_result(&parseResult);
 
     /* Save and refresh */
     character_store_save(store);
@@ -1034,12 +1077,33 @@ BOOL ShouldUseDarkMode(void) {
 
 /* Apply theme to window */
 void ApplyTheme(HWND hWnd, BOOL dark) {
+    g_darkMode = dark;
+
     /* Use DWM to set dark mode for title bar (Windows 10 1809+) */
     BOOL useDark = dark;
-
-    /* DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 20H1+) */
-    /* DWMWA_USE_IMMERSIVE_DARK_MODE = 19 (Windows 10 1809-1909) */
+    /* DWMWA_USE_IMMERSIVE_DARK_MODE = 20 */
     DwmSetWindowAttribute(hWnd, 20, &useDark, sizeof(useDark));
+
+    /* Apply to ListView */
+    if (g_hListView) {
+        if (dark) {
+            ListView_SetBkColor(g_hListView, DARK_BG_COLOR);
+            ListView_SetTextBkColor(g_hListView, DARK_BG_COLOR);
+            ListView_SetTextColor(g_hListView, DARK_TEXT_COLOR);
+        } else {
+            ListView_SetBkColor(g_hListView, GetSysColor(COLOR_WINDOW));
+            ListView_SetTextBkColor(g_hListView, GetSysColor(COLOR_WINDOW));
+            ListView_SetTextColor(g_hListView, GetSysColor(COLOR_WINDOWTEXT));
+        }
+
+        /* Force header to redraw with new colors (via custom draw) */
+        HWND hHeader = ListView_GetHeader(g_hListView);
+        if (hHeader) {
+            InvalidateRect(hHeader, NULL, TRUE);
+        }
+
+        InvalidateRect(g_hListView, NULL, TRUE);
+    }
 
     /* Force redraw */
     RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);

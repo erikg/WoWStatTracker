@@ -25,6 +25,8 @@ if(APPLE)
     enable_language(OBJC)
 elseif(WIN32)
     set(WST_PLATFORM_WINDOWS ON)
+    # Use static runtime on Windows for all targets
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 # Release build optimizations
@@ -170,6 +172,11 @@ if(WST_BUILD_GUI)
         # Use static runtime on Windows
         set_property(TARGET WoWStatTracker PROPERTY
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+
+        # Disable linker manifest generation (we have one in resource.rc)
+        set_target_properties(WoWStatTracker PROPERTIES
+            LINK_FLAGS "/MANIFEST:NO"
         )
     endif()
 endif()
