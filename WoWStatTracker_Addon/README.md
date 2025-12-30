@@ -116,7 +116,7 @@ The addon responds to these WoW events:
 - `PLAYER_LOGIN` - Character login
 
 ### Data Format
-Data is exported in JSON-compatible Lua tables that can be parsed by the Python application.
+Data is exported in JSON-compatible Lua tables that can be parsed by the desktop application.
 
 ### Performance
 - Minimal memory usage (< 1MB)
