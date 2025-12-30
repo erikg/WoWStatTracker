@@ -90,7 +90,7 @@ static BOOL OnCreate(HWND hWnd, LPCREATESTRUCT lpcs);
 static void OnSize(HWND hWnd, UINT state, int cx, int cy);
 static void OnDestroy(HWND hWnd);
 static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify);
-static void OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh);
+static LRESULT OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh);
 static void OnTimer(HWND hWnd, UINT id);
 static void OnActivate(HWND hWnd, UINT state, HWND hWndActDeact, BOOL fMinimized);
 static void CreateListView(HWND hWnd);
@@ -170,8 +170,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         case WM_NOTIFY: {
             LPNMHDR pnmh = (LPNMHDR)lParam;
-            OnNotify(hWnd, (int)wParam, pnmh);
-            return 0;
+            return OnNotify(hWnd, (int)wParam, pnmh);
         }
 
         case WM_GETMINMAXINFO: {
@@ -402,15 +401,14 @@ static LRESULT HandleHeaderCustomDraw(LPNMCUSTOMDRAW pcd) {
 }
 
 /* WM_NOTIFY handler */
-static void OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh) {
+static LRESULT OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh) {
     (void)idCtrl;
+    (void)hWnd;
 
     /* Check if notification is from the ListView header */
     HWND hHeader = g_hListView ? ListView_GetHeader(g_hListView) : NULL;
     if (hHeader && pnmh->hwndFrom == hHeader && pnmh->code == NM_CUSTOMDRAW) {
-        LRESULT result = HandleHeaderCustomDraw((LPNMCUSTOMDRAW)pnmh);
-        SetWindowLongPtrW(hWnd, DWLP_MSGRESULT, result);
-        return;
+        return HandleHeaderCustomDraw((LPNMCUSTOMDRAW)pnmh);
     }
 
     if (pnmh->hwndFrom == g_hListView) {
@@ -437,11 +435,12 @@ static void OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh) {
                 LPNMLVCUSTOMDRAW pcd = (LPNMLVCUSTOMDRAW)pnmh;
                 LRESULT result = CDRF_DODEFAULT;
                 HandleListViewCustomDraw(pcd, &result);
-                SetWindowLongPtrW(hWnd, DWLP_MSGRESULT, result);
-                break;
+                return result;
             }
         }
     }
+
+    return 0;
 }
 
 /* WM_TIMER handler */
@@ -698,14 +697,14 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
     switch (pcd->nmcd.dwDrawStage) {
         case CDDS_PREPAINT:
             *pResult = CDRF_NOTIFYITEMDRAW;
-            break;
+            return;
 
         case CDDS_ITEMPREPAINT:
             *pResult = CDRF_NOTIFYSUBITEMDRAW;
-            break;
+            return;
 
         case CDDS_SUBITEM | CDDS_ITEMPREPAINT: {
-            int itemIndex = (int)pcd->nmcd.lItemlParam;
+            int viewIndex = (int)pcd->nmcd.dwItemSpec;
             int subItem = pcd->iSubItem;
 
             CharacterStore *store = GetCharacterStore();
@@ -714,7 +713,12 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                 break;
             }
 
-            Character *ch = character_store_get(store, itemIndex);
+            /* Get the character index from lParam (may differ from view index after sorting) */
+            LVITEMW lvi = { .mask = LVIF_PARAM, .iItem = viewIndex };
+            ListView_GetItem(g_hListView, &lvi);
+            int charIndex = (int)lvi.lParam;
+
+            Character *ch = character_store_get(store, charIndex);
             if (!ch) {
                 *pResult = CDRF_DODEFAULT;
                 break;
