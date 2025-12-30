@@ -48,7 +48,7 @@
 The AddOns folder should contain:
 ```
 WoWStatTracker_Addon/
-├── WoWStatTracker.toc
+├── WoWStatTracker_Addon.toc
 ├── Core.lua
 ├── DataCollector.lua
 ├── EventHandler.lua
@@ -86,7 +86,7 @@ WoWStatTracker_Addon/
 ### Check Data File Exists
 Navigate to:
 ```
-WoW/_retail_/WTF/Account/[YOUR_ACCOUNT]/SavedVariables/WoWStatTracker.lua
+WoW/_retail_/WTF/Account/[YOUR_ACCOUNT]/SavedVariables/WoWStatTracker_Addon.lua
 ```
 
 This file should exist and contain your character data.
@@ -123,7 +123,7 @@ chmod -R 755 "World of Warcraft/_retail_/Interface/AddOns/WoWStatTracker_Addon/"
 
 To remove the addon:
 1. Delete the `WoWStatTracker_Addon` folder from AddOns directory
-2. Delete `WoWStatTracker.lua` from SavedVariables (optional)
+2. Delete `WoWStatTracker_Addon.lua` from SavedVariables (optional)
 3. Restart WoW
 
 ## Multiple Accounts

@@ -75,7 +75,7 @@ The addon includes a simple configuration panel accessible via slash commands:
 ## File Locations
 
 The addon stores data in:
-- `WoW/_retail_/WTF/Account/[ACCOUNT]/SavedVariables/WoWStatTracker.lua`
+- `WoW/_retail_/WTF/Account/[ACCOUNT]/SavedVariables/WoWStatTracker_Addon.lua`
 
 This file contains all your character data and can be read by the stat tracker application.
 
@@ -131,6 +131,11 @@ For issues or feature requests:
 3. Report issues with debug information
 
 ## Version History
+
+**v1.2.0**
+- Track week_id for weekly reset detection
+- GUI only imports weekly data from current week
+- Version sync with desktop application
 
 **v1.0.0**
 - Initial release
