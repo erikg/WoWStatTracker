@@ -10,6 +10,9 @@ void test_character_suite(void);
 void test_character_store_suite(void);
 void test_config_suite(void);
 void test_week_id_suite(void);
+void test_paths_suite(void);
+void test_lua_parser_suite(void);
+void test_notification_suite(void);
 
 #ifdef WST_BUILD_PLATFORM
 void test_platform_suite(void);
@@ -31,6 +34,9 @@ int main(void) {
     test_character_store_suite();
     test_config_suite();
     test_week_id_suite();
+    test_paths_suite();
+    test_lua_parser_suite();
+    test_notification_suite();
 
 #ifdef WST_BUILD_PLATFORM
     test_platform_suite();

@@ -15,6 +15,9 @@ set(TEST_SOURCES
     test_character_store.c
     test_config.c
     test_week_id.c
+    test_paths.c
+    test_lua_parser.c
+    test_notification.c
 )
 
 # Add platform tests if platform layer is being built
