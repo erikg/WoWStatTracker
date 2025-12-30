@@ -136,6 +136,14 @@ if(WST_BUILD_GUI)
         find_library(COCOA Cocoa REQUIRED)
         target_link_libraries(WoWStatTracker PRIVATE wst_platform ${COCOA})
 
+        # Copy addon to app bundle Resources during build
+        add_custom_command(TARGET WoWStatTracker POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/WoWStatTracker_Addon
+                $<TARGET_BUNDLE_CONTENT_DIR:WoWStatTracker>/Resources/WoWStatTracker_Addon
+            COMMENT "Bundling WoWStatTracker addon"
+        )
+
     elseif(WST_PLATFORM_WINDOWS)
         add_executable(WoWStatTracker WIN32
             src/gui/windows/main.c

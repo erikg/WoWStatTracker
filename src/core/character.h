@@ -30,6 +30,7 @@ struct Character {
     bool quests;
     int timewalk;           /* 0-5 */
     char* notes;
+    char* week_id;          /* Week ID when data was collected (e.g., "20251230") */
 };
 
 /*
@@ -92,5 +93,6 @@ WstResult character_set_realm(Character* c, const char* value);
 WstResult character_set_name(Character* c, const char* value);
 WstResult character_set_guild(Character* c, const char* value);
 WstResult character_set_notes(Character* c, const char* value);
+WstResult character_set_week_id(Character* c, const char* value);
 
 #endif /* WST_CHARACTER_H */

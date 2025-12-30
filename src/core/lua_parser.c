@@ -340,5 +340,12 @@ static Character* parse_character(lua_State* L, const char* char_key) {
         }
     }
 
+    /* Week ID: when this data was collected */
+    char* week_id = NULL;
+    if (get_lua_string(L, "week_id", &week_id)) {
+        character_set_week_id(c, week_id);
+        free(week_id);
+    }
+
     return c;
 }

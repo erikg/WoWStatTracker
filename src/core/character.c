@@ -18,6 +18,7 @@ Character* character_new(void) {
     c->name = wst_strdup("");
     c->guild = wst_strdup("");
     c->notes = wst_strdup("");
+    c->week_id = NULL;  /* Only set when imported from addon */
 
     if (!c->realm || !c->name || !c->guild || !c->notes) {
         character_free(c);
@@ -47,6 +48,7 @@ void character_free(Character* c) {
     free(c->name);
     free(c->guild);
     free(c->notes);
+    free(c->week_id);
     free(c);
 }
 
@@ -78,6 +80,14 @@ Character* character_copy(const Character* src) {
     c->gearing_up = src->gearing_up;
     c->quests = src->quests;
     c->timewalk = src->timewalk;
+
+    if (src->week_id) {
+        c->week_id = wst_strdup(src->week_id);
+        if (!c->week_id) {
+            character_free(c);
+            return NULL;
+        }
+    }
 
     return c;
 }
@@ -289,4 +299,15 @@ WstResult character_set_guild(Character* c, const char* value) {
 WstResult character_set_notes(Character* c, const char* value) {
     if (!c) return WST_ERR_NULL_ARG;
     return set_string_field(&c->notes, value);
+}
+
+WstResult character_set_week_id(Character* c, const char* value) {
+    if (!c) return WST_ERR_NULL_ARG;
+    free(c->week_id);
+    if (value) {
+        c->week_id = wst_strdup(value);
+        return c->week_id ? WST_OK : WST_ERR_ALLOC;
+    }
+    c->week_id = NULL;
+    return WST_OK;
 }

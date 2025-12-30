@@ -559,7 +559,7 @@ static NSString * const kConfigWindow = @"window";
         if (existingIdx >= 0) {
             /* Update existing character */
             Character *existing = character_store_get(self.characterStore, (size_t)existingIdx);
-            BOOL changed = [self updateCharacter:existing from:addonChar];
+            BOOL changed = [self updateCharacter:existing from:addonChar currentWeek:currentWeekStr];
             if (changed) {
                 updated++;
             }
@@ -567,6 +567,12 @@ static NSString * const kConfigWindow = @"window";
             /* Add new character - make a copy since store takes ownership */
             Character *newChar = character_copy(addonChar);
             if (newChar) {
+                /* If addon data is from a previous week, reset weekly fields */
+                BOOL addonIsCurrentWeek = addonChar->week_id && currentWeekStr &&
+                                           week_id_equal(addonChar->week_id, currentWeekStr);
+                if (!addonIsCurrentWeek) {
+                    character_reset_weekly(newChar);
+                }
                 character_store_add(self.characterStore, newChar);
                 added++;
             }
@@ -601,10 +607,10 @@ static NSString * const kConfigWindow = @"window";
     }
 }
 
-- (BOOL)updateCharacter:(Character *)existing from:(Character *)addon {
+- (BOOL)updateCharacter:(Character *)existing from:(Character *)addon currentWeek:(const char *)currentWeekId {
     BOOL changed = NO;
 
-    /* Update non-weekly fields */
+    /* Update non-weekly fields (always update these) */
     if (addon->guild && (!existing->guild || strcmp(existing->guild, addon->guild) != 0)) {
         character_set_guild(existing, addon->guild);
         changed = YES;
@@ -634,30 +640,43 @@ static NSString * const kConfigWindow = @"window";
         changed = YES;
     }
 
-    /* Update weekly fields */
-    if (addon->vault_visited != existing->vault_visited) {
-        existing->vault_visited = addon->vault_visited;
-        changed = YES;
-    }
-    if (addon->delves != existing->delves) {
-        existing->delves = addon->delves;
-        changed = YES;
-    }
-    if (addon->gilded_stash != existing->gilded_stash) {
-        existing->gilded_stash = addon->gilded_stash;
-        changed = YES;
-    }
-    if (addon->gearing_up != existing->gearing_up) {
-        existing->gearing_up = addon->gearing_up;
-        changed = YES;
-    }
-    if (addon->quests != existing->quests) {
-        existing->quests = addon->quests;
-        changed = YES;
-    }
-    if (addon->timewalk != existing->timewalk) {
-        existing->timewalk = addon->timewalk;
-        changed = YES;
+    /* Check if addon data is from the current week */
+    BOOL addonIsCurrentWeek = addon->week_id && currentWeekId &&
+                               week_id_equal(addon->week_id, currentWeekId);
+
+    if (addonIsCurrentWeek) {
+        /* Addon data is from current week - import weekly fields */
+        if (addon->vault_visited != existing->vault_visited) {
+            existing->vault_visited = addon->vault_visited;
+            changed = YES;
+        }
+        if (addon->delves != existing->delves) {
+            existing->delves = addon->delves;
+            changed = YES;
+        }
+        if (addon->gilded_stash != existing->gilded_stash) {
+            existing->gilded_stash = addon->gilded_stash;
+            changed = YES;
+        }
+        if (addon->gearing_up != existing->gearing_up) {
+            existing->gearing_up = addon->gearing_up;
+            changed = YES;
+        }
+        if (addon->quests != existing->quests) {
+            existing->quests = addon->quests;
+            changed = YES;
+        }
+        if (addon->timewalk != existing->timewalk) {
+            existing->timewalk = addon->timewalk;
+            changed = YES;
+        }
+    } else {
+        /* Addon data is from a previous week - reset weekly fields */
+        if (existing->vault_visited || existing->delves > 0 || existing->gilded_stash > 0 ||
+            existing->gearing_up || existing->quests || existing->timewalk > 0) {
+            character_reset_weekly(existing);
+            changed = YES;
+        }
     }
 
     return changed;
