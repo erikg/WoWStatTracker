@@ -10,6 +10,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #define INITIAL_CAPACITY 16
 
 CharacterStore* character_store_new(const char* file_path) {
@@ -139,6 +143,41 @@ WstResult character_store_save(const CharacterStore* store) {
     }
     snprintf(temp_path, path_len + 5, "%s.tmp", store->file_path);
 
+#ifdef _WIN32
+    /* Use Windows APIs for proper UTF-8 path handling */
+    wchar_t wTempPath[MAX_PATH];
+    wchar_t wPath[MAX_PATH];
+    MultiByteToWideChar(CP_UTF8, 0, temp_path, -1, wTempPath, MAX_PATH);
+    MultiByteToWideChar(CP_UTF8, 0, store->file_path, -1, wPath, MAX_PATH);
+
+    HANDLE hFile = CreateFileW(wTempPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        free(temp_path);
+        cJSON_free(json_str);
+        return WST_ERR_IO;
+    }
+
+    size_t len = strlen(json_str);
+    DWORD written;
+    BOOL success = WriteFile(hFile, json_str, (DWORD)len, &written, NULL);
+    FlushFileBuffers(hFile);
+    CloseHandle(hFile);
+    cJSON_free(json_str);
+
+    if (!success || written != len) {
+        DeleteFileW(wTempPath);
+        free(temp_path);
+        return WST_ERR_IO;
+    }
+
+    /* Atomic rename with replace */
+    if (!MoveFileExW(wTempPath, wPath, MOVEFILE_REPLACE_EXISTING)) {
+        DeleteFileW(wTempPath);
+        free(temp_path);
+        return WST_ERR_IO;
+    }
+#else
     FILE* f = fopen(temp_path, "w");
     if (!f) {
         free(temp_path);
@@ -162,6 +201,7 @@ WstResult character_store_save(const CharacterStore* store) {
         free(temp_path);
         return WST_ERR_IO;
     }
+#endif
 
     free(temp_path);
     return WST_OK;

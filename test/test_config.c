@@ -156,6 +156,112 @@ static void test_config_nested_object(void) {
     config_free(cfg);
 }
 
+static void test_config_save_overwrite(void) {
+    /* First save */
+    {
+        Config* cfg = config_new(TEST_FILE);
+        config_set_string(cfg, "key", "first");
+        TEST_ASSERT_EQUAL(WST_OK, config_save(cfg));
+        config_free(cfg);
+    }
+
+    /* Second save (overwrite) */
+    {
+        Config* cfg = config_new(TEST_FILE);
+        config_set_string(cfg, "key", "second");
+        config_set_int(cfg, "new_key", 42);
+        TEST_ASSERT_EQUAL(WST_OK, config_save(cfg));
+        config_free(cfg);
+    }
+
+    /* Verify overwrite */
+    {
+        Config* cfg = config_new(TEST_FILE);
+        TEST_ASSERT_EQUAL(WST_OK, config_load(cfg));
+        TEST_ASSERT_EQUAL_STRING("second", config_get_string(cfg, "key", ""));
+        TEST_ASSERT_EQUAL(42, config_get_int(cfg, "new_key", 0));
+        config_free(cfg);
+    }
+
+    remove(TEST_FILE);
+}
+
+static void test_config_save_empty(void) {
+    /* Save empty config */
+    {
+        Config* cfg = config_new(TEST_FILE);
+        TEST_ASSERT_EQUAL(WST_OK, config_save(cfg));
+        config_free(cfg);
+    }
+
+    /* Load empty config */
+    {
+        Config* cfg = config_new(TEST_FILE);
+        TEST_ASSERT_EQUAL(WST_OK, config_load(cfg));
+        /* Should have no keys */
+        TEST_ASSERT_FALSE(config_has_key(cfg, "anything"));
+        config_free(cfg);
+    }
+
+    remove(TEST_FILE);
+}
+
+static void test_config_save_load_all_types(void) {
+    /* Save all types */
+    {
+        Config* cfg = config_new(TEST_FILE);
+        config_set_string(cfg, "str", "hello world");
+        config_set_int(cfg, "int_pos", 12345);
+        config_set_int(cfg, "int_neg", -9999);
+        config_set_double(cfg, "double", 3.14159);
+        config_set_bool(cfg, "bool_true", true);
+        config_set_bool(cfg, "bool_false", false);
+        TEST_ASSERT_EQUAL(WST_OK, config_save(cfg));
+        config_free(cfg);
+    }
+
+    /* Load and verify all types */
+    {
+        Config* cfg = config_new(TEST_FILE);
+        TEST_ASSERT_EQUAL(WST_OK, config_load(cfg));
+
+        TEST_ASSERT_EQUAL_STRING("hello world", config_get_string(cfg, "str", ""));
+        TEST_ASSERT_EQUAL(12345, config_get_int(cfg, "int_pos", 0));
+        TEST_ASSERT_EQUAL(-9999, config_get_int(cfg, "int_neg", 0));
+        TEST_ASSERT_DOUBLE_WITHIN(0.0001, 3.14159, config_get_double(cfg, "double", 0.0));
+        TEST_ASSERT_TRUE(config_get_bool(cfg, "bool_true", false));
+        TEST_ASSERT_FALSE(config_get_bool(cfg, "bool_false", true));
+
+        config_free(cfg);
+    }
+
+    remove(TEST_FILE);
+}
+
+static void test_config_multiple_save_load_cycles(void) {
+    /* Multiple save/load cycles */
+    for (int i = 0; i < 5; i++) {
+        Config* cfg = config_new(TEST_FILE);
+        if (i > 0) {
+            TEST_ASSERT_EQUAL(WST_OK, config_load(cfg));
+            TEST_ASSERT_EQUAL(i - 1, config_get_int(cfg, "iteration", -1));
+        }
+        config_set_int(cfg, "iteration", i);
+        TEST_ASSERT_EQUAL(WST_OK, config_save(cfg));
+        config_free(cfg);
+    }
+
+    /* Final verify */
+    {
+        Config* cfg = config_new(TEST_FILE);
+        TEST_ASSERT_EQUAL(WST_OK, config_load(cfg));
+        TEST_ASSERT_EQUAL(4, config_get_int(cfg, "iteration", -1));
+        config_free(cfg);
+    }
+
+    remove(TEST_FILE);
+}
+
 void test_config_suite(void) {
     RUN_TEST(test_config_new);
     RUN_TEST(test_config_set_get_string);
@@ -168,4 +274,8 @@ void test_config_suite(void) {
     RUN_TEST(test_config_overwrite);
     RUN_TEST(test_config_save_load);
     RUN_TEST(test_config_nested_object);
+    RUN_TEST(test_config_save_overwrite);
+    RUN_TEST(test_config_save_empty);
+    RUN_TEST(test_config_save_load_all_types);
+    RUN_TEST(test_config_multiple_save_load_cycles);
 }
