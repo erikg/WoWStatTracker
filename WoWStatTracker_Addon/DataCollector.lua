@@ -465,9 +465,9 @@ function WoWStatTracker:HasVisitedVault()
                    " claimed=" .. tostring(hasClaimedSlot))
     end
 
-    -- Vault visited = had unlocked slot and rewards are no longer available
-    -- OR we detect a claimed slot
-    return hasClaimedSlot or (hasUnlockedSlot and not hasAvailable and not canClaim)
+    -- Vault visited = claimed a reward OR no rewards available to claim
+    -- (either already claimed, or no activities done this week)
+    return hasClaimedSlot or not canClaim
 end
 
 -- Get delve/world activity information from Great Vault
