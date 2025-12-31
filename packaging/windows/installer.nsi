@@ -35,12 +35,19 @@ VIAddVersionKey "LegalCopyright" "BSD 3-Clause License"
 !define MUI_ICON "icon.ico"
 !define MUI_UNICON "icon.ico"
 
+; Installer images
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "header.bmp"
+!define MUI_HEADERIMAGE_RIGHT
+!define MUI_WELCOMEFINISHPAGE_BITMAP "welcome.bmp"
+
 ; --------------------------------
 ; Pages
 ; --------------------------------
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "..\..\LICENSE"
+!insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -58,7 +65,7 @@ VIAddVersionKey "LegalCopyright" "BSD 3-Clause License"
 ; Installer Sections
 ; --------------------------------
 
-Section "WoW Stat Tracker" SecMain
+Section "WoW Stat Tracker (required)" SecMain
   SectionIn RO  ; Required section
 
   SetOutPath "$INSTDIR"
@@ -102,12 +109,13 @@ Section "WoW Stat Tracker" SecMain
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\WoWStatTracker" \
                      "EstimatedSize" "$0"
 
-  ; Create Start Menu shortcuts (for all users since we're admin)
+SectionEnd
+
+Section "Start Menu Shortcuts" SecStartMenu
   SetShellVarContext all
   CreateDirectory "$SMPROGRAMS\WoW Stat Tracker"
   CreateShortcut "$SMPROGRAMS\WoW Stat Tracker\WoW Stat Tracker.lnk" "$INSTDIR\WoWStatTracker.exe" "" "$INSTDIR\WoWStatTracker.exe" 0
   CreateShortcut "$SMPROGRAMS\WoW Stat Tracker\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
-
 SectionEnd
 
 Section "Desktop Shortcut" SecDesktop
@@ -120,10 +128,12 @@ SectionEnd
 ; --------------------------------
 
 LangString DESC_SecMain ${LANG_ENGLISH} "WoW Stat Tracker application and addon files."
+LangString DESC_SecStartMenu ${LANG_ENGLISH} "Create Start Menu shortcuts."
 LangString DESC_SecDesktop ${LANG_ENGLISH} "Create a desktop shortcut."
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} $(DESC_SecMain)
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecStartMenu} $(DESC_SecStartMenu)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} $(DESC_SecDesktop)
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
