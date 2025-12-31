@@ -102,15 +102,17 @@ Section "WoW Stat Tracker" SecMain
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\WoWStatTracker" \
                      "EstimatedSize" "$0"
 
-  ; Create Start Menu shortcuts
+  ; Create Start Menu shortcuts (for all users since we're admin)
+  SetShellVarContext all
   CreateDirectory "$SMPROGRAMS\WoW Stat Tracker"
-  CreateShortcut "$SMPROGRAMS\WoW Stat Tracker\WoW Stat Tracker.lnk" "$INSTDIR\WoWStatTracker.exe"
-  CreateShortcut "$SMPROGRAMS\WoW Stat Tracker\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
+  CreateShortcut "$SMPROGRAMS\WoW Stat Tracker\WoW Stat Tracker.lnk" "$INSTDIR\WoWStatTracker.exe" "" "$INSTDIR\WoWStatTracker.exe" 0
+  CreateShortcut "$SMPROGRAMS\WoW Stat Tracker\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
 
 SectionEnd
 
 Section "Desktop Shortcut" SecDesktop
-  CreateShortcut "$DESKTOP\WoW Stat Tracker.lnk" "$INSTDIR\WoWStatTracker.exe"
+  SetShellVarContext all
+  CreateShortcut "$DESKTOP\WoW Stat Tracker.lnk" "$INSTDIR\WoWStatTracker.exe" "" "$INSTDIR\WoWStatTracker.exe" 0
 SectionEnd
 
 ; --------------------------------
@@ -130,6 +132,9 @@ LangString DESC_SecDesktop ${LANG_ENGLISH} "Create a desktop shortcut."
 ; --------------------------------
 
 Section "Uninstall"
+
+  ; Use all users context to match install
+  SetShellVarContext all
 
   ; Remove files
   Delete "$INSTDIR\WoWStatTracker.exe"
