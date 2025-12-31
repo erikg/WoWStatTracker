@@ -47,7 +47,7 @@ static char* generate_uuid(void) {
 /* Generate ISO timestamp */
 static char* generate_timestamp(void) {
     time_t now = time(NULL);
-    struct tm* tm_info = localtime(&now);
+    const struct tm* tm_info = localtime(&now);
 
     char* ts = malloc(32);
     if (!ts) return NULL;

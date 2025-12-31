@@ -257,7 +257,7 @@ WstResult config_set_bool(Config* cfg, const char* key, bool value) {
     return WST_OK;
 }
 
-cJSON* config_get_object(Config* cfg, const char* key) {
+cJSON* config_get_object(const Config* cfg, const char* key) {
     if (!cfg || !cfg->data || !key) return NULL;
 
     cJSON* item = cJSON_GetObjectItemCaseSensitive(cfg->data, key);

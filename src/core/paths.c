@@ -24,20 +24,20 @@
 
 char* paths_get_home(void) {
 #ifdef _WIN32
-    char* home = getenv("USERPROFILE");
+    const char* home = getenv("USERPROFILE");
     if (home) return wst_strdup(home);
 
-    char* drive = getenv("HOMEDRIVE");
-    char* path = getenv("HOMEPATH");
+    const char* drive = getenv("HOMEDRIVE");
+    const char* path = getenv("HOMEPATH");
     if (drive && path) {
         return wst_path_join(drive, path);
     }
     return NULL;
 #else
-    char* home = getenv("HOME");
+    const char* home = getenv("HOME");
     if (home) return wst_strdup(home);
 
-    struct passwd* pw = getpwuid(getuid());
+    const struct passwd* pw = getpwuid(getuid());
     if (pw && pw->pw_dir) {
         return wst_strdup(pw->pw_dir);
     }
@@ -49,7 +49,7 @@ char* paths_get_config_dir(void) {
     char* result = NULL;
 
 #ifdef _WIN32
-    char* appdata = getenv("APPDATA");
+    const char* appdata = getenv("APPDATA");
     if (appdata) {
         result = wst_path_join(appdata, WST_APP_NAME);
     } else {
@@ -75,7 +75,7 @@ char* paths_get_config_dir(void) {
     }
 #else
     /* Linux/Unix: use XDG_CONFIG_HOME or ~/.config */
-    char* xdg = getenv("XDG_CONFIG_HOME");
+    const char* xdg = getenv("XDG_CONFIG_HOME");
     if (xdg && xdg[0] != '\0') {
         result = wst_path_join(xdg, WST_APP_NAME);
     } else {

@@ -277,7 +277,7 @@ int character_store_find(const CharacterStore* store,
     if (!store || !realm || !name) return -1;
 
     for (size_t i = 0; i < store->count; i++) {
-        Character* c = store->characters[i];
+        const Character* c = store->characters[i];
         if (wst_strcmp(c->realm, realm) == 0 &&
             wst_strcmp(c->name, name) == 0) {
             return (int)i;

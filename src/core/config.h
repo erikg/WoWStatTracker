@@ -90,7 +90,7 @@ WstResult config_set_bool(Config* cfg, const char* key, bool value);
  * Get a nested object. Returns NULL if not found.
  * The returned object is owned by config.
  */
-cJSON* config_get_object(Config* cfg, const char* key);
+cJSON* config_get_object(const Config* cfg, const char* key);
 
 /*
  * Set a nested object (takes ownership of obj).

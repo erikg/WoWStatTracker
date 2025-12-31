@@ -9,6 +9,9 @@
 #include <string.h>
 #include <stdio.h>
 
+/* Buffer size for validation error messages */
+#define ERR_BUF_SIZE 64
+
 Character* character_new(void) {
     Character* c = wst_calloc(1, sizeof(Character));
     if (!c) return NULL;
@@ -120,7 +123,7 @@ WstResult character_validate(const Character* c, char*** errors, size_t* error_c
     }
 
     if (c->item_level < 0.0 || c->item_level > WST_MAX_ITEM_LEVEL) {
-        char buf[64];
+        char buf[ERR_BUF_SIZE];
         snprintf(buf, sizeof(buf), "Item level must be between 0 and %.0f",
                  WST_MAX_ITEM_LEVEL);
         add_error(errors, error_count, buf);
@@ -138,7 +141,7 @@ WstResult character_validate(const Character* c, char*** errors, size_t* error_c
 
     for (size_t i = 0; i < sizeof(items) / sizeof(items[0]); i++) {
         if (items[i].value < 0 || items[i].value > WST_MAX_ITEMS_PER_CAT) {
-            char buf[64];
+            char buf[ERR_BUF_SIZE];
             snprintf(buf, sizeof(buf), "%s must be between 0 and %d",
                      items[i].name, WST_MAX_ITEMS_PER_CAT);
             add_error(errors, error_count, buf);
@@ -147,14 +150,14 @@ WstResult character_validate(const Character* c, char*** errors, size_t* error_c
     }
 
     if (c->delves < 0 || c->delves > WST_MAX_DELVES) {
-        char buf[64];
+        char buf[ERR_BUF_SIZE];
         snprintf(buf, sizeof(buf), "Delves must be between 0 and %d", WST_MAX_DELVES);
         add_error(errors, error_count, buf);
         result = WST_ERR_VALIDATION;
     }
 
     if (c->gilded_stash < 0 || c->gilded_stash > WST_MAX_GILDED_STASH) {
-        char buf[64];
+        char buf[ERR_BUF_SIZE];
         snprintf(buf, sizeof(buf), "Gilded stash must be between 0 and %d",
                  WST_MAX_GILDED_STASH);
         add_error(errors, error_count, buf);
@@ -162,7 +165,7 @@ WstResult character_validate(const Character* c, char*** errors, size_t* error_c
     }
 
     if (c->timewalk < 0 || c->timewalk > WST_MAX_TIMEWALK) {
-        char buf[64];
+        char buf[ERR_BUF_SIZE];
         snprintf(buf, sizeof(buf), "Timewalk must be between 0 and %d", WST_MAX_TIMEWALK);
         add_error(errors, error_count, buf);
         result = WST_ERR_VALIDATION;

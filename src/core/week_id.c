@@ -19,7 +19,7 @@
  * Returns the Unix timestamp of the most recent Tuesday 15:00 UTC.
  */
 static time_t calculate_last_reset(time_t now) {
-    struct tm* utc = gmtime(&now);
+    const struct tm* utc = gmtime(&now);
     if (!utc) return now;
 
     /* Calculate days since last Tuesday */
@@ -58,7 +58,7 @@ char* week_id_for_timestamp(long long timestamp) {
     time_t t = (time_t)timestamp;
     time_t reset = calculate_last_reset(t);
 
-    struct tm* reset_tm = gmtime(&reset);
+    const struct tm* reset_tm = gmtime(&reset);
     if (!reset_tm) return NULL;
 
     char* buf = malloc(16);
