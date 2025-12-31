@@ -44,7 +44,7 @@ echo === Copying files ===
 copy "%EXE_PATH%" "%PKG_DIR%\"
 
 REM Copy addon if exists
-set ADDON_SRC=%PROJECT_DIR%\..\WoWStatTracker_Addon
+set ADDON_SRC=%PROJECT_DIR%\WoWStatTracker_Addon
 if exist "%ADDON_SRC%" (
     echo Copying addon...
     xcopy /E /I /Q "%ADDON_SRC%" "%PKG_DIR%\WoWStatTracker_Addon\"

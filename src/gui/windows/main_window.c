@@ -328,17 +328,13 @@ static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify) {
             break;
         }
 
-        case IDM_ADDON_INSTALL: {
-            /* TODO: Implement addon installation */
-            ShowStatusMessage(L"Addon installation not yet implemented.", WST_NOTIFY_INFO);
+        case IDM_ADDON_INSTALL:
+            DoAddonInstall(hWnd);
             break;
-        }
 
-        case IDM_ADDON_UNINSTALL: {
-            /* TODO: Implement addon uninstallation */
-            ShowStatusMessage(L"Addon uninstallation not yet implemented.", WST_NOTIFY_INFO);
+        case IDM_ADDON_UNINSTALL:
+            DoAddonUninstall(hWnd);
             break;
-        }
 
         /* View menu - Theme */
         case IDM_VIEW_THEME_AUTO:
@@ -932,6 +928,230 @@ void ShowStatusMessage(const wchar_t *message, WstNotifyType type) {
 void ClearStatusMessage(void) {
     if (!g_hStatusBar) return;
     SendMessageW(g_hStatusBar, SB_SETTEXTW, 0, (LPARAM)L"");
+}
+
+/* Get the directory containing the executable */
+static BOOL GetExeDirectory(wchar_t *buffer, size_t bufferLen) {
+    if (!GetModuleFileNameW(NULL, buffer, (DWORD)bufferLen)) {
+        return FALSE;
+    }
+    /* Remove the filename, keeping just the directory */
+    wchar_t *lastSlash = wcsrchr(buffer, L'\\');
+    if (lastSlash) {
+        *lastSlash = L'\0';
+    }
+    return TRUE;
+}
+
+/* Recursively delete a directory and all its contents */
+static BOOL DeleteDirectoryRecursive(const wchar_t *path) {
+    wchar_t searchPath[MAX_PATH];
+    swprintf(searchPath, MAX_PATH, L"%s\\*", path);
+
+    WIN32_FIND_DATAW fd;
+    HANDLE hFind = FindFirstFileW(searchPath, &fd);
+    if (hFind == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+
+    do {
+        if (wcscmp(fd.cFileName, L".") == 0 || wcscmp(fd.cFileName, L"..") == 0) {
+            continue;
+        }
+
+        wchar_t fullPath[MAX_PATH];
+        swprintf(fullPath, MAX_PATH, L"%s\\%s", path, fd.cFileName);
+
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            /* Recursively delete subdirectory */
+            if (!DeleteDirectoryRecursive(fullPath)) {
+                FindClose(hFind);
+                return FALSE;
+            }
+        } else {
+            /* Delete file */
+            if (!DeleteFileW(fullPath)) {
+                FindClose(hFind);
+                return FALSE;
+            }
+        }
+    } while (FindNextFileW(hFind, &fd));
+
+    FindClose(hFind);
+
+    /* Remove the now-empty directory */
+    return RemoveDirectoryW(path);
+}
+
+/* Recursively copy a directory and all its contents */
+static BOOL CopyDirectoryRecursive(const wchar_t *srcPath, const wchar_t *destPath) {
+    /* Create destination directory */
+    if (!CreateDirectoryW(destPath, NULL)) {
+        DWORD err = GetLastError();
+        if (err != ERROR_ALREADY_EXISTS) {
+            return FALSE;
+        }
+    }
+
+    wchar_t searchPath[MAX_PATH];
+    swprintf(searchPath, MAX_PATH, L"%s\\*", srcPath);
+
+    WIN32_FIND_DATAW fd;
+    HANDLE hFind = FindFirstFileW(searchPath, &fd);
+    if (hFind == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+
+    BOOL success = TRUE;
+    do {
+        if (wcscmp(fd.cFileName, L".") == 0 || wcscmp(fd.cFileName, L"..") == 0) {
+            continue;
+        }
+
+        wchar_t srcFullPath[MAX_PATH];
+        wchar_t destFullPath[MAX_PATH];
+        swprintf(srcFullPath, MAX_PATH, L"%s\\%s", srcPath, fd.cFileName);
+        swprintf(destFullPath, MAX_PATH, L"%s\\%s", destPath, fd.cFileName);
+
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            /* Recursively copy subdirectory */
+            if (!CopyDirectoryRecursive(srcFullPath, destFullPath)) {
+                success = FALSE;
+                break;
+            }
+        } else {
+            /* Copy file */
+            if (!CopyFileW(srcFullPath, destFullPath, FALSE)) {
+                success = FALSE;
+                break;
+            }
+        }
+    } while (FindNextFileW(hFind, &fd));
+
+    FindClose(hFind);
+    return success;
+}
+
+/* Install the addon to WoW AddOns folder */
+static BOOL DoAddonInstall(HWND hWnd) {
+    (void)hWnd;
+
+    Config *cfg = GetConfig();
+    if (!cfg) {
+        ShowStatusMessage(L"Internal error: config not initialized.", WST_NOTIFY_WARNING);
+        return FALSE;
+    }
+
+    /* Check WoW path is configured */
+    const char *wowPath = config_get_string(cfg, "wow_path", NULL);
+    if (!wowPath || strlen(wowPath) == 0) {
+        ShowStatusMessage(L"WoW path not set. Use Addon → Set WoW Location first.", WST_NOTIFY_WARNING);
+        return FALSE;
+    }
+
+    /* Get exe directory to find bundled addon */
+    wchar_t exeDir[MAX_PATH];
+    if (!GetExeDirectory(exeDir, MAX_PATH)) {
+        ShowStatusMessage(L"Failed to get application directory.", WST_NOTIFY_WARNING);
+        return FALSE;
+    }
+
+    /* Build source addon path (next to exe) */
+    wchar_t srcAddonPath[MAX_PATH];
+    swprintf(srcAddonPath, MAX_PATH, L"%s\\WoWStatTracker_Addon", exeDir);
+
+    /* Check source addon exists */
+    DWORD srcAttrs = GetFileAttributesW(srcAddonPath);
+    if (srcAttrs == INVALID_FILE_ATTRIBUTES || !(srcAttrs & FILE_ATTRIBUTE_DIRECTORY)) {
+        ShowStatusMessage(L"Addon source not found. Package may be incomplete.", WST_NOTIFY_WARNING);
+        return FALSE;
+    }
+
+    /* Build destination path: wow_path\_retail_\Interface\AddOns */
+    wchar_t wowPathW[MAX_PATH];
+    MultiByteToWideChar(CP_UTF8, 0, wowPath, -1, wowPathW, MAX_PATH);
+
+    wchar_t interfacePath[MAX_PATH];
+    swprintf(interfacePath, MAX_PATH, L"%s\\_retail_\\Interface", wowPathW);
+
+    wchar_t addonsPath[MAX_PATH];
+    swprintf(addonsPath, MAX_PATH, L"%s\\AddOns", interfacePath);
+
+    wchar_t destAddonPath[MAX_PATH];
+    swprintf(destAddonPath, MAX_PATH, L"%s\\WoWStatTracker_Addon", addonsPath);
+
+    /* Create Interface and AddOns directories if they don't exist */
+    CreateDirectoryW(interfacePath, NULL);
+    CreateDirectoryW(addonsPath, NULL);
+
+    /* Remove existing addon if present */
+    DWORD destAttrs = GetFileAttributesW(destAddonPath);
+    if (destAttrs != INVALID_FILE_ATTRIBUTES) {
+        if (!DeleteDirectoryRecursive(destAddonPath)) {
+            ShowStatusMessage(L"Failed to remove existing addon.", WST_NOTIFY_WARNING);
+            return FALSE;
+        }
+    }
+
+    /* Copy addon */
+    if (!CopyDirectoryRecursive(srcAddonPath, destAddonPath)) {
+        ShowStatusMessage(L"Failed to copy addon files.", WST_NOTIFY_WARNING);
+        return FALSE;
+    }
+
+    ShowStatusMessage(L"Addon installed successfully!", WST_NOTIFY_SUCCESS);
+    return TRUE;
+}
+
+/* Uninstall the addon from WoW AddOns folder */
+static BOOL DoAddonUninstall(HWND hWnd) {
+    (void)hWnd;
+
+    Config *cfg = GetConfig();
+    if (!cfg) {
+        ShowStatusMessage(L"Internal error: config not initialized.", WST_NOTIFY_WARNING);
+        return FALSE;
+    }
+
+    /* Check WoW path is configured */
+    const char *wowPath = config_get_string(cfg, "wow_path", NULL);
+    if (!wowPath || strlen(wowPath) == 0) {
+        ShowStatusMessage(L"WoW path not set. Use Addon → Set WoW Location first.", WST_NOTIFY_WARNING);
+        return FALSE;
+    }
+
+    /* Build addon path */
+    wchar_t wowPathW[MAX_PATH];
+    MultiByteToWideChar(CP_UTF8, 0, wowPath, -1, wowPathW, MAX_PATH);
+
+    wchar_t addonPath[MAX_PATH];
+    swprintf(addonPath, MAX_PATH, L"%s\\_retail_\\Interface\\AddOns\\WoWStatTracker_Addon", wowPathW);
+
+    /* Check if addon exists */
+    DWORD attrs = GetFileAttributesW(addonPath);
+    if (attrs == INVALID_FILE_ATTRIBUTES) {
+        ShowStatusMessage(L"Addon is not installed.", WST_NOTIFY_INFO);
+        return TRUE; /* Not an error */
+    }
+
+    /* Confirm uninstallation */
+    int result = MessageBoxW(hWnd,
+        L"Are you sure you want to uninstall the WoWStatTracker addon?",
+        L"Uninstall Addon",
+        MB_YESNO | MB_ICONQUESTION);
+
+    if (result != IDYES) {
+        return FALSE;
+    }
+
+    /* Delete addon directory */
+    if (!DeleteDirectoryRecursive(addonPath)) {
+        ShowStatusMessage(L"Failed to remove addon files.", WST_NOTIFY_WARNING);
+        return FALSE;
+    }
+
+    ShowStatusMessage(L"Addon uninstalled successfully.", WST_NOTIFY_SUCCESS);
+    return TRUE;
 }
 
 /* Get handles */
