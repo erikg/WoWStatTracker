@@ -93,16 +93,28 @@ static void test_wst_strtrim_trailing(void) {
 }
 
 static void test_wst_path_join_normal(void) {
+#ifdef _WIN32
+    char* path = wst_path_join("C:\\Users\\test", "file.txt");
+    TEST_ASSERT_NOT_NULL(path);
+    TEST_ASSERT_EQUAL_STRING("C:\\Users\\test\\file.txt", path);
+#else
     char* path = wst_path_join("/home/user", "file.txt");
     TEST_ASSERT_NOT_NULL(path);
     TEST_ASSERT_EQUAL_STRING("/home/user/file.txt", path);
+#endif
     free(path);
 }
 
 static void test_wst_path_join_trailing_slash(void) {
+#ifdef _WIN32
+    char* path = wst_path_join("C:\\Users\\test\\", "file.txt");
+    TEST_ASSERT_NOT_NULL(path);
+    TEST_ASSERT_EQUAL_STRING("C:\\Users\\test\\file.txt", path);
+#else
     char* path = wst_path_join("/home/user/", "file.txt");
     TEST_ASSERT_NOT_NULL(path);
     TEST_ASSERT_EQUAL_STRING("/home/user/file.txt", path);
+#endif
     free(path);
 }
 

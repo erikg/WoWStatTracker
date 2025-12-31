@@ -13,7 +13,12 @@ static void test_paths_get_home(void) {
     TEST_ASSERT_NOT_NULL(home);
     TEST_ASSERT_TRUE(strlen(home) > 0);
     /* Home should be an absolute path */
+#ifdef _WIN32
+    /* Windows paths start with drive letter like C: */
+    TEST_ASSERT_TRUE(strlen(home) >= 2 && home[1] == ':');
+#else
     TEST_ASSERT_EQUAL('/', home[0]);
+#endif
     free(home);
 }
 
@@ -56,7 +61,11 @@ static void test_paths_get_lock_file(void) {
 
 static void test_paths_is_dir_valid(void) {
     /* Root directory should exist */
+#ifdef _WIN32
+    TEST_ASSERT_TRUE(paths_is_dir("C:\\"));
+#else
     TEST_ASSERT_TRUE(paths_is_dir("/"));
+#endif
     /* Home directory should exist */
     char* home = paths_get_home();
     TEST_ASSERT_TRUE(paths_is_dir(home));
@@ -64,7 +73,11 @@ static void test_paths_is_dir_valid(void) {
 }
 
 static void test_paths_is_dir_invalid(void) {
+#ifdef _WIN32
+    TEST_ASSERT_FALSE(paths_is_dir("C:\\nonexistent_path_12345"));
+#else
     TEST_ASSERT_FALSE(paths_is_dir("/nonexistent_path_12345"));
+#endif
     TEST_ASSERT_FALSE(paths_is_dir(NULL));
 }
 
@@ -78,7 +91,11 @@ static void test_paths_file_exists_valid(void) {
 }
 
 static void test_paths_file_exists_invalid(void) {
+#ifdef _WIN32
+    TEST_ASSERT_FALSE(paths_file_exists("C:\\nonexistent_file_12345.txt"));
+#else
     TEST_ASSERT_FALSE(paths_file_exists("/nonexistent_file_12345.txt"));
+#endif
     TEST_ASSERT_FALSE(paths_file_exists(NULL));
 }
 
