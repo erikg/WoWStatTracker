@@ -33,6 +33,10 @@ extern Config* GetConfig(void);
 extern NotificationStore* GetNotificationStore(void);
 extern HINSTANCE GetAppInstance(void);
 
+/* Forward declarations for static functions */
+static BOOL DoAddonInstall(HWND hWnd);
+static BOOL DoAddonUninstall(HWND hWnd);
+
 /* Window class name */
 static const wchar_t CLASS_NAME[] = L"WoWStatTrackerMain";
 
@@ -188,7 +192,6 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         default:
             return DefWindowProcW(hWnd, uMsg, wParam, lParam);
     }
-    return 0;
 }
 
 /* WM_CREATE handler */
@@ -825,7 +828,7 @@ void RefreshCharacterList(void) {
     ListView_DeleteAllItems(g_hListView);
 
     /* Add characters */
-    int count = character_store_count(store);
+    int count = (int)character_store_count(store);
     for (int i = 0; i < count; i++) {
         Character *ch = character_store_get(store, i);
         if (!ch) continue;
@@ -1190,7 +1193,7 @@ void DoAddonImport(HWND hWnd) {
     /* Try to find the account folder */
     wchar_t accountSearchW[MAX_PATH * 3];
     MultiByteToWideChar(CP_UTF8, 0, svPath, -1, accountSearchW, MAX_PATH * 3);
-    wcscat(accountSearchW, L"\\*");
+    wcscat_s(accountSearchW, MAX_PATH * 3, L"\\*");
 
     WIN32_FIND_DATAW fd;
     HANDLE hFind = FindFirstFileW(accountSearchW, &fd);

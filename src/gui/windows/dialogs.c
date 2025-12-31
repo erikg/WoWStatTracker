@@ -519,7 +519,7 @@ static BOOL ParseVersion(const char *tag, int *major, int *minor, int *patch) {
     /* Skip leading 'v' if present */
     if (*tag == 'v' || *tag == 'V') tag++;
 
-    if (sscanf(tag, "%d.%d.%d", major, minor, patch) == 3) {
+    if (sscanf_s(tag, "%d.%d.%d", major, minor, patch) == 3) {
         return TRUE;
     }
     return FALSE;
@@ -643,7 +643,7 @@ void CheckForUpdates(HWND hWnd, BOOL showIfCurrent) {
 static void FormatTimestamp(const char *iso, wchar_t *out, size_t outLen) {
     /* Parse ISO format: 2024-12-31T14:30:00 */
     int year, month, day, hour, min;
-    if (sscanf(iso, "%d-%d-%dT%d:%d", &year, &month, &day, &hour, &min) == 5) {
+    if (sscanf_s(iso, "%d-%d-%dT%d:%d", &year, &month, &day, &hour, &min) == 5) {
         const wchar_t *months[] = {
             L"Jan", L"Feb", L"Mar", L"Apr", L"May", L"Jun",
             L"Jul", L"Aug", L"Sep", L"Oct", L"Nov", L"Dec"
