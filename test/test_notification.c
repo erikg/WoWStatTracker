@@ -3,6 +3,7 @@
  */
 
 #include "unity.h"
+#include "test_suites.h"
 #include "notification.h"
 #include "paths.h"
 #include <string.h>

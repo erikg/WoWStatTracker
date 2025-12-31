@@ -3,6 +3,7 @@
  */
 
 #include "unity.h"
+#include "test_suites.h"
 #include "platform.h"
 #include "util.h"
 #include <stdio.h>

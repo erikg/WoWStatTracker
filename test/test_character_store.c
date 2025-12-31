@@ -3,6 +3,7 @@
  */
 
 #include "unity.h"
+#include "test_suites.h"
 #include "character_store.h"
 #include "util.h"
 #include <stdlib.h>

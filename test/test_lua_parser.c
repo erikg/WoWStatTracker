@@ -3,6 +3,7 @@
  */
 
 #include "unity.h"
+#include "test_suites.h"
 #include "lua_parser.h"
 #include "character.h"
 #include <string.h>

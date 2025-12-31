@@ -23,10 +23,28 @@ option(WST_ENABLE_LTO "Enable Link Time Optimization" ON)
 if(APPLE)
     set(WST_PLATFORM_MACOS ON)
     enable_language(OBJC)
+
+    # Strict compiler warnings for C
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror -pedantic")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wshadow -Wstrict-prototypes -Wmissing-prototypes")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wformat=2 -Wno-unused-parameter")
+
+    # Strict compiler warnings for Objective-C
+    # Note: -pedantic disabled because Apple's Foundation headers use GNU extensions
+    set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -Wall -Wextra -Werror")
+    set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -Wshadow -Wformat=2 -Wno-unused-parameter")
+
 elseif(WIN32)
     set(WST_PLATFORM_WINDOWS ON)
     # Use static runtime on Windows for all targets
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+    # Strict compiler warnings for MSVC
+    if(MSVC)
+        add_compile_options(/W4 /WX /permissive-)
+        # Disable some noisy warnings
+        add_compile_options(/wd4100)  # unreferenced formal parameter
+    endif()
 endif()
 
 # Release build optimizations

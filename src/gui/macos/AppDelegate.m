@@ -29,11 +29,9 @@ static NSString * const kAppVersion = @WST_VERSION;
 /* Config keys */
 static NSString * const kConfigWowPath = @"wow_path";
 static NSString * const kConfigTheme = @"theme";
-static NSString * const kConfigToolbarStyle = @"toolbar_style";
 static NSString * const kConfigAutoImport = @"auto_import";
 static NSString * const kConfigCheckUpdates = @"check_updates";
 static NSString * const kConfigLastWeekId = @"last_week_id";
-static NSString * const kConfigWindow = @"window";
 
 @interface AppDelegate ()
 
