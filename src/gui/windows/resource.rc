@@ -7,6 +7,9 @@
 #include "resource.h"
 #include "version.h"
 
+/* Application icon */
+IDI_APPICON ICON "..\\..\\..\\packaging\\windows\\icon.ico"
+
 /* Application manifest for common controls v6 */
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "WoWStatTracker.manifest"
 

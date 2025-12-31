@@ -80,4 +80,7 @@
 #define IDS_APP_TITLE           1000
 #define IDS_APP_CLASS           1001
 
+/* Icon IDs */
+#define IDI_APPICON             1
+
 #endif /* WST_RESOURCE_H */

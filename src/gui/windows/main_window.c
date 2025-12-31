@@ -106,6 +106,11 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult);
 
 /* Register window class */
 static BOOL RegisterMainWindowClass(HINSTANCE hInstance) {
+    HICON hIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_APPICON));
+    if (!hIcon) {
+        hIcon = LoadIconW(NULL, IDI_APPLICATION);
+    }
+
     WNDCLASSEXW wc = {
         .cbSize = sizeof(WNDCLASSEXW),
         .style = CS_HREDRAW | CS_VREDRAW,
@@ -113,12 +118,12 @@ static BOOL RegisterMainWindowClass(HINSTANCE hInstance) {
         .cbClsExtra = 0,
         .cbWndExtra = 0,
         .hInstance = hInstance,
-        .hIcon = LoadIconW(NULL, IDI_APPLICATION),
+        .hIcon = hIcon,
         .hCursor = LoadCursorW(NULL, IDC_ARROW),
         .hbrBackground = (HBRUSH)(COLOR_WINDOW + 1),
         .lpszMenuName = MAKEINTRESOURCEW(IDM_MAINMENU),
         .lpszClassName = CLASS_NAME,
-        .hIconSm = LoadIconW(NULL, IDI_APPLICATION),
+        .hIconSm = hIcon,
     };
     return RegisterClassExW(&wc) != 0;
 }
