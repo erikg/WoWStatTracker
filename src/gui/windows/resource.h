@@ -25,6 +25,7 @@
 #define IDM_VIEW_THEME_AUTO     130
 #define IDM_VIEW_THEME_LIGHT    131
 #define IDM_VIEW_THEME_DARK     132
+#define IDM_VIEW_NOTIFICATIONS  133
 
 #define IDM_HELP_MANUAL         140
 #define IDM_HELP_UPDATE         141
@@ -45,6 +46,17 @@
 #define IDD_CHARACTER           400
 #define IDD_PREFERENCES         401
 #define IDD_MANUAL              402
+#define IDD_NOTIFICATIONS       403
+#define IDD_ABOUT               404
+
+/* About Dialog Controls */
+#define IDC_ABOUT_VERSION       440
+#define IDC_ABOUT_LINK          441
+
+/* Notifications Dialog Controls */
+#define IDC_NOTIF_LIST          445
+#define IDC_NOTIF_CLEAR         446
+#define IDC_NOTIF_DELETE        447
 
 /* Character Dialog Controls */
 #define IDC_CHAR_REALM          410

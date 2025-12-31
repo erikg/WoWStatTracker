@@ -44,6 +44,8 @@ BEGIN
             MENUITEM "&Light", IDM_VIEW_THEME_LIGHT
             MENUITEM "&Dark", IDM_VIEW_THEME_DARK
         END
+        MENUITEM SEPARATOR
+        MENUITEM "&Notifications...", IDM_VIEW_NOTIFICATIONS
     END
     POPUP "&Help"
     BEGIN
@@ -138,6 +140,33 @@ FONT 8, "Consolas"
 BEGIN
     EDITTEXT        IDC_CHAR_NOTES, 5, 5, 390, 270, ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL
     PUSHBUTTON      "Close", IDCANCEL, 345, 280, 50, 14
+END
+
+/* Notifications Dialog */
+IDD_NOTIFICATIONS DIALOGEX 0, 0, 320, 240
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "Notifications"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    LISTBOX         IDC_NOTIF_LIST, 5, 5, 310, 200, LBS_NOINTEGRALHEIGHT | LBS_NOTIFY | WS_VSCROLL | WS_BORDER
+    PUSHBUTTON      "Delete", IDC_NOTIF_DELETE, 5, 220, 50, 14
+    PUSHBUTTON      "Clear All", IDC_NOTIF_CLEAR, 60, 220, 50, 14
+    PUSHBUTTON      "Close", IDCANCEL, 265, 220, 50, 14
+END
+
+/* About Dialog */
+IDD_ABOUT DIALOGEX 0, 0, 220, 115
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "About WoW Stat Tracker"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    ICON            IDI_APPICON, -1, 10, 10, 32, 32
+    LTEXT           "WoW Stat Tracker", -1, 50, 10, 160, 10
+    LTEXT           "", IDC_ABOUT_VERSION, 50, 22, 160, 10
+    LTEXT           "Track your World of Warcraft character statistics.", -1, 50, 40, 160, 16
+    LTEXT           "BSD 3-Clause License", -1, 50, 58, 160, 10
+    CONTROL         "<a href=""https://github.com/erikg/WoWStatTracker"">https://github.com/erikg/WoWStatTracker</a>", IDC_ABOUT_LINK, "SysLink", WS_TABSTOP, 50, 70, 160, 12
+    DEFPUSHBUTTON   "OK", IDOK, 85, 95, 50, 14
 END
 
 /* Version Info - uses macros from version.h */

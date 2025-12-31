@@ -43,7 +43,7 @@ static HWND g_hToolbar = NULL;
 static HWND g_hStatusBar = NULL;
 
 /* Status message timer */
-#define STATUS_TIMEOUT_MS 5000
+#define STATUS_TIMEOUT_MS 8000
 
 /* Column definitions */
 typedef struct {
@@ -357,27 +357,22 @@ static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify) {
             break;
         }
 
+        case IDM_VIEW_NOTIFICATIONS:
+            ShowNotificationsDialog(hWnd);
+            break;
+
         /* Help menu */
         case IDM_HELP_MANUAL:
             ShowManualDialog(hWnd);
             break;
 
         case IDM_HELP_UPDATE:
-            ShowStatusMessage(L"Update checking not yet implemented.", WST_NOTIFY_INFO);
+            CheckForUpdates(hWnd, TRUE);
             break;
 
-        case IDM_HELP_ABOUT: {
-            wchar_t aboutMsg[512];
-            swprintf(aboutMsg, 512,
-                L"WoW Stat Tracker v%d.%d.%d\n\n"
-                L"Track your World of Warcraft character statistics.\n\n"
-                L"BSD 3-Clause License\n"
-                L"https://github.com/yourusername/WoWStatTracker",
-                WST_VERSION_MAJOR, WST_VERSION_MINOR, WST_VERSION_PATCH);
-            MessageBoxW(hWnd, aboutMsg, L"About WoW Stat Tracker",
-                MB_OK | MB_ICONINFORMATION);
+        case IDM_HELP_ABOUT:
+            ShowAboutDialog(hWnd);
             break;
-        }
     }
 }
 

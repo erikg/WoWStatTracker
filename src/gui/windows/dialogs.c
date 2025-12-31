@@ -20,10 +20,14 @@
 #include "character.h"
 #include "character_store.h"
 #include "config.h"
+#include "notification.h"
+#include "platform.h"
+#include "version.h"
 
 /* Forward declarations for external app state */
 extern CharacterStore* GetCharacterStore(void);
 extern Config* GetConfig(void);
+extern NotificationStore* GetNotificationStore(void);
 extern HINSTANCE GetAppInstance(void);
 
 /* Character dialog state */
@@ -425,15 +429,38 @@ static INT_PTR CALLBACK ManualDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
 
     switch (uMsg) {
         case WM_INITDIALOG: {
-            /* Set manual text */
+            /* Convert \n to \r\n for Windows edit control */
             HWND hEdit = GetDlgItem(hDlg, IDC_CHAR_NOTES);
-            int wlen = MultiByteToWideChar(CP_UTF8, 0, g_manualText, -1, NULL, 0);
-            wchar_t *wtext = malloc(wlen * sizeof(wchar_t));
-            if (wtext) {
-                MultiByteToWideChar(CP_UTF8, 0, g_manualText, -1, wtext, wlen);
-                SetWindowTextW(hEdit, wtext);
-                free(wtext);
+            size_t srcLen = strlen(g_manualText);
+            size_t newlines = 0;
+            for (size_t i = 0; i < srcLen; i++) {
+                if (g_manualText[i] == '\n') newlines++;
             }
+
+            char *converted = malloc(srcLen + newlines + 1);
+            if (converted) {
+                size_t j = 0;
+                for (size_t i = 0; i < srcLen; i++) {
+                    if (g_manualText[i] == '\n') {
+                        converted[j++] = '\r';
+                    }
+                    converted[j++] = g_manualText[i];
+                }
+                converted[j] = '\0';
+
+                int wlen = MultiByteToWideChar(CP_UTF8, 0, converted, -1, NULL, 0);
+                wchar_t *wtext = malloc(wlen * sizeof(wchar_t));
+                if (wtext) {
+                    MultiByteToWideChar(CP_UTF8, 0, converted, -1, wtext, wlen);
+                    SetWindowTextW(hEdit, wtext);
+                    free(wtext);
+                }
+                free(converted);
+            }
+
+            /* Deselect text and scroll to top */
+            SendMessage(hEdit, EM_SETSEL, 0, 0);
+            SendMessage(hEdit, EM_SCROLLCARET, 0, 0);
 
             /* Center dialog */
             RECT rcOwner, rcDlg;
@@ -444,7 +471,9 @@ static INT_PTR CALLBACK ManualDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
             int y = rcOwner.top + (rcOwner.bottom - rcOwner.top - (rcDlg.bottom - rcDlg.top)) / 2;
             SetWindowPos(hDlg, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
 
-            return TRUE;
+            /* Set focus to Close button instead of edit control */
+            SetFocus(GetDlgItem(hDlg, IDCANCEL));
+            return FALSE;  /* FALSE because we set focus ourselves */
         }
 
         case WM_COMMAND:
@@ -481,4 +510,366 @@ static INT_PTR CALLBACK ManualDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
     }
 
     return FALSE;
+}
+
+/* Helper to parse version from GitHub release tag (e.g., "v1.2.3" -> major, minor, patch) */
+static BOOL ParseVersion(const char *tag, int *major, int *minor, int *patch) {
+    if (!tag) return FALSE;
+
+    /* Skip leading 'v' if present */
+    if (*tag == 'v' || *tag == 'V') tag++;
+
+    if (sscanf(tag, "%d.%d.%d", major, minor, patch) == 3) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/* Compare versions: returns 1 if a > b, -1 if a < b, 0 if equal */
+static int CompareVersions(int a_major, int a_minor, int a_patch,
+                           int b_major, int b_minor, int b_patch) {
+    if (a_major != b_major) return (a_major > b_major) ? 1 : -1;
+    if (a_minor != b_minor) return (a_minor > b_minor) ? 1 : -1;
+    if (a_patch != b_patch) return (a_patch > b_patch) ? 1 : -1;
+    return 0;
+}
+
+/* Check for updates from GitHub releases */
+void CheckForUpdates(HWND hWnd, BOOL showIfCurrent) {
+    ShowStatusMessage(L"Checking for updates...", WST_NOTIFY_INFO);
+
+    /* Fetch latest release info from GitHub API */
+    const char *url = "https://api.github.com/repos/erikg/WoWStatTracker/releases/latest";
+    char *response = platform_http_get(url);
+
+    if (!response) {
+        ShowStatusMessage(L"Failed to check for updates. Check your internet connection.", WST_NOTIFY_WARNING);
+        return;
+    }
+
+    /* Parse the tag_name from JSON response */
+    /* Simple parsing - look for "tag_name": "vX.Y.Z" */
+    char *tagStart = strstr(response, "\"tag_name\"");
+    if (!tagStart) {
+        free(response);
+        ShowStatusMessage(L"Failed to parse update information.", WST_NOTIFY_WARNING);
+        return;
+    }
+
+    /* Find the version string */
+    tagStart = strchr(tagStart, ':');
+    if (!tagStart) {
+        free(response);
+        ShowStatusMessage(L"Failed to parse update information.", WST_NOTIFY_WARNING);
+        return;
+    }
+
+    /* Skip to opening quote */
+    tagStart = strchr(tagStart, '"');
+    if (!tagStart) {
+        free(response);
+        ShowStatusMessage(L"Failed to parse update information.", WST_NOTIFY_WARNING);
+        return;
+    }
+    tagStart++; /* Skip the quote */
+
+    /* Find closing quote */
+    char *tagEnd = strchr(tagStart, '"');
+    if (!tagEnd) {
+        free(response);
+        ShowStatusMessage(L"Failed to parse update information.", WST_NOTIFY_WARNING);
+        return;
+    }
+
+    /* Extract version tag */
+    size_t tagLen = tagEnd - tagStart;
+    char *tag = malloc(tagLen + 1);
+    if (!tag) {
+        free(response);
+        return;
+    }
+    memcpy(tag, tagStart, tagLen);
+    tag[tagLen] = '\0';
+
+    /* Parse remote version */
+    int remoteMajor, remoteMinor, remotePatch;
+    if (!ParseVersion(tag, &remoteMajor, &remoteMinor, &remotePatch)) {
+        free(tag);
+        free(response);
+        ShowStatusMessage(L"Failed to parse version number.", WST_NOTIFY_WARNING);
+        return;
+    }
+
+    /* Compare with current version */
+    int cmp = CompareVersions(remoteMajor, remoteMinor, remotePatch,
+                              WST_VERSION_MAJOR, WST_VERSION_MINOR, WST_VERSION_PATCH);
+
+    if (cmp > 0) {
+        /* Newer version available */
+        wchar_t msg[256];
+        swprintf(msg, 256, L"Update available: v%d.%d.%d (current: v%d.%d.%d)",
+                 remoteMajor, remoteMinor, remotePatch,
+                 WST_VERSION_MAJOR, WST_VERSION_MINOR, WST_VERSION_PATCH);
+        ShowStatusMessage(msg, WST_NOTIFY_WARNING);
+
+        /* Ask user if they want to download */
+        wchar_t dlgMsg[512];
+        swprintf(dlgMsg, 512,
+            L"A new version is available!\n\n"
+            L"Current version: v%d.%d.%d\n"
+            L"Latest version: v%d.%d.%d\n\n"
+            L"Would you like to open the download page?",
+            WST_VERSION_MAJOR, WST_VERSION_MINOR, WST_VERSION_PATCH,
+            remoteMajor, remoteMinor, remotePatch);
+
+        int result = MessageBoxW(hWnd, dlgMsg, L"Update Available",
+                                 MB_YESNO | MB_ICONINFORMATION);
+        if (result == IDYES) {
+            platform_open_url("https://github.com/erikg/WoWStatTracker/releases/latest");
+        }
+    } else if (showIfCurrent) {
+        /* Already up to date - only show if explicitly requested */
+        wchar_t msg[128];
+        swprintf(msg, 128, L"You're running the latest version (v%d.%d.%d).",
+                 WST_VERSION_MAJOR, WST_VERSION_MINOR, WST_VERSION_PATCH);
+        ShowStatusMessage(msg, WST_NOTIFY_SUCCESS);
+    }
+
+    free(tag);
+    free(response);
+}
+
+/* Helper to format timestamp for display */
+static void FormatTimestamp(const char *iso, wchar_t *out, size_t outLen) {
+    /* Parse ISO format: 2024-12-31T14:30:00 */
+    int year, month, day, hour, min;
+    if (sscanf(iso, "%d-%d-%dT%d:%d", &year, &month, &day, &hour, &min) == 5) {
+        const wchar_t *months[] = {
+            L"Jan", L"Feb", L"Mar", L"Apr", L"May", L"Jun",
+            L"Jul", L"Aug", L"Sep", L"Oct", L"Nov", L"Dec"
+        };
+        if (month >= 1 && month <= 12) {
+            swprintf(out, outLen, L"%s %d, %02d:%02d", months[month-1], day, hour, min);
+            return;
+        }
+    }
+    /* Fallback */
+    MultiByteToWideChar(CP_UTF8, 0, iso, -1, out, (int)outLen);
+}
+
+/* Helper to populate notifications listbox */
+static void PopulateNotificationsList(HWND hList) {
+    SendMessage(hList, LB_RESETCONTENT, 0, 0);
+
+    NotificationStore *ns = GetNotificationStore();
+    if (!ns) return;
+
+    size_t count = notification_store_count(ns);
+    if (count == 0) {
+        int idx = (int)SendMessageW(hList, LB_ADDSTRING, 0, (LPARAM)L"No notifications.");
+        SendMessage(hList, LB_SETITEMDATA, idx, (LPARAM)-1);  /* -1 = no valid notification */
+        return;
+    }
+
+    /* Add notifications (newest first) */
+    for (size_t i = count; i > 0; i--) {
+        Notification *n = notification_store_get(ns, i - 1);
+        if (n && n->message) {
+            const wchar_t *icon = L"";
+            switch (n->type) {
+                case WST_NOTIFY_SUCCESS: icon = L"\u2714"; break;  /* checkmark */
+                case WST_NOTIFY_WARNING: icon = L"\u26A0"; break;  /* warning */
+                case WST_NOTIFY_INFO:
+                default: icon = L"\u2139"; break;  /* info */
+            }
+
+            /* Format timestamp */
+            wchar_t timeStr[32] = L"";
+            if (n->timestamp) {
+                FormatTimestamp(n->timestamp, timeStr, 32);
+            }
+
+            /* Convert message to wide */
+            int msgLen = MultiByteToWideChar(CP_UTF8, 0, n->message, -1, NULL, 0);
+            wchar_t *msgW = malloc(msgLen * sizeof(wchar_t));
+            if (msgW) {
+                MultiByteToWideChar(CP_UTF8, 0, n->message, -1, msgW, msgLen);
+
+                /* Format: "[icon] [time] message" */
+                size_t lineLen = wcslen(icon) + wcslen(timeStr) + msgLen + 10;
+                wchar_t *line = malloc(lineLen * sizeof(wchar_t));
+                if (line) {
+                    swprintf(line, lineLen, L"%s  %s  %s", icon, timeStr, msgW);
+                    int idx = (int)SendMessageW(hList, LB_ADDSTRING, 0, (LPARAM)line);
+                    /* Store index into notifications array as item data */
+                    SendMessage(hList, LB_SETITEMDATA, idx, (LPARAM)(i - 1));
+                    free(line);
+                }
+                free(msgW);
+            }
+        }
+    }
+}
+
+/* Notifications dialog procedure */
+static INT_PTR CALLBACK NotificationsDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    (void)lParam;
+
+    switch (uMsg) {
+        case WM_INITDIALOG: {
+            /* Populate listbox */
+            HWND hList = GetDlgItem(hDlg, IDC_NOTIF_LIST);
+            PopulateNotificationsList(hList);
+
+            /* Center dialog */
+            RECT rcOwner, rcDlg;
+            HWND hOwner = GetParent(hDlg);
+            GetWindowRect(hOwner, &rcOwner);
+            GetWindowRect(hDlg, &rcDlg);
+            int x = rcOwner.left + (rcOwner.right - rcOwner.left - (rcDlg.right - rcDlg.left)) / 2;
+            int y = rcOwner.top + (rcOwner.bottom - rcOwner.top - (rcDlg.bottom - rcDlg.top)) / 2;
+            SetWindowPos(hDlg, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+
+            return TRUE;
+        }
+
+        case WM_COMMAND:
+            switch (LOWORD(wParam)) {
+                case IDCANCEL:
+                    EndDialog(hDlg, IDCANCEL);
+                    return TRUE;
+
+                case IDC_NOTIF_DELETE: {
+                    HWND hList = GetDlgItem(hDlg, IDC_NOTIF_LIST);
+                    int sel = (int)SendMessage(hList, LB_GETCURSEL, 0, 0);
+                    if (sel != LB_ERR) {
+                        LRESULT data = SendMessage(hList, LB_GETITEMDATA, sel, 0);
+                        if (data != LB_ERR && data != -1) {  /* -1 = "No notifications" placeholder */
+                            NotificationStore *ns = GetNotificationStore();
+                            if (ns) {
+                                size_t idx = (size_t)data;
+                                Notification *n = notification_store_get(ns, idx);
+                                if (n && n->id) {
+                                    notification_store_remove(ns, n->id);
+                                    notification_store_save(ns);
+                                    PopulateNotificationsList(hList);
+                                }
+                            }
+                        }
+                    }
+                    return TRUE;
+                }
+
+                case IDC_NOTIF_CLEAR: {
+                    NotificationStore *ns = GetNotificationStore();
+                    if (ns) {
+                        notification_store_clear_all(ns);
+                        notification_store_save(ns);
+                        PopulateNotificationsList(GetDlgItem(hDlg, IDC_NOTIF_LIST));
+                    }
+                    return TRUE;
+                }
+            }
+            break;
+
+        case WM_SIZE: {
+            /* Resize listbox to fit */
+            RECT rcClient;
+            GetClientRect(hDlg, &rcClient);
+
+            HWND hList = GetDlgItem(hDlg, IDC_NOTIF_LIST);
+            HWND hDelete = GetDlgItem(hDlg, IDC_NOTIF_DELETE);
+            HWND hClear = GetDlgItem(hDlg, IDC_NOTIF_CLEAR);
+            HWND hClose = GetDlgItem(hDlg, IDCANCEL);
+
+            RECT rcBtn;
+            GetWindowRect(hClose, &rcBtn);
+            int btnHeight = rcBtn.bottom - rcBtn.top;
+            int btnWidth = rcBtn.right - rcBtn.left;
+
+            SetWindowPos(hList, NULL, 5, 5,
+                         rcClient.right - 10,
+                         rcClient.bottom - btnHeight - 20,
+                         SWP_NOZORDER);
+
+            SetWindowPos(hDelete, NULL,
+                         5,
+                         rcClient.bottom - btnHeight - 5,
+                         0, 0,
+                         SWP_NOSIZE | SWP_NOZORDER);
+
+            SetWindowPos(hClear, NULL,
+                         5 + btnWidth + 5,
+                         rcClient.bottom - btnHeight - 5,
+                         0, 0,
+                         SWP_NOSIZE | SWP_NOZORDER);
+
+            SetWindowPos(hClose, NULL,
+                         rcClient.right - btnWidth - 5,
+                         rcClient.bottom - btnHeight - 5,
+                         0, 0,
+                         SWP_NOSIZE | SWP_NOZORDER);
+            break;
+        }
+    }
+
+    return FALSE;
+}
+
+/* Show notifications dialog */
+void ShowNotificationsDialog(HWND hWnd) {
+    DialogBoxW(GetAppInstance(), MAKEINTRESOURCEW(IDD_NOTIFICATIONS), hWnd, NotificationsDlgProc);
+}
+
+/* About dialog procedure */
+static INT_PTR CALLBACK AboutDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch (uMsg) {
+        case WM_INITDIALOG: {
+            /* Set version string */
+            wchar_t version[64];
+            swprintf(version, 64, L"Version %d.%d.%d",
+                     WST_VERSION_MAJOR, WST_VERSION_MINOR, WST_VERSION_PATCH);
+            SetDlgItemTextW(hDlg, IDC_ABOUT_VERSION, version);
+
+            /* Center dialog */
+            RECT rcOwner, rcDlg;
+            HWND hOwner = GetParent(hDlg);
+            GetWindowRect(hOwner, &rcOwner);
+            GetWindowRect(hDlg, &rcDlg);
+            int x = rcOwner.left + (rcOwner.right - rcOwner.left - (rcDlg.right - rcDlg.left)) / 2;
+            int y = rcOwner.top + (rcOwner.bottom - rcOwner.top - (rcDlg.bottom - rcDlg.top)) / 2;
+            SetWindowPos(hDlg, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+
+            return TRUE;
+        }
+
+        case WM_NOTIFY: {
+            NMHDR *nmhdr = (NMHDR *)lParam;
+            if (nmhdr->code == NM_CLICK || nmhdr->code == NM_RETURN) {
+                /* SysLink was clicked */
+                PNMLINK pnmLink = (PNMLINK)lParam;
+                if (pnmLink->item.szUrl[0] != L'\0') {
+                    /* Convert wide URL to UTF-8 */
+                    char url[512];
+                    WideCharToMultiByte(CP_UTF8, 0, pnmLink->item.szUrl, -1, url, 512, NULL, NULL);
+                    platform_open_url(url);
+                }
+            }
+            break;
+        }
+
+        case WM_COMMAND:
+            if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
+                EndDialog(hDlg, LOWORD(wParam));
+                return TRUE;
+            }
+            break;
+    }
+
+    return FALSE;
+}
+
+/* Show about dialog */
+void ShowAboutDialog(HWND hWnd) {
+    DialogBoxW(GetAppInstance(), MAKEINTRESOURCEW(IDD_ABOUT), hWnd, AboutDlgProc);
 }

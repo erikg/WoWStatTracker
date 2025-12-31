@@ -39,6 +39,15 @@ void ShowPreferencesDialog(HWND hWnd);
 /* Show manual dialog */
 void ShowManualDialog(HWND hWnd);
 
+/* Check for updates from GitHub */
+void CheckForUpdates(HWND hWnd, BOOL showIfCurrent);
+
+/* Show notifications dialog */
+void ShowNotificationsDialog(HWND hWnd);
+
+/* Show about dialog */
+void ShowAboutDialog(HWND hWnd);
+
 /* Apply theme to window */
 void ApplyTheme(HWND hWnd, BOOL dark);
 
