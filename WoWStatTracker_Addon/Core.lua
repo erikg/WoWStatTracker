@@ -6,7 +6,7 @@ local addonName, WoWStatTracker = ...
 
 -- Initialize addon object
 WoWStatTracker = WoWStatTracker or {}
-WoWStatTracker.version = "1.2.0"
+WoWStatTracker.version = "1.3.0"
 WoWStatTracker.lastUpdate = 0
 
 -- Default database structure
@@ -19,7 +19,7 @@ local defaultDB = {
         updateInterval = 300, -- 5 minutes
     },
     metadata = {
-        version = "1.2.0",
+        version = "1.3.0",
         lastExport = 0,
         totalUpdates = 0,
     }

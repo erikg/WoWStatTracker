@@ -2,7 +2,7 @@
 ## Title: WoW Stat Tracker
 ## Notes: Automatically exports character statistics for the WoW Stat Tracker application
 ## Author: WoWStatTracker
-## Version: 1.2.0
+## Version: 1.3.0
 ## SavedVariables: WoWStatTrackerDB
 ## DefaultState: enabled
 ## LoadOnDemand: 0

@@ -146,12 +146,15 @@ function WoWStatTracker:CollectCharacterData()
         -- Gilded stash (tier 11 bonus crests)
         gilded_stash = self:GetGildedStashStatus(),  -- {available, claimed, total}
 
+        -- Socket info (for Technomancer's Gift tracking)
+        socket_info = self:GetSocketInfo(),  -- {slots_with_sockets, missing_sockets, socketable_count, socketed_count}
+
         -- Timestamps and week tracking
         lastLogin = time(),
         dataVersion = WoWStatTracker.version,
         week_id = self:GetCurrentWeekId(),  -- Track which week this data is from
     }
-    
+
     return data
 end
 
@@ -183,6 +186,111 @@ local UPGRADE_TRACK = {
     HERO = 4,
     MYTH = 5,  -- Mythic track for highest tier
 }
+
+-- Slots that can receive Technomancer's Gift (adds a socket)
+-- Head, Neck, Wrist, Waist, Finger 1, Finger 2
+local SOCKETABLE_SLOTS = {
+    [1] = true,   -- Head
+    [2] = true,   -- Neck
+    [6] = true,   -- Waist
+    [9] = true,   -- Wrist
+    [11] = true,  -- Finger 1
+    [12] = true,  -- Finger 2
+}
+
+-- Slot names for debugging/display
+local SLOT_NAMES = {
+    [1] = "Head",
+    [2] = "Neck",
+    [3] = "Shoulder",
+    [5] = "Chest",
+    [6] = "Waist",
+    [7] = "Legs",
+    [8] = "Feet",
+    [9] = "Wrist",
+    [10] = "Hands",
+    [11] = "Ring1",
+    [12] = "Ring2",
+    [13] = "Trinket1",
+    [14] = "Trinket2",
+    [15] = "Back",
+    [16] = "MainHand",
+    [17] = "OffHand",
+}
+
+-- Check if an item has a socket by scanning its tooltip
+function WoWStatTracker:ItemHasSocket(itemLink)
+    if not itemLink then
+        return false
+    end
+
+    -- Use C_TooltipInfo to get tooltip data
+    if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+        local tooltipData = C_TooltipInfo.GetHyperlink(itemLink)
+        if tooltipData and tooltipData.lines then
+            for _, line in ipairs(tooltipData.lines) do
+                if line.leftText then
+                    -- Check for socket indicators
+                    if line.leftText:match("Prismatic Socket") or
+                       line.leftText:match("Socket Bonus") or
+                       line.leftText:match("Empty Socket") then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    -- Fallback: check via item stats
+    local stats = GetItemStats(itemLink)
+    if stats then
+        if stats["EMPTY_SOCKET_PRISMATIC"] or
+           stats["EMPTY_SOCKET_RED"] or
+           stats["EMPTY_SOCKET_BLUE"] or
+           stats["EMPTY_SOCKET_YELLOW"] or
+           stats["EMPTY_SOCKET_META"] or
+           stats["EMPTY_SOCKET_COGWHEEL"] or
+           stats["EMPTY_SOCKET_HYDRAULIC"] then
+            return true
+        end
+    end
+
+    return false
+end
+
+-- Get socket information for all equipped items
+-- Returns: { slots_with_sockets = {slot_ids}, missing_sockets = {slot_ids for socketable slots without sockets} }
+function WoWStatTracker:GetSocketInfo()
+    local result = {
+        slots_with_sockets = {},     -- List of slot IDs that have sockets
+        missing_sockets = {},         -- List of socketable slot IDs missing sockets
+        socketable_count = 0,         -- Total socketable slots
+        socketed_count = 0,           -- Socketable slots that have sockets
+    }
+
+    for _, slotId in ipairs(EQUIPMENT_SLOTS) do
+        local itemLink = GetInventoryItemLink("player", slotId)
+        if itemLink then
+            local hasSocket = self:ItemHasSocket(itemLink)
+
+            if hasSocket then
+                table.insert(result.slots_with_sockets, slotId)
+            end
+
+            -- Check if this is a socketable slot (can use Technomancer's Gift)
+            if SOCKETABLE_SLOTS[slotId] then
+                result.socketable_count = result.socketable_count + 1
+                if hasSocket then
+                    result.socketed_count = result.socketed_count + 1
+                else
+                    table.insert(result.missing_sockets, slotId)
+                end
+            end
+        end
+    end
+
+    return result
+end
 
 -- Get average item level (returns float for precision)
 function WoWStatTracker:GetAverageItemLevel()
