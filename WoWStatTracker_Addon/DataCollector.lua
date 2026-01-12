@@ -188,14 +188,11 @@ local UPGRADE_TRACK = {
 }
 
 -- Slots that can receive Technomancer's Gift (adds a socket)
--- Head, Neck, Wrist, Waist, Finger 1, Finger 2
+-- Per Wowhead: Helms, Bracers, Belts only
 local SOCKETABLE_SLOTS = {
     [1] = true,   -- Head
-    [2] = true,   -- Neck
-    [6] = true,   -- Waist
-    [9] = true,   -- Wrist
-    [11] = true,  -- Finger 1
-    [12] = true,  -- Finger 2
+    [6] = true,   -- Waist (Belt)
+    [9] = true,   -- Wrist (Bracer)
 }
 
 -- Slot names for debugging/display
@@ -230,28 +227,19 @@ function WoWStatTracker:ItemHasSocket(itemLink)
         if tooltipData and tooltipData.lines then
             for _, line in ipairs(tooltipData.lines) do
                 if line.leftText then
-                    -- Check for socket indicators
+                    -- Check for socket indicators (empty or filled)
+                    -- Empty sockets show "Prismatic Socket"
+                    -- Filled sockets show gem effects containing "Algari gem" or gem stat patterns
                     if line.leftText:match("Prismatic Socket") or
                        line.leftText:match("Socket Bonus") or
-                       line.leftText:match("Empty Socket") then
+                       line.leftText:match("Empty Socket") or
+                       line.leftText:match("Algari gem") or
+                       line.leftText:match("Blasphemite") or
+                       line.leftText:match("per Unique.*gem") then
                         return true
                     end
                 end
             end
-        end
-    end
-
-    -- Fallback: check via item stats
-    local stats = GetItemStats(itemLink)
-    if stats then
-        if stats["EMPTY_SOCKET_PRISMATIC"] or
-           stats["EMPTY_SOCKET_RED"] or
-           stats["EMPTY_SOCKET_BLUE"] or
-           stats["EMPTY_SOCKET_YELLOW"] or
-           stats["EMPTY_SOCKET_META"] or
-           stats["EMPTY_SOCKET_COGWHEEL"] or
-           stats["EMPTY_SOCKET_HYDRAULIC"] then
-            return true
         end
     end
 
@@ -268,25 +256,32 @@ function WoWStatTracker:GetSocketInfo()
         socketed_count = 0,           -- Socketable slots that have sockets
     }
 
-    for _, slotId in ipairs(EQUIPMENT_SLOTS) do
-        local itemLink = GetInventoryItemLink("player", slotId)
-        if itemLink then
-            local hasSocket = self:ItemHasSocket(itemLink)
+    -- Wrap in pcall to prevent errors from breaking the update
+    local success, err = pcall(function()
+        for _, slotId in ipairs(EQUIPMENT_SLOTS) do
+            local itemLink = GetInventoryItemLink("player", slotId)
+            if itemLink then
+                local hasSocket = self:ItemHasSocket(itemLink)
 
-            if hasSocket then
-                table.insert(result.slots_with_sockets, slotId)
-            end
-
-            -- Check if this is a socketable slot (can use Technomancer's Gift)
-            if SOCKETABLE_SLOTS[slotId] then
-                result.socketable_count = result.socketable_count + 1
                 if hasSocket then
-                    result.socketed_count = result.socketed_count + 1
-                else
-                    table.insert(result.missing_sockets, slotId)
+                    table.insert(result.slots_with_sockets, slotId)
+                end
+
+                -- Check if this is a socketable slot (can use Technomancer's Gift)
+                if SOCKETABLE_SLOTS[slotId] then
+                    result.socketable_count = result.socketable_count + 1
+                    if hasSocket then
+                        result.socketed_count = result.socketed_count + 1
+                    else
+                        table.insert(result.missing_sockets, slotId)
+                    end
                 end
             end
         end
+    end)
+
+    if not success then
+        self:Debug("GetSocketInfo error: " .. tostring(err))
     end
 
     return result

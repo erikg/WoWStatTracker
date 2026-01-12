@@ -28,17 +28,15 @@ ILVL_REFERENCE = {
 }
 
 # Slot ID to name mapping (for Technomancer's Gift display)
+# Per Wowhead: Technomancer's Gift works on Helms, Bracers, Belts only
 SLOT_NAMES = {
     1: "Head",
-    2: "Neck",
     6: "Waist",
     9: "Wrist",
-    11: "Ring1",
-    12: "Ring2",
 }
 
-# Slots that can receive Technomancer's Gift
-SOCKETABLE_SLOTS = {1, 2, 6, 9, 11, 12}
+# Slots that can receive Technomancer's Gift (3 slots only)
+SOCKETABLE_SLOTS = {1, 6, 9}
 
 
 class LuaParser:

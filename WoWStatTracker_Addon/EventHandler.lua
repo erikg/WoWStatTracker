@@ -510,8 +510,9 @@ function SlashCmdList.WOWSTATTRACKER(msg, editBox)
     local command = args[1] or ""
 
     if command == "update" then
-        -- Defer to next frame so chat editbox clears first
-        C_Timer.After(0, function() WoWStatTracker:ForceUpdate() end)
+        WoWStatTracker:ForceUpdate()
+        -- Clear editbox after update completes
+        if editBox then editBox:SetText("") end
     elseif command == "debug" then
         if WoWStatTrackerDB then
             WoWStatTrackerDB.settings.debugMode = not WoWStatTrackerDB.settings.debugMode
