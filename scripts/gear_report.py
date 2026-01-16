@@ -319,7 +319,7 @@ def analyze_vault_rewards(char_data: dict) -> dict:
         "dungeon_slots": 0,
         "total_slots": 0,
         "rewards": [],
-        "has_t8_plus": 0,
+        "has_t8_plus": 0,  # Count of rewards at ilvl 694+
     }
 
     # Delves (World row) - only count slots if we have actual tier data
@@ -328,15 +328,20 @@ def analyze_vault_rewards(char_data: dict) -> dict:
     if isinstance(vault_delves, dict):
         tiers = vault_delves.get("tiers", {})
         if isinstance(tiers, dict) and tiers:
-            # We have actual delve tier data - count slots based on entries
-            result["delve_slots"] = len(tiers)
+            # Calculate slots from count (tiers dict may be incomplete)
             result["delve_count"] = vault_delves.get("count", 0)
+            result["delve_slots"] = count_vault_slots(result["delve_count"])
             for threshold, tier in tiers.items():
                 tier_str = get_tier_from_level(int(tier))
                 ilvl = get_ilvl_from_tier(tier_str)
                 result["rewards"].append((tier_str, ilvl))
-                if int(tier) >= 8:
+                # Count rewards at ilvl 694+ (T8 threshold)
+                if ilvl >= 694:
                     result["has_t8_plus"] += 1
+            # Fill in missing reward entries for slots not in tiers dict
+            for i in range(result["delve_slots"] - len(tiers)):
+                # Assume T2 for missing entries (conservative estimate)
+                result["rewards"].append(("T2", ILVL_REFERENCE["T2"]))
 
     # Dungeons (M+ row) - TW/Heroic can unlock slots even without tier data
     vault_dungeons = char_data.get("vault_dungeons", {})
@@ -345,14 +350,19 @@ def analyze_vault_rewards(char_data: dict) -> dict:
         levels = vault_dungeons.get("levels", {})
 
         if isinstance(levels, dict) and levels:
-            # We have actual M+ level data
-            result["dungeon_slots"] = len(levels)
+            # Calculate slots from count (levels dict may be incomplete)
+            result["dungeon_slots"] = count_vault_slots(result["dungeon_count"])
             for threshold, level in levels.items():
                 tier_str = get_tier_from_level(int(level))
                 ilvl = get_ilvl_from_tier(tier_str)
                 result["rewards"].append((tier_str, ilvl))
-                if int(level) >= 8:
+                # Count rewards at ilvl 694+ (T8 threshold)
+                if ilvl >= 694:
                     result["has_t8_plus"] += 1
+            # Fill in missing reward entries for slots not in levels dict
+            for i in range(result["dungeon_slots"] - len(levels)):
+                # Assume T2 for missing entries (TW/Heroic level)
+                result["rewards"].append(("T2", ILVL_REFERENCE["T2"]))
         elif result["dungeon_count"] > 0:
             # TW/Heroic dungeons - no level data but count > 0
             # These unlock slots at T2 (678) level
@@ -406,8 +416,8 @@ def get_status_emoji(char_data: dict, vault_info: dict) -> str:
     if not has_non_hero and total_slots >= 3:
         # All hero gear + 3 vault rewards
         return "✅"
-    elif has_non_hero and has_t8_plus >= 2 and total_slots >= 3:
-        # Has champ/vet + 2+ T8+ + 3 total rewards
+    elif has_non_hero and has_t8_plus >= 3 and total_slots >= 3:
+        # Has champ/vet gear: need 3+ T8+ (gilded) + 3 total vault rewards
         return "✅"
 
     # In between (has some rewards but not done)
