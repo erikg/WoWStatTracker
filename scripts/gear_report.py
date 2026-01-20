@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,29 @@ SLOT_NAMES = {
 
 # Slots that can receive Technomancer's Gift (3 slots only)
 SOCKETABLE_SLOTS = {1, 6, 9}
+
+# WoW weekly reset: Tuesday 15:00 UTC
+RESET_WEEKDAY = 1  # Monday=0, Tuesday=1 in Python's weekday()
+RESET_HOUR = 15
+
+
+def get_current_week_id() -> str:
+    """Calculate the current week_id (YYYYMMDD of the last Tuesday reset)."""
+    now = datetime.now(timezone.utc)
+
+    # Calculate days since last Tuesday
+    # Python weekday(): Monday=0, Tuesday=1, ...
+    days_since_tuesday = (now.weekday() - RESET_WEEKDAY) % 7
+
+    # If it's Tuesday but before reset time, count as previous week
+    if now.weekday() == RESET_WEEKDAY and now.hour < RESET_HOUR:
+        days_since_tuesday = 7
+
+    # Calculate the last reset timestamp
+    last_reset = now - timedelta(days=days_since_tuesday)
+    last_reset = last_reset.replace(hour=RESET_HOUR, minute=0, second=0, microsecond=0)
+
+    return last_reset.strftime("%Y%m%d")
 
 
 class LuaParser:
@@ -424,12 +448,26 @@ def get_status_emoji(char_data: dict, vault_info: dict) -> str:
     return "⚠️"
 
 
-def analyze_character(char_data: dict) -> dict:
-    """Analyze a single character's data."""
+def analyze_character(char_data: dict, is_current_week: bool) -> dict:
+    """Analyze a single character's data.
+
+    Args:
+        char_data: Character data from SavedVariables
+        is_current_week: Whether the data's week_id matches the current week
+    """
     name = char_data.get("name", "Unknown")
     realm = char_data.get("realm", "Unknown")
     char_class = char_data.get("class", "Unknown")
     ilvl = char_data.get("item_level", 0)
+
+    # If data is from a previous week, treat weekly fields as reset
+    if not is_current_week:
+        # Create a copy with zeroed weekly fields
+        char_data = dict(char_data)
+        char_data["vault_delves"] = {}
+        char_data["vault_dungeons"] = {}
+        char_data["delves"] = 0
+        char_data["timewalking_done"] = False
 
     hero_items = char_data.get("heroic_items", 0)
     champ_items = char_data.get("champion_items", 0)
@@ -666,11 +704,17 @@ def main():
         if char.get("notes"):
             notes_map[key] = char["notes"]
 
+    # Get current week_id for comparison
+    current_week_id = get_current_week_id()
+
     # Analyze characters
     characters = []
     for char_key, char_data in characters_data.items():
         if isinstance(char_data, dict):
-            analysis = analyze_character(char_data)
+            # Check if this character's data is from the current week
+            char_week_id = char_data.get("week_id", "")
+            is_current_week = char_week_id == current_week_id
+            analysis = analyze_character(char_data, is_current_week)
             # Add notes from app data
             if analysis["full_name"] in notes_map:
                 analysis["user_notes"] = notes_map[analysis["full_name"]]
