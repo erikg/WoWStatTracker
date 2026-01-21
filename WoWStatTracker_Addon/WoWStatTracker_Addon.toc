@@ -1,4 +1,4 @@
-## Interface: 110105
+## Interface: 120000
 ## Title: WoW Stat Tracker
 ## Notes: Automatically exports character statistics for the WoW Stat Tracker application
 ## Author: WoWStatTracker
