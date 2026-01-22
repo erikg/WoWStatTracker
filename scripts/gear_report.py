@@ -28,12 +28,24 @@ ILVL_REFERENCE = {
     "T1": 671,
 }
 
-# Slot ID to name mapping (for Technomancer's Gift display)
-# Per Wowhead: Technomancer's Gift works on Helms, Bracers, Belts only
+# Slot ID to name mapping
 SLOT_NAMES = {
     1: "Head",
+    2: "Neck",
+    3: "Shoulder",
+    5: "Chest",
     6: "Waist",
+    7: "Legs",
+    8: "Feet",
     9: "Wrist",
+    10: "Hands",
+    11: "Ring1",
+    12: "Ring2",
+    13: "Trinket1",
+    14: "Trinket2",
+    15: "Back",
+    16: "MainHand",
+    17: "OffHand",
 }
 
 # Slots that can receive Technomancer's Gift (3 slots only)
@@ -294,20 +306,58 @@ def get_ilvl_from_tier(tier: str) -> int:
         return ILVL_REFERENCE["T2"]
 
 
+def analyze_enchant_info(char_data: dict) -> dict:
+    """Analyze enchantment information."""
+    result = {
+        "missing_enchants": [],  # Slot names missing enchants
+        "missing_count": 0,      # Number of enchantable slots without enchants
+        "enchant_count": 0,      # Number of enchanted slots
+        "enchantable_count": 0,  # Total enchantable slots equipped
+    }
+
+    enchant_info = char_data.get("enchant_info", {})
+    if not isinstance(enchant_info, dict):
+        return result
+
+    # Get missing enchants from addon data
+    missing_slots = enchant_info.get("missing_enchants", [])
+    if isinstance(missing_slots, dict):
+        missing_slots = list(missing_slots.values())
+    elif not isinstance(missing_slots, list):
+        missing_slots = []
+
+    # Convert slot IDs to names
+    for slot_id in missing_slots:
+        slot_id = int(slot_id) if isinstance(slot_id, (int, float, str)) else 0
+        if slot_id in SLOT_NAMES:
+            result["missing_enchants"].append(SLOT_NAMES[slot_id])
+
+    result["enchant_count"] = enchant_info.get("enchant_count", 0)
+    result["enchantable_count"] = enchant_info.get("enchantable_count", 0)
+    result["missing_count"] = result["enchantable_count"] - result["enchant_count"]
+
+    if result["missing_count"] == 0 and result["missing_enchants"]:
+        result["missing_count"] = len(result["missing_enchants"])
+
+    return result
+
+
 def analyze_socket_info(char_data: dict) -> dict:
     """Analyze socket information for Technomancer's Gift tracking."""
     result = {
-        "missing_sockets": [],  # Slot names missing sockets
+        "missing_sockets": [],  # Slot names missing sockets (need Technomancer's Gift)
         "missing_count": 0,     # Number of socketable slots without sockets
         "socketed_count": 0,    # Number of socketable slots with sockets
         "total_socketable": 0,  # Total socketable slots equipped
+        "empty_sockets": [],    # Slot names with sockets but no gems
+        "empty_count": 0,       # Number of sockets without gems
     }
 
     socket_info = char_data.get("socket_info", {})
     if not isinstance(socket_info, dict):
         return result
 
-    # Get missing sockets from addon data
+    # Get missing sockets from addon data (socketable slots without sockets)
     missing_slots = socket_info.get("missing_sockets", [])
     if isinstance(missing_slots, dict):
         # Convert dict to list of values
@@ -330,6 +380,22 @@ def analyze_socket_info(char_data: dict) -> dict:
     # If we have missing_sockets list but no counts, use the list length
     if result["missing_count"] == 0 and result["missing_sockets"]:
         result["missing_count"] = len(result["missing_sockets"])
+
+    # Get empty sockets (have socket but no gem)
+    empty_slots = socket_info.get("empty_sockets", [])
+    if isinstance(empty_slots, dict):
+        empty_slots = list(empty_slots.values())
+    elif not isinstance(empty_slots, list):
+        empty_slots = []
+
+    for slot_id in empty_slots:
+        slot_id = int(slot_id) if isinstance(slot_id, (int, float, str)) else 0
+        if slot_id in SLOT_NAMES:
+            result["empty_sockets"].append(SLOT_NAMES[slot_id])
+
+    result["empty_count"] = socket_info.get("empty_count", 0)
+    if result["empty_count"] == 0 and result["empty_sockets"]:
+        result["empty_count"] = len(result["empty_sockets"])
 
     return result
 
@@ -479,6 +545,7 @@ def analyze_character(char_data: dict, is_current_week: bool) -> dict:
 
     vault_info = analyze_vault_rewards(char_data)
     socket_info = analyze_socket_info(char_data)
+    enchant_info = analyze_enchant_info(char_data)
     status = get_status_emoji(char_data, vault_info)
 
     # Determine missing gear notes
@@ -488,11 +555,23 @@ def analyze_character(char_data: dict, is_current_week: bool) -> dict:
     if vet_items > 0:
         missing.append(f"{vet_items} Vet")
 
-    # Format socket info for display
+    # Format socket info for display (missing = needs Technomancer's Gift)
     if socket_info["missing_count"] > 0:
         socket_display = f"{socket_info['missing_count']} ({', '.join(socket_info['missing_sockets'])})"
     else:
         socket_display = "-"
+
+    # Format empty socket info (has socket but needs gem)
+    if socket_info["empty_count"] > 0:
+        empty_display = f"{socket_info['empty_count']} ({', '.join(socket_info['empty_sockets'])})"
+    else:
+        empty_display = "-"
+
+    # Format enchant info (missing enchantments)
+    if enchant_info["missing_count"] > 0:
+        enchant_display = f"{enchant_info['missing_count']} ({', '.join(enchant_info['missing_enchants'])})"
+    else:
+        enchant_display = "-"
 
     return {
         "name": name,
@@ -509,6 +588,9 @@ def analyze_character(char_data: dict, is_current_week: bool) -> dict:
         "vault_display": format_vault_rewards(vault_info["rewards"]),
         "socket_info": socket_info,
         "socket_display": socket_display,
+        "empty_display": empty_display,
+        "enchant_info": enchant_info,
+        "enchant_display": enchant_display,
         "status": status,
         "missing": ", ".join(missing) if missing else "-",
         "user_notes": "",  # Will be filled in from app data
@@ -594,19 +676,19 @@ def print_report(characters: list[dict]) -> None:
 
     characters.sort(key=sort_key)
 
-    # Separate into groups
-    complete = [c for c in characters if c["is_complete"]]
-    almost = [c for c in characters if not c["is_complete"] and c["upgrades_left"] < 10]
-    needs_work = [c for c in characters if not c["is_complete"] and c["upgrades_left"] >= 10]
+    # Separate into groups and sort each by ilvl (descending)
+    complete = sorted([c for c in characters if c["is_complete"]], key=lambda c: -c["ilvl"])
+    almost = sorted([c for c in characters if not c["is_complete"] and c["upgrades_left"] < 10], key=lambda c: -c["ilvl"])
+    needs_work = sorted([c for c in characters if not c["is_complete"] and c["upgrades_left"] >= 10], key=lambda c: -c["ilvl"])
 
     print("## Hero Gear & Vault Report\n")
 
     # Fully complete
     if complete:
         print(f"### Fully 8/8 Hero ({len(complete)} characters)\n")
-        headers = ["Character", "Class", "iLvl", "Vault Rewards", "Sockets"]
+        headers = ["Character", "Class", "iLvl", "Vault Rewards", "Sockets", "Needs Gem", "Needs Enchant"]
         rows = [
-            [f"{c['status']} {c['name']}-{c['realm']}", c['class'], f"{c['ilvl']:.1f}", c['vault_display'], c['socket_display']]
+            [f"{c['status']} {c['name']}-{c['realm']}", c['class'], f"{c['ilvl']:.1f}", c['vault_display'], c['socket_display'], c['empty_display'], c['enchant_display']]
             for c in complete
         ]
         print_table(headers, rows)
@@ -615,7 +697,7 @@ def print_report(characters: list[dict]) -> None:
     # Almost done
     if almost:
         print(f"### Almost Done ({len(almost)} characters)\n")
-        headers = ["Character", "Class", "iLvl", "Progress", "Left", "Vault Rewards", "Sockets", "Notes"]
+        headers = ["Character", "Class", "iLvl", "Progress", "Left", "Vault Rewards", "Sockets", "Needs Gem", "Needs Enchant", "Notes"]
         rows = [
             [
                 f"{c['status']} {c['name']}-{c['realm']}",
@@ -625,6 +707,8 @@ def print_report(characters: list[dict]) -> None:
                 str(c['upgrades_left']),
                 c['vault_display'],
                 c['socket_display'],
+                c['empty_display'],
+                c['enchant_display'],
                 get_notes_display(c)
             ]
             for c in almost
@@ -635,7 +719,7 @@ def print_report(characters: list[dict]) -> None:
     # Needs work
     if needs_work:
         print(f"### More Work Needed ({len(needs_work)} characters)\n")
-        headers = ["Character", "Class", "iLvl", "Progress", "Left", "Vault Rewards", "Sockets", "Missing"]
+        headers = ["Character", "Class", "iLvl", "Progress", "Left", "Vault Rewards", "Sockets", "Needs Gem", "Needs Enchant", "Missing"]
         rows = [
             [
                 f"{c['status']} {c['name']}-{c['realm']}",
@@ -645,6 +729,8 @@ def print_report(characters: list[dict]) -> None:
                 str(c['upgrades_left']),
                 c['vault_display'],
                 c['socket_display'],
+                c['empty_display'],
+                c['enchant_display'],
                 get_notes_display(c)
             ]
             for c in needs_work

@@ -149,6 +149,9 @@ function WoWStatTracker:CollectCharacterData()
         -- Socket info (for Technomancer's Gift tracking)
         socket_info = self:GetSocketInfo(),  -- {slots_with_sockets, missing_sockets, socketable_count, socketed_count}
 
+        -- Enchant info (missing enchantments)
+        enchant_info = self:GetEnchantInfo(),  -- {missing_enchants, enchant_count, enchantable_count}
+
         -- Timestamps and week tracking
         lastLogin = time(),
         dataVersion = WoWStatTracker.version,
@@ -216,9 +219,12 @@ local SLOT_NAMES = {
 }
 
 -- Check if an item has a socket by scanning its tooltip
+-- Returns: { hasSocket = bool, hasGem = bool }
 function WoWStatTracker:ItemHasSocket(itemLink)
+    local result = { hasSocket = false, hasGem = false }
+
     if not itemLink then
-        return false
+        return result
     end
 
     -- Use C_TooltipInfo to get tooltip data
@@ -227,33 +233,37 @@ function WoWStatTracker:ItemHasSocket(itemLink)
         if tooltipData and tooltipData.lines then
             for _, line in ipairs(tooltipData.lines) do
                 if line.leftText then
-                    -- Check for socket indicators (empty or filled)
-                    -- Empty sockets show "Prismatic Socket"
-                    -- Filled sockets show gem effects containing "Algari gem" or gem stat patterns
+                    -- Empty sockets show "Prismatic Socket" or "Empty Socket"
                     if line.leftText:match("Prismatic Socket") or
-                       line.leftText:match("Socket Bonus") or
-                       line.leftText:match("Empty Socket") or
-                       line.leftText:match("Algari gem") or
+                       line.leftText:match("Empty Socket") then
+                        result.hasSocket = true
+                    end
+                    -- Filled sockets show gem effects
+                    if line.leftText:match("Algari gem") or
                        line.leftText:match("Blasphemite") or
                        line.leftText:match("per Unique.*gem") then
-                        return true
+                        result.hasSocket = true
+                        result.hasGem = true
                     end
                 end
             end
         end
     end
 
-    return false
+    return result
 end
 
 -- Get socket information for all equipped items
--- Returns: { slots_with_sockets = {slot_ids}, missing_sockets = {slot_ids for socketable slots without sockets} }
+-- Returns: { slots_with_sockets = {slot_ids}, missing_sockets = {slot_ids for socketable slots without sockets},
+--            empty_sockets = {slot_ids with sockets but no gems} }
 function WoWStatTracker:GetSocketInfo()
     local result = {
         slots_with_sockets = {},     -- List of slot IDs that have sockets
-        missing_sockets = {},         -- List of socketable slot IDs missing sockets
+        missing_sockets = {},         -- List of socketable slot IDs missing sockets (need Technomancer's Gift)
+        empty_sockets = {},           -- List of slot IDs with sockets but no gems
         socketable_count = 0,         -- Total socketable slots
         socketed_count = 0,           -- Socketable slots that have sockets
+        empty_count = 0,              -- Sockets without gems
     }
 
     -- Wrap in pcall to prevent errors from breaking the update
@@ -261,16 +271,22 @@ function WoWStatTracker:GetSocketInfo()
         for _, slotId in ipairs(EQUIPMENT_SLOTS) do
             local itemLink = GetInventoryItemLink("player", slotId)
             if itemLink then
-                local hasSocket = self:ItemHasSocket(itemLink)
+                local socketInfo = self:ItemHasSocket(itemLink)
 
-                if hasSocket then
+                if socketInfo.hasSocket then
                     table.insert(result.slots_with_sockets, slotId)
+
+                    -- Track sockets without gems
+                    if not socketInfo.hasGem then
+                        table.insert(result.empty_sockets, slotId)
+                        result.empty_count = result.empty_count + 1
+                    end
                 end
 
                 -- Check if this is a socketable slot (can use Technomancer's Gift)
                 if SOCKETABLE_SLOTS[slotId] then
                     result.socketable_count = result.socketable_count + 1
-                    if hasSocket then
+                    if socketInfo.hasSocket then
                         result.socketed_count = result.socketed_count + 1
                     else
                         table.insert(result.missing_sockets, slotId)
@@ -282,6 +298,88 @@ function WoWStatTracker:GetSocketInfo()
 
     if not success then
         self:Debug("GetSocketInfo error: " .. tostring(err))
+    end
+
+    return result
+end
+
+-- Slots that can be enchanted
+-- In TWW: Chest, Back, Wrist, Legs, Feet, Rings, Weapon
+local ENCHANTABLE_SLOTS = {
+    [5] = true,   -- Chest
+    [7] = true,   -- Legs
+    [8] = true,   -- Feet
+    [9] = true,   -- Wrist
+    [11] = true,  -- Ring 1
+    [12] = true,  -- Ring 2
+    [15] = true,  -- Back
+    [16] = true,  -- Main Hand
+}
+
+-- Check if an item has an enchantment by scanning its tooltip
+-- Returns: true if enchanted, false otherwise
+function WoWStatTracker:ItemHasEnchant(itemLink)
+    if not itemLink then
+        return false
+    end
+
+    -- Use C_TooltipInfo to get tooltip data
+    if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+        local tooltipData = C_TooltipInfo.GetHyperlink(itemLink)
+        if tooltipData and tooltipData.lines then
+            for _, line in ipairs(tooltipData.lines) do
+                if line.leftText then
+                    -- Enchantments show as "Enchanted: <name>" or specific enchant effects
+                    -- Also check for common TWW enchant patterns
+                    if line.leftText:match("^Enchanted:") or
+                       line.leftText:match("Council's") or
+                       line.leftText:match("Crystalline") or
+                       line.leftText:match("Defender's") or
+                       line.leftText:match("Cavalry's") or
+                       line.leftText:match("Scout's") or
+                       line.leftText:match("Oathsworn's") or
+                       line.leftText:match("Stormrider's") or
+                       line.leftText:match("Radiant") or
+                       line.leftText:match("Cursed") then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+-- Get enchantment information for all equipped items
+-- Returns: { missing_enchants = {slot_ids}, enchant_count = N, enchantable_count = N }
+function WoWStatTracker:GetEnchantInfo()
+    local result = {
+        missing_enchants = {},    -- List of enchantable slot IDs without enchants
+        enchant_count = 0,        -- Number of enchanted slots
+        enchantable_count = 0,    -- Total enchantable slots equipped
+    }
+
+    -- Wrap in pcall to prevent errors from breaking the update
+    local success, err = pcall(function()
+        for _, slotId in ipairs(EQUIPMENT_SLOTS) do
+            local itemLink = GetInventoryItemLink("player", slotId)
+            if itemLink then
+                -- Check if this is an enchantable slot
+                if ENCHANTABLE_SLOTS[slotId] then
+                    result.enchantable_count = result.enchantable_count + 1
+                    if self:ItemHasEnchant(itemLink) then
+                        result.enchant_count = result.enchant_count + 1
+                    else
+                        table.insert(result.missing_enchants, slotId)
+                    end
+                end
+            end
+        end
+    end)
+
+    if not success then
+        self:Debug("GetEnchantInfo error: " .. tostring(err))
     end
 
     return result
