@@ -686,6 +686,7 @@ WoWStatTracker.TIMEWALKING_QUEST_IDS = {
     83364,  -- A Savage Path Through Time (WoD)
     83360,  -- A Fel Path Through Time (Legion)
     83274,  -- An Original Path Through Time (Classic)
+    88805,  -- A Scarred Path Through Time (BfA)
     -- Legacy IDs (pre-War Within, kept for compatibility)
     72727,  -- A Burning Path Through Time (BC)
     72726,  -- A Frozen Path Through Time (WotLK)
