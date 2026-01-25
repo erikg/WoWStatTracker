@@ -638,6 +638,50 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
         changed = YES;
     }
 
+    /* Update new aggregate gear fields */
+    if (addon->upgrade_current != existing->upgrade_current) {
+        existing->upgrade_current = addon->upgrade_current;
+        changed = YES;
+    }
+    if (addon->upgrade_max != existing->upgrade_max) {
+        existing->upgrade_max = addon->upgrade_max;
+        changed = YES;
+    }
+    if (addon->socket_missing_count != existing->socket_missing_count) {
+        existing->socket_missing_count = addon->socket_missing_count;
+        changed = YES;
+    }
+    if (addon->socket_empty_count != existing->socket_empty_count) {
+        existing->socket_empty_count = addon->socket_empty_count;
+        changed = YES;
+    }
+    if (addon->enchant_missing_count != existing->enchant_missing_count) {
+        existing->enchant_missing_count = addon->enchant_missing_count;
+        changed = YES;
+    }
+
+    /* Update per-slot JSON strings */
+    if (addon->slot_upgrades_json) {
+        free(existing->slot_upgrades_json);
+        existing->slot_upgrades_json = strdup(addon->slot_upgrades_json);
+        changed = YES;
+    }
+    if (addon->missing_sockets_json) {
+        free(existing->missing_sockets_json);
+        existing->missing_sockets_json = strdup(addon->missing_sockets_json);
+        changed = YES;
+    }
+    if (addon->empty_sockets_json) {
+        free(existing->empty_sockets_json);
+        existing->empty_sockets_json = strdup(addon->empty_sockets_json);
+        changed = YES;
+    }
+    if (addon->missing_enchants_json) {
+        free(existing->missing_enchants_json);
+        existing->missing_enchants_json = strdup(addon->missing_enchants_json);
+        changed = YES;
+    }
+
     /* Check if addon data is from the current week */
     BOOL addonIsCurrentWeek = addon->week_id && currentWeekId &&
                                week_id_equal(addon->week_id, currentWeekId);

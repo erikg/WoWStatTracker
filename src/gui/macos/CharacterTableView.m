@@ -10,6 +10,7 @@
 #import <objc/runtime.h>
 
 /* Column identifiers */
+static NSString * const kColStatus = @"status";
 static NSString * const kColRealm = @"realm";
 static NSString * const kColName = @"name";
 static NSString * const kColGuild = @"guild";
@@ -75,7 +76,8 @@ static NSColor *kColorDefault;
         [self setAllowsColumnSelection:NO];
 
         /* Enable autosave for column widths and order */
-        [self setAutosaveName:@"CharacterTableColumns"];
+        /* v2: Added status column at position 0 */
+        [self setAutosaveName:@"CharacterTableColumnsV2"];
         [self setAutosaveTableColumns:YES];
     }
     return self;
@@ -84,6 +86,7 @@ static NSColor *kColorDefault;
 - (void)setupColumns {
     /* Column definitions: identifier, title, width */
     NSArray *columnDefs = @[
+        @[kColStatus, @"", @30],  /* Status column - icons only */
         @[kColRealm, @"Realm", @100],
         @[kColName, @"Name", @120],
         @[kColGuild, @"Guild", @100],
@@ -177,7 +180,12 @@ static NSColor *kColorDefault;
             NSString *key = [desc key];
             NSComparisonResult result = NSOrderedSame;
 
-            if ([key isEqualToString:kColRealm]) {
+            if ([key isEqualToString:kColStatus]) {
+                int statusA = [self statusForCharacter:charA];
+                int statusB = [self statusForCharacter:charB];
+                if (statusA < statusB) result = NSOrderedAscending;
+                else if (statusA > statusB) result = NSOrderedDescending;
+            } else if ([key isEqualToString:kColRealm]) {
                 NSString *sA = charA->realm ? [NSString stringWithUTF8String:charA->realm] : @"";
                 NSString *sB = charB->realm ? [NSString stringWithUTF8String:charB->realm] : @"";
                 result = [sA localizedCaseInsensitiveCompare:sB];
@@ -258,6 +266,57 @@ static NSColor *kColorDefault;
     return (NSInteger)[self.sortedIndices count];
 }
 
+/*
+ * Calculate character status for the status column.
+ * Returns: 0 = done (✅), 1 = needs work (⚠️), 2 = not started/bad (❌)
+ *
+ * Logic matches gear_report.py:
+ * - ✅ if fully upgraded AND all sockets gemmed (enchants not required)
+ * - ❌ if no vault rewards at all
+ * - ✅ if all hero gear AND 3+ vault slots
+ * - ⚠️ otherwise
+ */
+- (int)statusForCharacter:(const Character *)character {
+    if (!character) return 2;
+
+    /* Check if fully upgraded */
+    BOOL fullyUpgraded = (character->upgrade_max > 0 &&
+                          character->upgrade_current >= character->upgrade_max);
+
+    /* Check sockets (enchants not required for "done" status) */
+    BOOL allSocketsGemmed = (character->socket_missing_count == 0 &&
+                             character->socket_empty_count == 0);
+
+    /* Fully maxed = done regardless of vault */
+    if (fullyUpgraded && allSocketsGemmed) {
+        return 0;  /* ✅ Done */
+    }
+
+    /* Check vault rewards - use delves as proxy for vault slots */
+    /* 1 delve = 1 slot, 4 delves = 2 slots, 8 delves = 3 slots */
+    int vaultSlots = 0;
+    if (character->delves >= 8) vaultSlots = 3;
+    else if (character->delves >= 4) vaultSlots = 2;
+    else if (character->delves >= 1) vaultSlots = 1;
+
+    /* No vault rewards at all = red X */
+    if (vaultSlots == 0) {
+        return 2;  /* ❌ No vault rewards */
+    }
+
+    /* Check if all hero gear (no champion/veteran/adventure) */
+    BOOL hasNonHero = (character->champion_items > 0 ||
+                       character->veteran_items > 0 ||
+                       character->adventure_items > 0);
+
+    /* All hero gear + 3 vault slots = done */
+    if (!hasNonHero && vaultSlots >= 3) {
+        return 0;  /* ✅ Done */
+    }
+
+    return 1;  /* ⚠️ In progress */
+}
+
 - (id)tableView:(NSTableView *)tableView objectValueForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     if (!self.characterStore) return nil;
 
@@ -269,7 +328,14 @@ static NSColor *kColorDefault;
 
     NSString *identifier = [tableColumn identifier];
 
-    if ([identifier isEqualToString:kColRealm]) {
+    if ([identifier isEqualToString:kColStatus]) {
+        int status = [self statusForCharacter:character];
+        switch (status) {
+            case 0: return @"✅";
+            case 2: return @"❌";
+            default: return @"⚠️";
+        }
+    } else if ([identifier isEqualToString:kColRealm]) {
         return character->realm ? [NSString stringWithUTF8String:character->realm] : @"";
     } else if ([identifier isEqualToString:kColName]) {
         return character->name ? [NSString stringWithUTF8String:character->name] : @"";
@@ -371,6 +437,10 @@ static NSColor *kColorDefault;
         [checkbox setTag:(NSInteger)charIndex];
         objc_setAssociatedObject(checkbox, "columnId", identifier, OBJC_ASSOCIATION_COPY);
 
+        /* Set tooltip for the row */
+        NSString *tooltip = [self buildTooltipForCharacter:character];
+        [checkbox setToolTip:tooltip];
+
         /* Apply background color */
         NSColor *bgColor = [self backgroundColorForColumn:identifier characterIndex:charIndex];
         if (bgColor) {
@@ -380,6 +450,7 @@ static NSColor *kColorDefault;
             [container addSubview:checkbox];
             checkbox.frame = container.bounds;
             [checkbox setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+            [container setToolTip:tooltip];
             return container;
         }
 
@@ -413,6 +484,15 @@ static NSColor *kColorDefault;
     /* Store character index for notes editing */
     [textField setTag:(NSInteger)charIndex];
 
+    /* Set tooltip for the row */
+    const Character *character = character_store_get(self.characterStore, charIndex);
+    NSString *tooltip = [self buildTooltipForCharacter:character];
+    if (tooltip) {
+        [textField setToolTip:tooltip];
+    } else {
+        [textField setToolTip:@"No data"];
+    }
+
     /* Apply background color for weekly columns */
     NSColor *bgColor = [self backgroundColorForColumn:identifier characterIndex:charIndex];
     if (bgColor) {
@@ -426,6 +506,9 @@ static NSColor *kColorDefault;
 
         /* Use dark text on light backgrounds */
         [textField setTextColor:[NSColor blackColor]];
+
+        /* Set tooltip on container too */
+        [container setToolTip:tooltip];
 
         return container;
     }
@@ -483,6 +566,144 @@ static NSColor *kColorDefault;
     }
 
     return nil;
+}
+
+#pragma mark - Tooltips
+
+/*
+ * Build tooltip text from per-slot JSON data.
+ * Shows: upgrades needed, sockets needed, gems needed, enchants needed.
+ */
+- (NSString *)buildTooltipForCharacter:(const Character *)character {
+    if (!character) return nil;
+
+    NSMutableString *tooltip = [NSMutableString string];
+
+    /* Parse slot_upgrades_json to show upgrade needs */
+    if (character->slot_upgrades_json && strlen(character->slot_upgrades_json) > 2) {
+        NSString *jsonStr = [NSString stringWithUTF8String:character->slot_upgrades_json];
+        NSData *data = [jsonStr dataUsingEncoding:NSUTF8StringEncoding];
+        NSArray *slots = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if ([slots count] > 0) {
+            [tooltip appendString:@"Upgrades Needed:\n"];
+            for (NSDictionary *slot in slots) {
+                NSString *slotName = slot[@"slot_name"] ?: @"Unknown";
+                NSString *track = slot[@"track"] ?: @"";
+                NSNumber *current = slot[@"current"] ?: @0;
+                NSNumber *max = slot[@"max"] ?: @0;
+                [tooltip appendFormat:@"  %@ - %@ %@/%@\n", slotName, track, current, max];
+            }
+        }
+    }
+
+    /* Show sockets needing Technomancer's Gift */
+    if (character->socket_missing_count > 0 && character->missing_sockets_json) {
+        NSString *jsonStr = [NSString stringWithUTF8String:character->missing_sockets_json];
+        NSData *data = [jsonStr dataUsingEncoding:NSUTF8StringEncoding];
+        NSArray *slots = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if ([slots count] > 0) {
+            if ([tooltip length] > 0) [tooltip appendString:@"\n"];
+            [tooltip appendString:@"Needs Technomancer's Gift:\n"];
+            for (NSNumber *slotId in slots) {
+                NSString *slotName = [self slotNameForId:[slotId intValue]];
+                [tooltip appendFormat:@"  %@\n", slotName];
+            }
+        }
+    }
+
+    /* Show empty sockets needing gems */
+    if (character->socket_empty_count > 0 && character->empty_sockets_json) {
+        NSString *jsonStr = [NSString stringWithUTF8String:character->empty_sockets_json];
+        NSData *data = [jsonStr dataUsingEncoding:NSUTF8StringEncoding];
+        NSArray *slots = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if ([slots count] > 0) {
+            if ([tooltip length] > 0) [tooltip appendString:@"\n"];
+            [tooltip appendString:@"Needs Gem:\n"];
+            for (NSNumber *slotId in slots) {
+                NSString *slotName = [self slotNameForId:[slotId intValue]];
+                [tooltip appendFormat:@"  %@\n", slotName];
+            }
+        }
+    }
+
+    /* Show missing enchants */
+    if (character->enchant_missing_count > 0 && character->missing_enchants_json) {
+        NSString *jsonStr = [NSString stringWithUTF8String:character->missing_enchants_json];
+        NSData *data = [jsonStr dataUsingEncoding:NSUTF8StringEncoding];
+        NSArray *slots = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if ([slots count] > 0) {
+            if ([tooltip length] > 0) [tooltip appendString:@"\n"];
+            [tooltip appendString:@"Needs Enchant:\n"];
+            NSMutableArray *slotNames = [NSMutableArray array];
+            for (NSNumber *slotId in slots) {
+                [slotNames addObject:[self slotNameForId:[slotId intValue]]];
+            }
+            [tooltip appendFormat:@"  %@\n", [slotNames componentsJoinedByString:@", "]];
+        }
+    }
+
+    /* Show upgrade progress summary */
+    if (character->upgrade_max > 0) {
+        if ([tooltip length] > 0) [tooltip appendString:@"\n"];
+        [tooltip appendFormat:@"Upgrade Progress: %d/%d",
+            character->upgrade_current, character->upgrade_max];
+    }
+
+    /* Always show at least basic info */
+    if ([tooltip length] == 0) {
+        [tooltip appendFormat:@"%s - %s\niLevel: %.1f",
+            character->name ? character->name : "Unknown",
+            character->realm ? character->realm : "Unknown",
+            character->item_level];
+        if (character->heroic_items > 0) {
+            [tooltip appendFormat:@"\nHeroic: %d", character->heroic_items];
+        }
+    }
+
+    return tooltip;
+}
+
+- (NSString *)slotNameForId:(int)slotId {
+    switch (slotId) {
+        case 1: return @"Head";
+        case 2: return @"Neck";
+        case 3: return @"Shoulder";
+        case 5: return @"Chest";
+        case 6: return @"Waist";
+        case 7: return @"Legs";
+        case 8: return @"Feet";
+        case 9: return @"Wrist";
+        case 10: return @"Hands";
+        case 11: return @"Ring 1";
+        case 12: return @"Ring 2";
+        case 13: return @"Trinket 1";
+        case 14: return @"Trinket 2";
+        case 15: return @"Back";
+        case 16: return @"Main Hand";
+        case 17: return @"Off Hand";
+        default: return [NSString stringWithFormat:@"Slot %d", slotId];
+    }
+}
+
+- (NSString *)tableView:(NSTableView *)tableView
+        toolTipForCell:(NSCell *)cell
+                  rect:(NSRectPointer)rect
+           tableColumn:(NSTableColumn *)tableColumn
+                   row:(NSInteger)row
+         mouseLocation:(NSPoint)mouseLocation {
+    (void)tableView;
+    (void)cell;
+    (void)rect;
+    (void)tableColumn;
+    (void)mouseLocation;
+
+    if (!self.characterStore) return nil;
+
+    size_t charIndex = [self characterIndexForRow:row];
+    if (charIndex == (size_t)-1) return nil;
+
+    const Character *character = character_store_get(self.characterStore, charIndex);
+    return [self buildTooltipForCharacter:character];
 }
 
 #pragma mark - Actions

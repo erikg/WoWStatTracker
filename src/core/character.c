@@ -23,6 +23,12 @@ Character* character_new(void) {
     c->notes = wst_strdup("");
     c->week_id = NULL;  /* Only set when imported from addon */
 
+    /* Per-slot JSON strings - NULL until imported from addon */
+    c->slot_upgrades_json = NULL;
+    c->missing_sockets_json = NULL;
+    c->empty_sockets_json = NULL;
+    c->missing_enchants_json = NULL;
+
     if (!c->realm || !c->name || !c->guild || !c->notes) {
         character_free(c);
         return NULL;
@@ -52,6 +58,10 @@ void character_free(Character* c) {
     free(c->guild);
     free(c->notes);
     free(c->week_id);
+    free(c->slot_upgrades_json);
+    free(c->missing_sockets_json);
+    free(c->empty_sockets_json);
+    free(c->missing_enchants_json);
     free(c);
 }
 
@@ -84,12 +94,33 @@ Character* character_copy(const Character* src) {
     c->quests = src->quests;
     c->timewalk = src->timewalk;
 
+    /* Copy new aggregate fields */
+    c->upgrade_current = src->upgrade_current;
+    c->upgrade_max = src->upgrade_max;
+    c->socket_missing_count = src->socket_missing_count;
+    c->socket_empty_count = src->socket_empty_count;
+    c->enchant_missing_count = src->enchant_missing_count;
+
     if (src->week_id) {
         c->week_id = wst_strdup(src->week_id);
         if (!c->week_id) {
             character_free(c);
             return NULL;
         }
+    }
+
+    /* Copy per-slot JSON strings */
+    if (src->slot_upgrades_json) {
+        c->slot_upgrades_json = wst_strdup(src->slot_upgrades_json);
+    }
+    if (src->missing_sockets_json) {
+        c->missing_sockets_json = wst_strdup(src->missing_sockets_json);
+    }
+    if (src->empty_sockets_json) {
+        c->empty_sockets_json = wst_strdup(src->empty_sockets_json);
+    }
+    if (src->missing_enchants_json) {
+        c->missing_enchants_json = wst_strdup(src->missing_enchants_json);
     }
 
     return c;
@@ -216,6 +247,27 @@ cJSON* character_to_json(const Character* c) {
     cJSON_AddNumberToObject(json, "timewalk", c->timewalk);
     cJSON_AddStringToObject(json, "notes", c->notes ? c->notes : "");
 
+    /* New aggregate fields */
+    cJSON_AddNumberToObject(json, "upgrade_current", c->upgrade_current);
+    cJSON_AddNumberToObject(json, "upgrade_max", c->upgrade_max);
+    cJSON_AddNumberToObject(json, "socket_missing_count", c->socket_missing_count);
+    cJSON_AddNumberToObject(json, "socket_empty_count", c->socket_empty_count);
+    cJSON_AddNumberToObject(json, "enchant_missing_count", c->enchant_missing_count);
+
+    /* Per-slot JSON strings (stored as-is) */
+    if (c->slot_upgrades_json) {
+        cJSON_AddStringToObject(json, "slot_upgrades_json", c->slot_upgrades_json);
+    }
+    if (c->missing_sockets_json) {
+        cJSON_AddStringToObject(json, "missing_sockets_json", c->missing_sockets_json);
+    }
+    if (c->empty_sockets_json) {
+        cJSON_AddStringToObject(json, "empty_sockets_json", c->empty_sockets_json);
+    }
+    if (c->missing_enchants_json) {
+        cJSON_AddStringToObject(json, "missing_enchants_json", c->missing_enchants_json);
+    }
+
     return json;
 }
 
@@ -271,6 +323,31 @@ Character* character_from_json(const cJSON* json) {
     c->gearing_up = get_json_bool(json, "gearing_up", false);
     c->quests = get_json_bool(json, "quests", false);
     c->timewalk = (int)get_json_number(json, "timewalk", 0);
+
+    /* New aggregate fields */
+    c->upgrade_current = (int)get_json_number(json, "upgrade_current", 0);
+    c->upgrade_max = (int)get_json_number(json, "upgrade_max", 0);
+    c->socket_missing_count = (int)get_json_number(json, "socket_missing_count", 0);
+    c->socket_empty_count = (int)get_json_number(json, "socket_empty_count", 0);
+    c->enchant_missing_count = (int)get_json_number(json, "enchant_missing_count", 0);
+
+    /* Per-slot JSON strings */
+    const char* slot_upgrades = get_json_string(json, "slot_upgrades_json", NULL);
+    if (slot_upgrades) {
+        c->slot_upgrades_json = wst_strdup(slot_upgrades);
+    }
+    const char* missing_sockets = get_json_string(json, "missing_sockets_json", NULL);
+    if (missing_sockets) {
+        c->missing_sockets_json = wst_strdup(missing_sockets);
+    }
+    const char* empty_sockets = get_json_string(json, "empty_sockets_json", NULL);
+    if (empty_sockets) {
+        c->empty_sockets_json = wst_strdup(empty_sockets);
+    }
+    const char* missing_enchants = get_json_string(json, "missing_enchants_json", NULL);
+    if (missing_enchants) {
+        c->missing_enchants_json = wst_strdup(missing_enchants);
+    }
 
     return c;
 }

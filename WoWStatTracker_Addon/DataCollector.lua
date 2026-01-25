@@ -99,13 +99,17 @@ end
 function WoWStatTracker:CollectCharacterData()
     local name = UnitName("player")
     local realm = GetRealmName()
-    
+
     if not name or not realm then
         return nil
     end
-    
+
     -- Get upgrade track counts for all equipped items
-    local trackCounts, upgradeProgress = self:CountItemsByUpgradeTrack()
+    local trackCounts, upgradeProgress, slotUpgrades = self:CountItemsByUpgradeTrack()
+
+    -- Get socket and enchant info
+    local socketInfo = self:GetSocketInfo()
+    local enchantInfo = self:GetEnchantInfo()
 
     local data = {
         -- Basic character info
@@ -129,6 +133,9 @@ function WoWStatTracker:CollectCharacterData()
         upgrade_current = upgradeProgress.current_total,
         upgrade_max = upgradeProgress.max_total,
 
+        -- Per-slot upgrade details (for tooltip display)
+        slot_upgrades = slotUpgrades,
+
         -- Weekly progress (from Great Vault API - aggregate data)
         vault_visited = self:HasVisitedVault(),
         vault_delves = self:GetDelvesFromVault(),  -- {count, tiers={[1]=tier, [4]=tier, [8]=tier}}
@@ -147,10 +154,10 @@ function WoWStatTracker:CollectCharacterData()
         gilded_stash = self:GetGildedStashStatus(),  -- {available, claimed, total}
 
         -- Socket info (for Technomancer's Gift tracking)
-        socket_info = self:GetSocketInfo(),  -- {slots_with_sockets, missing_sockets, socketable_count, socketed_count}
+        socket_info = socketInfo,  -- {slots_with_sockets, missing_sockets, empty_sockets, socketable_count, socketed_count, empty_count}
 
         -- Enchant info (missing enchantments)
-        enchant_info = self:GetEnchantInfo(),  -- {missing_enchants, enchant_count, enchantable_count}
+        enchant_info = enchantInfo,  -- {missing_enchants, enchant_count, enchantable_count}
 
         -- Timestamps and week tracking
         lastLogin = time(),
@@ -512,8 +519,17 @@ function WoWStatTracker:GetItemUpgradeTrack(itemLink)
     return nil
 end
 
+-- Track ID to name mapping for per-slot data
+local TRACK_ID_TO_NAME = {
+    [UPGRADE_TRACK.ADVENTURER] = "Adventurer",
+    [UPGRADE_TRACK.VETERAN] = "Veteran",
+    [UPGRADE_TRACK.CHAMPION] = "Champion",
+    [UPGRADE_TRACK.HERO] = "Hero",
+    [UPGRADE_TRACK.MYTH] = "Myth",
+}
+
 -- Count equipped items by upgrade track
--- Returns a table with counts and upgrade totals for each track
+-- Returns: counts table, upgrades table, slot_upgrades table (per-slot details)
 function WoWStatTracker:CountItemsByUpgradeTrack()
     local counts = {
         adventurer = 0,
@@ -529,6 +545,8 @@ function WoWStatTracker:CountItemsByUpgradeTrack()
         current_total = 0,
         max_total = 0,
     }
+    -- Per-slot upgrade details for tooltip display
+    local slot_upgrades = {}
 
     local itemsFound = 0
     for _, slotId in ipairs(EQUIPMENT_SLOTS) do
@@ -553,10 +571,24 @@ function WoWStatTracker:CountItemsByUpgradeTrack()
                 -- Item has no upgrade track (old gear)
                 counts.no_track = counts.no_track + 1
             end
-            -- Sum up upgrade progress
+            -- Sum up upgrade progress and store per-slot data
             if current and max then
                 upgrades.current_total = upgrades.current_total + current
                 upgrades.max_total = upgrades.max_total + max
+
+                -- Store per-slot details for items that aren't fully upgraded
+                if current < max and TRACK_ID_TO_NAME[track] then
+                    -- Get item ID from link
+                    local itemId = GetItemInfoInstant(itemLink)
+                    slot_upgrades[slotId] = {
+                        slot = slotId,
+                        slot_name = SLOT_NAMES[slotId] or "Unknown",
+                        track = TRACK_ID_TO_NAME[track],
+                        current = current,
+                        max = max,
+                        item_id = itemId or 0,
+                    }
+                end
             end
         end
     end
@@ -573,11 +605,12 @@ function WoWStatTracker:CountItemsByUpgradeTrack()
             counts.no_track = char.old_items or 0
             upgrades.current_total = char.upgrade_current or 0
             upgrades.max_total = char.upgrade_max or 0
+            slot_upgrades = char.slot_upgrades or {}
             self:LogDebug("CountItemsByUpgradeTrack: 0 items, using cached values")
         end
     end
 
-    return counts, upgrades
+    return counts, upgrades, slot_upgrades
 end
 
 -- Legacy function for backward compatibility - count by item quality

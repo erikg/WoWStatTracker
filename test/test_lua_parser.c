@@ -348,6 +348,132 @@ static void test_lua_parser_many_characters(void) {
     lua_parser_free_result(&result);
 }
 
+static void test_lua_parser_new_gear_fields(void) {
+    /* Test parsing upgrade_current, upgrade_max, socket_info, enchant_info */
+    const char* content =
+        "{\n"
+        "  characters = {\n"
+        "    [\"TestChar-Realm\"] = {\n"
+        "      item_level = 630,\n"
+        "      upgrade_current = 111,\n"
+        "      upgrade_max = 120,\n"
+        "      socket_info = {\n"
+        "        socketable_count = 3,\n"
+        "        socketed_count = 1,\n"
+        "        empty_count = 2,\n"
+        "        missing_sockets = { 1, 6 },\n"
+        "        empty_sockets = { 9 },\n"
+        "      },\n"
+        "      enchant_info = {\n"
+        "        enchantable_count = 8,\n"
+        "        enchant_count = 5,\n"
+        "        missing_enchants = { 5, 7, 8 },\n"
+        "      },\n"
+        "    }\n"
+        "  },\n"
+        "  metadata = { version = \"1.2.0\" }\n"
+        "}";
+
+    LuaParseResult result = lua_parser_parse_content(content);
+    TEST_ASSERT_NOT_NULL(result.characters);
+    TEST_ASSERT_EQUAL(1, result.count);
+
+    Character* c = result.characters[0];
+    TEST_ASSERT_NOT_NULL(c);
+
+    /* Verify aggregate counts */
+    TEST_ASSERT_EQUAL(111, c->upgrade_current);
+    TEST_ASSERT_EQUAL(120, c->upgrade_max);
+
+    /* socket_missing = socketable_count - socketed_count = 3 - 1 = 2 */
+    TEST_ASSERT_EQUAL(2, c->socket_missing_count);
+    TEST_ASSERT_EQUAL(2, c->socket_empty_count);
+
+    /* enchant_missing = enchantable_count - enchant_count = 8 - 5 = 3 */
+    TEST_ASSERT_EQUAL(3, c->enchant_missing_count);
+
+    /* Verify JSON string fields exist */
+    TEST_ASSERT_NOT_NULL(c->missing_sockets_json);
+    TEST_ASSERT_NOT_NULL(c->empty_sockets_json);
+    TEST_ASSERT_NOT_NULL(c->missing_enchants_json);
+
+    /* The JSON strings should contain the slot arrays */
+    TEST_ASSERT_TRUE(strstr(c->missing_sockets_json, "1") != NULL);
+    TEST_ASSERT_TRUE(strstr(c->missing_sockets_json, "6") != NULL);
+    TEST_ASSERT_TRUE(strstr(c->empty_sockets_json, "9") != NULL);
+    TEST_ASSERT_TRUE(strstr(c->missing_enchants_json, "5") != NULL);
+    TEST_ASSERT_TRUE(strstr(c->missing_enchants_json, "7") != NULL);
+    TEST_ASSERT_TRUE(strstr(c->missing_enchants_json, "8") != NULL);
+
+    lua_parser_free_result(&result);
+}
+
+static void test_lua_parser_slot_upgrades(void) {
+    /* Test parsing slot_upgrades with per-slot data */
+    const char* content =
+        "{\n"
+        "  characters = {\n"
+        "    [\"TestChar-Realm\"] = {\n"
+        "      item_level = 630,\n"
+        "      slot_upgrades = {\n"
+        "        [1] = { slot = 1, slot_name = \"Head\", track = \"Hero\", current = 5, max = 8 },\n"
+        "        [6] = { slot = 6, slot_name = \"Waist\", track = \"Champion\", current = 3, max = 8 },\n"
+        "      },\n"
+        "    }\n"
+        "  },\n"
+        "  metadata = { version = \"1.2.0\" }\n"
+        "}";
+
+    LuaParseResult result = lua_parser_parse_content(content);
+    TEST_ASSERT_NOT_NULL(result.characters);
+    TEST_ASSERT_EQUAL(1, result.count);
+
+    Character* c = result.characters[0];
+    TEST_ASSERT_NOT_NULL(c);
+
+    /* slot_upgrades_json should be populated */
+    TEST_ASSERT_NOT_NULL(c->slot_upgrades_json);
+
+    /* Verify JSON contains expected slot data */
+    TEST_ASSERT_TRUE(strstr(c->slot_upgrades_json, "slot") != NULL);
+    TEST_ASSERT_TRUE(strstr(c->slot_upgrades_json, "Hero") != NULL ||
+                     strstr(c->slot_upgrades_json, "Champion") != NULL);
+
+    lua_parser_free_result(&result);
+}
+
+static void test_lua_parser_gear_fields_missing(void) {
+    /* Test that missing gear fields default to 0/NULL */
+    const char* content =
+        "{\n"
+        "  characters = {\n"
+        "    [\"TestChar-Realm\"] = {\n"
+        "      item_level = 600,\n"
+        "    }\n"
+        "  }\n"
+        "}";
+
+    LuaParseResult result = lua_parser_parse_content(content);
+    TEST_ASSERT_NOT_NULL(result.characters);
+    TEST_ASSERT_EQUAL(1, result.count);
+
+    Character* c = result.characters[0];
+    TEST_ASSERT_NOT_NULL(c);
+
+    /* All new fields should be 0/NULL when not present */
+    TEST_ASSERT_EQUAL(0, c->upgrade_current);
+    TEST_ASSERT_EQUAL(0, c->upgrade_max);
+    TEST_ASSERT_EQUAL(0, c->socket_missing_count);
+    TEST_ASSERT_EQUAL(0, c->socket_empty_count);
+    TEST_ASSERT_EQUAL(0, c->enchant_missing_count);
+    TEST_ASSERT_NULL(c->slot_upgrades_json);
+    TEST_ASSERT_NULL(c->missing_sockets_json);
+    TEST_ASSERT_NULL(c->empty_sockets_json);
+    TEST_ASSERT_NULL(c->missing_enchants_json);
+
+    lua_parser_free_result(&result);
+}
+
 void test_lua_parser_suite(void) {
     RUN_TEST(test_lua_parser_empty_content);
     RUN_TEST(test_lua_parser_null_content);
@@ -365,4 +491,7 @@ void test_lua_parser_suite(void) {
     RUN_TEST(test_lua_parser_wow_bracket_format);
     RUN_TEST(test_lua_parser_import_updates_existing);
     RUN_TEST(test_lua_parser_many_characters);
+    RUN_TEST(test_lua_parser_new_gear_fields);
+    RUN_TEST(test_lua_parser_slot_upgrades);
+    RUN_TEST(test_lua_parser_gear_fields_missing);
 }

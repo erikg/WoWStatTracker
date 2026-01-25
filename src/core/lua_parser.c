@@ -265,6 +265,110 @@ static bool get_nested_bool(lua_State* L, const char* table_key,
 }
 
 /*
+ * Convert a Lua array to JSON array string: [1, 6, 9]
+ */
+static char* lua_array_to_json_string(lua_State* L, const char* table_key,
+                                       const char* array_key) {
+    lua_getfield(L, -1, table_key);
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return NULL;
+    }
+
+    lua_getfield(L, -1, array_key);
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 2);
+        return NULL;
+    }
+
+    /* Build JSON array string */
+    char buf[512] = "[";
+    size_t pos = 1;
+    int first = 1;
+
+    lua_pushnil(L);
+    while (lua_next(L, -2) != 0) {
+        if (lua_isnumber(L, -1)) {
+            int val = (int)lua_tonumber(L, -1);
+            char num[16];
+            snprintf(num, sizeof(num), "%s%d", first ? "" : ",", val);
+            size_t len = strlen(num);
+            if (pos + len < sizeof(buf) - 2) {
+                strcat(buf, num);
+                pos += len;
+                first = 0;
+            }
+        }
+        lua_pop(L, 1);
+    }
+    strcat(buf, "]");
+
+    lua_pop(L, 2);  /* pop array_key and table_key tables */
+    return wst_strdup(buf);
+}
+
+/*
+ * Convert slot_upgrades Lua table to JSON array string.
+ * Input format: { [1] = { slot=1, track="Hero", current=5, max=8 }, ... }
+ * Output format: [{"slot":1,"slot_name":"Head","track":"Hero","current":5,"max":8}, ...]
+ */
+static char* slot_upgrades_to_json_string(lua_State* L) {
+    lua_getfield(L, -1, "slot_upgrades");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return NULL;
+    }
+
+    char buf[2048] = "[";
+    size_t pos = 1;
+    int first = 1;
+
+    lua_pushnil(L);
+    while (lua_next(L, -2) != 0) {
+        if (lua_istable(L, -1)) {
+            /* Extract fields from slot upgrade table */
+            lua_getfield(L, -1, "slot");
+            int slot = lua_isnumber(L, -1) ? (int)lua_tonumber(L, -1) : 0;
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "slot_name");
+            const char* slot_name = lua_isstring(L, -1) ? lua_tostring(L, -1) : "";
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "track");
+            const char* track = lua_isstring(L, -1) ? lua_tostring(L, -1) : "";
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "current");
+            int current = lua_isnumber(L, -1) ? (int)lua_tonumber(L, -1) : 0;
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "max");
+            int max = lua_isnumber(L, -1) ? (int)lua_tonumber(L, -1) : 0;
+            lua_pop(L, 1);
+
+            if (slot > 0 && track[0] != '\0') {
+                char entry[256];
+                snprintf(entry, sizeof(entry),
+                    "%s{\"slot\":%d,\"slot_name\":\"%s\",\"track\":\"%s\",\"current\":%d,\"max\":%d}",
+                    first ? "" : ",", slot, slot_name, track, current, max);
+                size_t len = strlen(entry);
+                if (pos + len < sizeof(buf) - 2) {
+                    strcat(buf, entry);
+                    pos += len;
+                    first = 0;
+                }
+            }
+        }
+        lua_pop(L, 1);
+    }
+    strcat(buf, "]");
+
+    lua_pop(L, 1);  /* pop slot_upgrades table */
+    return first ? NULL : wst_strdup(buf);  /* Return NULL if empty */
+}
+
+/*
  * Parse a character from the Lua table at the top of the stack.
  * char_key is the "Name-Realm" key.
  */
@@ -346,6 +450,30 @@ static Character* parse_character(lua_State* L, const char* char_key) {
         character_set_week_id(c, week_id);
         free(week_id);
     }
+
+    /* New fields: upgrade totals */
+    if (get_lua_number(L, "upgrade_current", &d)) c->upgrade_current = (int)d;
+    if (get_lua_number(L, "upgrade_max", &d)) c->upgrade_max = (int)d;
+
+    /* Socket info: calculate counts from nested table */
+    double socketable_count = 0, socketed_count = 0, empty_count = 0;
+    get_nested_number(L, "socket_info", "socketable_count", &socketable_count);
+    get_nested_number(L, "socket_info", "socketed_count", &socketed_count);
+    get_nested_number(L, "socket_info", "empty_count", &empty_count);
+    c->socket_missing_count = (int)(socketable_count - socketed_count);
+    c->socket_empty_count = (int)empty_count;
+
+    /* Enchant info: calculate count from nested table */
+    double enchantable_count = 0, enchant_count = 0;
+    get_nested_number(L, "enchant_info", "enchantable_count", &enchantable_count);
+    get_nested_number(L, "enchant_info", "enchant_count", &enchant_count);
+    c->enchant_missing_count = (int)(enchantable_count - enchant_count);
+
+    /* Per-slot JSON strings for tooltips */
+    c->slot_upgrades_json = slot_upgrades_to_json_string(L);
+    c->missing_sockets_json = lua_array_to_json_string(L, "socket_info", "missing_sockets");
+    c->empty_sockets_json = lua_array_to_json_string(L, "socket_info", "empty_sockets");
+    c->missing_enchants_json = lua_array_to_json_string(L, "enchant_info", "missing_enchants");
 
     return c;
 }

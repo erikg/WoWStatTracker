@@ -31,6 +31,19 @@ struct Character {
     int timewalk;           /* 0-5 */
     char* notes;
     char* week_id;          /* Week ID when data was collected (e.g., "20251230") */
+
+    /* Aggregate gear status for quick status calculation */
+    int upgrade_current;         /* Total current upgrade levels (e.g., 111) */
+    int upgrade_max;             /* Total max upgrade levels (e.g., 120) */
+    int socket_missing_count;    /* Slots that can accept Technomancer's Gift */
+    int socket_empty_count;      /* Sockets without gems */
+    int enchant_missing_count;   /* Slots missing enchants */
+
+    /* Per-slot tooltip data (stored as JSON strings) */
+    char* slot_upgrades_json;    /* "[{\"slot\":1,\"track\":\"Hero\",...},...]" */
+    char* missing_sockets_json;  /* "[1,6,9]" - slot IDs needing Technomancer's Gift */
+    char* empty_sockets_json;    /* "[6]" - slot IDs with empty sockets */
+    char* missing_enchants_json; /* "[5,7,8]" - slot IDs missing enchants */
 };
 
 /*

@@ -57,6 +57,7 @@ typedef struct {
 } ColumnDef;
 
 static const ColumnDef g_columns[] = {
+    { L"",            30, LVCFMT_CENTER }, /* Status column */
     { L"Realm",       100, LVCFMT_LEFT },
     { L"Name",        100, LVCFMT_LEFT },
     { L"Guild",        80, LVCFMT_LEFT },
@@ -436,6 +437,21 @@ static LRESULT OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh) {
                 HandleListViewCustomDraw(pcd, &result);
                 return result;
             }
+
+            case LVN_GETINFOTIP: {
+                LPNMLVGETINFOTIP pGetInfoTip = (LPNMLVGETINFOTIP)pnmh;
+                CharacterStore *store = GetCharacterStore();
+                if (store && pGetInfoTip->iItem >= 0) {
+                    /* Get character index from lParam */
+                    LVITEMW lvi = { .mask = LVIF_PARAM, .iItem = pGetInfoTip->iItem };
+                    ListView_GetItem(g_hListView, &lvi);
+                    Character *ch = character_store_get(store, (int)lvi.lParam);
+                    if (ch) {
+                        BuildCharacterTooltip(ch, pGetInfoTip->pszText, pGetInfoTip->cchTextMax);
+                    }
+                }
+                break;
+            }
         }
     }
 
@@ -481,7 +497,7 @@ static void CreateListView(HWND hWnd) {
 
     /* Set extended styles */
     ListView_SetExtendedListViewStyle(g_hListView,
-        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
+        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP);
 
     /* Add columns */
     for (int i = 0; i < g_numColumns; i++) {
@@ -669,22 +685,23 @@ static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSor
     int result = 0;
 
     switch (g_sortColumn) {
-        case 0: result = strcmp(c1->realm ? c1->realm : "", c2->realm ? c2->realm : ""); break;
-        case 1: result = strcmp(c1->name ? c1->name : "", c2->name ? c2->name : ""); break;
-        case 2: result = strcmp(c1->guild ? c1->guild : "", c2->guild ? c2->guild : ""); break;
-        case 3: result = (c1->item_level > c2->item_level) - (c1->item_level < c2->item_level); break;
-        case 4: result = c1->heroic_items - c2->heroic_items; break;
-        case 5: result = c1->champion_items - c2->champion_items; break;
-        case 6: result = c1->veteran_items - c2->veteran_items; break;
-        case 7: result = c1->adventure_items - c2->adventure_items; break;
-        case 8: result = c1->old_items - c2->old_items; break;
-        case 9: result = c1->vault_visited - c2->vault_visited; break;
-        case 10: result = c1->delves - c2->delves; break;
-        case 11: result = c1->gilded_stash - c2->gilded_stash; break;
-        case 12: result = c1->gearing_up - c2->gearing_up; break;
-        case 13: result = c1->quests - c2->quests; break;
-        case 14: result = c1->timewalk - c2->timewalk; break;
-        case 15: result = strcmp(c1->notes ? c1->notes : "", c2->notes ? c2->notes : ""); break;
+        case 0: result = GetCharacterStatus(c1) - GetCharacterStatus(c2); break; /* Status */
+        case 1: result = strcmp(c1->realm ? c1->realm : "", c2->realm ? c2->realm : ""); break;
+        case 2: result = strcmp(c1->name ? c1->name : "", c2->name ? c2->name : ""); break;
+        case 3: result = strcmp(c1->guild ? c1->guild : "", c2->guild ? c2->guild : ""); break;
+        case 4: result = (c1->item_level > c2->item_level) - (c1->item_level < c2->item_level); break;
+        case 5: result = c1->heroic_items - c2->heroic_items; break;
+        case 6: result = c1->champion_items - c2->champion_items; break;
+        case 7: result = c1->veteran_items - c2->veteran_items; break;
+        case 8: result = c1->adventure_items - c2->adventure_items; break;
+        case 9: result = c1->old_items - c2->old_items; break;
+        case 10: result = c1->vault_visited - c2->vault_visited; break;
+        case 11: result = c1->delves - c2->delves; break;
+        case 12: result = c1->gilded_stash - c2->gilded_stash; break;
+        case 13: result = c1->gearing_up - c2->gearing_up; break;
+        case 14: result = c1->quests - c2->quests; break;
+        case 15: result = c1->timewalk - c2->timewalk; break;
+        case 16: result = strcmp(c1->notes ? c1->notes : "", c2->notes ? c2->notes : ""); break;
         default: break;
     }
 
@@ -748,7 +765,23 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
             COLORREF coloredText = g_darkMode ? DARK_TEXT_COLOR : RGB(0, 0, 0);
 
             switch (subItem) {
-                case 9: /* Vault */
+                case 0: /* Status column */
+                    {
+                        int status = GetCharacterStatus(ch);
+                        if (status == 0) {
+                            pcd->clrTextBk = green;
+                            pcd->clrText = coloredText;
+                        } else if (status == 2) {
+                            pcd->clrTextBk = red;
+                            pcd->clrText = coloredText;
+                        } else {
+                            pcd->clrTextBk = yellow;
+                            pcd->clrText = coloredText;
+                        }
+                    }
+                    break;
+
+                case 10: /* Vault (was 9) */
                     if (ch->vault_visited) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -766,7 +799,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 10: /* Delves */
+                case 11: /* Delves (was 10) */
                     if (ch->delves >= 4) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -776,7 +809,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 11: /* Gilded */
+                case 12: /* Gilded (was 11) */
                     if (ch->gilded_stash >= 3) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -786,7 +819,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 12: /* Gearing Up */
+                case 13: /* Gearing Up (was 12) */
                     if (ch->gearing_up) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -796,7 +829,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 14: /* Timewalk */
+                case 15: /* Timewalk (was 14) */
                     if (ch->timewalk >= 5) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -815,6 +848,121 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
             *pResult = CDRF_DODEFAULT;
             break;
     }
+}
+
+/* Slot ID to name mapping */
+static const wchar_t* GetSlotName(int slotId) {
+    switch (slotId) {
+        case 1: return L"Head";
+        case 2: return L"Neck";
+        case 3: return L"Shoulder";
+        case 5: return L"Chest";
+        case 6: return L"Waist";
+        case 7: return L"Legs";
+        case 8: return L"Feet";
+        case 9: return L"Wrist";
+        case 10: return L"Hands";
+        case 11: return L"Ring 1";
+        case 12: return L"Ring 2";
+        case 13: return L"Trinket 1";
+        case 14: return L"Trinket 2";
+        case 15: return L"Back";
+        case 16: return L"Main Hand";
+        case 17: return L"Off Hand";
+        default: return L"Unknown";
+    }
+}
+
+/* Build tooltip text for a character */
+static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferLen) {
+    if (!ch || !buffer || bufferLen == 0) return;
+
+    buffer[0] = L'\0';
+    size_t pos = 0;
+
+    /* Show upgrade progress summary */
+    if (ch->upgrade_max > 0) {
+        int len = swprintf(buffer + pos, bufferLen - pos,
+            L"Upgrade Progress: %d/%d\n", ch->upgrade_current, ch->upgrade_max);
+        if (len > 0) pos += len;
+    }
+
+    /* Show sockets needing Technomancer's Gift */
+    if (ch->socket_missing_count > 0) {
+        int len = swprintf(buffer + pos, bufferLen - pos,
+            L"\nNeeds Technomancer's Gift: %d slot(s)\n", ch->socket_missing_count);
+        if (len > 0) pos += len;
+    }
+
+    /* Show empty sockets needing gems */
+    if (ch->socket_empty_count > 0) {
+        int len = swprintf(buffer + pos, bufferLen - pos,
+            L"\nNeeds Gem: %d socket(s)\n", ch->socket_empty_count);
+        if (len > 0) pos += len;
+    }
+
+    /* Show missing enchants */
+    if (ch->enchant_missing_count > 0) {
+        int len = swprintf(buffer + pos, bufferLen - pos,
+            L"\nNeeds Enchant: %d slot(s)\n", ch->enchant_missing_count);
+        if (len > 0) pos += len;
+    }
+
+    /* Trim trailing newline */
+    if (pos > 0 && buffer[pos - 1] == L'\n') {
+        buffer[pos - 1] = L'\0';
+    }
+}
+
+/*
+ * Calculate character status for the status column.
+ * Returns: 0 = done, 1 = needs work, 2 = not started/bad
+ *
+ * Logic matches gear_report.py:
+ * - Done if fully upgraded AND all sockets gemmed (enchants not required)
+ * - Red X if no vault rewards at all
+ * - Done if all hero gear AND 3+ vault slots
+ * - Warning otherwise
+ */
+static int GetCharacterStatus(Character *ch) {
+    if (!ch) return 2;
+
+    /* Check if fully upgraded */
+    BOOL fullyUpgraded = (ch->upgrade_max > 0 &&
+                          ch->upgrade_current >= ch->upgrade_max);
+
+    /* Check sockets (enchants not required for "done" status) */
+    BOOL allSocketsGemmed = (ch->socket_missing_count == 0 &&
+                             ch->socket_empty_count == 0);
+
+    /* Fully maxed = done regardless of vault */
+    if (fullyUpgraded && allSocketsGemmed) {
+        return 0;  /* Done */
+    }
+
+    /* Check vault rewards - use delves as proxy for vault slots */
+    /* 1 delve = 1 slot, 4 delves = 2 slots, 8 delves = 3 slots */
+    int vaultSlots = 0;
+    if (ch->delves >= 8) vaultSlots = 3;
+    else if (ch->delves >= 4) vaultSlots = 2;
+    else if (ch->delves >= 1) vaultSlots = 1;
+
+    /* No vault rewards at all = red X */
+    if (vaultSlots == 0) {
+        return 2;  /* No vault rewards */
+    }
+
+    /* Check if all hero gear (no champion/veteran/adventure) */
+    BOOL hasNonHero = (ch->champion_items > 0 ||
+                       ch->veteran_items > 0 ||
+                       ch->adventure_items > 0);
+
+    /* All hero gear + 3 vault slots = done */
+    if (!hasNonHero && vaultSlots >= 3) {
+        return 0;  /* Done */
+    }
+
+    return 1;  /* In progress */
 }
 
 /* Refresh character list from store */
@@ -840,56 +988,66 @@ void RefreshCharacterList(void) {
         MultiByteToWideChar(CP_UTF8, 0, ch->guild ? ch->guild : "", -1, guild, 256);
         MultiByteToWideChar(CP_UTF8, 0, ch->notes ? ch->notes : "", -1, notes, 512);
 
-        /* Insert item */
+        /* Calculate status */
+        int status = GetCharacterStatus(ch);
+        wchar_t statusText[4];
+        switch (status) {
+            case 0: wcscpy_s(statusText, 4, L"\u2705"); break; /* ✅ */
+            case 2: wcscpy_s(statusText, 4, L"\u274C"); break; /* ❌ */
+            default: wcscpy_s(statusText, 4, L"\u26A0"); break; /* ⚠️ */
+        }
+
+        /* Insert item with status in column 0 */
         LVITEMW lvi = {
             .mask = LVIF_TEXT | LVIF_PARAM,
             .iItem = i,
             .iSubItem = 0,
-            .pszText = realm,
+            .pszText = statusText,
             .lParam = i,
         };
         int idx = ListView_InsertItem(g_hListView, &lvi);
 
-        /* Set subitems */
-        ListView_SetItemText(g_hListView, idx, 1, name);
-        ListView_SetItemText(g_hListView, idx, 2, guild);
+        /* Set subitems (all indexes +1 due to status column) */
+        ListView_SetItemText(g_hListView, idx, 1, realm);
+        ListView_SetItemText(g_hListView, idx, 2, name);
+        ListView_SetItemText(g_hListView, idx, 3, guild);
 
         wchar_t buf[64];
 
         swprintf(buf, 64, L"%.1f", ch->item_level);
-        ListView_SetItemText(g_hListView, idx, 3, buf);
-
-        swprintf(buf, 64, L"%d", ch->heroic_items);
         ListView_SetItemText(g_hListView, idx, 4, buf);
 
-        swprintf(buf, 64, L"%d", ch->champion_items);
+        swprintf(buf, 64, L"%d", ch->heroic_items);
         ListView_SetItemText(g_hListView, idx, 5, buf);
 
-        swprintf(buf, 64, L"%d", ch->veteran_items);
+        swprintf(buf, 64, L"%d", ch->champion_items);
         ListView_SetItemText(g_hListView, idx, 6, buf);
 
-        swprintf(buf, 64, L"%d", ch->adventure_items);
+        swprintf(buf, 64, L"%d", ch->veteran_items);
         ListView_SetItemText(g_hListView, idx, 7, buf);
 
-        swprintf(buf, 64, L"%d", ch->old_items);
+        swprintf(buf, 64, L"%d", ch->adventure_items);
         ListView_SetItemText(g_hListView, idx, 8, buf);
 
-        ListView_SetItemText(g_hListView, idx, 9, ch->vault_visited ? L"Yes" : L"No");
+        swprintf(buf, 64, L"%d", ch->old_items);
+        ListView_SetItemText(g_hListView, idx, 9, buf);
+
+        ListView_SetItemText(g_hListView, idx, 10, ch->vault_visited ? L"Yes" : L"No");
 
         swprintf(buf, 64, L"%d", ch->delves);
-        ListView_SetItemText(g_hListView, idx, 10, buf);
-
-        swprintf(buf, 64, L"%d", ch->gilded_stash);
         ListView_SetItemText(g_hListView, idx, 11, buf);
 
-        ListView_SetItemText(g_hListView, idx, 12, ch->gearing_up ? L"Yes" : L"No");
+        swprintf(buf, 64, L"%d", ch->gilded_stash);
+        ListView_SetItemText(g_hListView, idx, 12, buf);
 
-        ListView_SetItemText(g_hListView, idx, 13, ch->quests ? L"Yes" : L"No");
+        ListView_SetItemText(g_hListView, idx, 13, ch->gearing_up ? L"Yes" : L"No");
+
+        ListView_SetItemText(g_hListView, idx, 14, ch->quests ? L"Yes" : L"No");
 
         swprintf(buf, 64, L"%d", ch->timewalk);
-        ListView_SetItemText(g_hListView, idx, 14, buf);
+        ListView_SetItemText(g_hListView, idx, 15, buf);
 
-        ListView_SetItemText(g_hListView, idx, 15, notes);
+        ListView_SetItemText(g_hListView, idx, 16, notes);
     }
 
     /* Apply current sort order */
@@ -1264,6 +1422,28 @@ void DoAddonImport(HWND hWnd) {
                 existing->gearing_up = addonChar->gearing_up;
                 existing->quests = addonChar->quests;
                 existing->timewalk = addonChar->timewalk;
+
+                /* Update new aggregate fields */
+                existing->upgrade_current = addonChar->upgrade_current;
+                existing->upgrade_max = addonChar->upgrade_max;
+                existing->socket_missing_count = addonChar->socket_missing_count;
+                existing->socket_empty_count = addonChar->socket_empty_count;
+                existing->enchant_missing_count = addonChar->enchant_missing_count;
+
+                /* Update per-slot JSON strings */
+                free(existing->slot_upgrades_json);
+                existing->slot_upgrades_json = addonChar->slot_upgrades_json
+                    ? _strdup(addonChar->slot_upgrades_json) : NULL;
+                free(existing->missing_sockets_json);
+                existing->missing_sockets_json = addonChar->missing_sockets_json
+                    ? _strdup(addonChar->missing_sockets_json) : NULL;
+                free(existing->empty_sockets_json);
+                existing->empty_sockets_json = addonChar->empty_sockets_json
+                    ? _strdup(addonChar->empty_sockets_json) : NULL;
+                free(existing->missing_enchants_json);
+                existing->missing_enchants_json = addonChar->missing_enchants_json
+                    ? _strdup(addonChar->missing_enchants_json) : NULL;
+
                 updatedCount++;
             }
         } else {
