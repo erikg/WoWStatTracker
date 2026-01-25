@@ -487,7 +487,7 @@ def format_vault_rewards(rewards: list) -> str:
     return ", ".join(parts)
 
 
-def get_status_emoji(char_data: dict, vault_info: dict) -> str:
+def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict) -> str:
     """Determine status emoji for character."""
     hero_items = char_data.get("heroic_items", 0)
     champ_items = char_data.get("champion_items", 0)
@@ -498,11 +498,21 @@ def get_status_emoji(char_data: dict, vault_info: dict) -> str:
     total_slots = vault_info["total_slots"]
     has_t8_plus = vault_info["has_t8_plus"]
 
+    # Check if fully maxed (all upgrades done + all sockets gemmed)
+    upgrade_current = char_data.get("upgrade_current", 0)
+    upgrade_max = char_data.get("upgrade_max", 0)
+    fully_upgraded = upgrade_max > 0 and upgrade_current == upgrade_max
+    all_sockets_gemmed = socket_info["missing_count"] == 0 and socket_info["empty_count"] == 0
+
+    # Fully maxed character = done regardless of vault
+    if fully_upgraded and all_sockets_gemmed:
+        return "✅"
+
     # No vault rewards at all = red X
     if total_slots == 0:
         return "❌"
 
-    # Done criteria
+    # Done criteria (vault-based for characters still upgrading)
     if not has_non_hero and total_slots >= 3:
         # All hero gear + 3 vault rewards
         return "✅"
@@ -546,7 +556,7 @@ def analyze_character(char_data: dict, is_current_week: bool) -> dict:
     vault_info = analyze_vault_rewards(char_data)
     socket_info = analyze_socket_info(char_data)
     enchant_info = analyze_enchant_info(char_data)
-    status = get_status_emoji(char_data, vault_info)
+    status = get_status_emoji(char_data, vault_info, socket_info)
 
     # Determine missing gear notes
     missing = []

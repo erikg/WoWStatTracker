@@ -218,7 +218,7 @@ local SLOT_NAMES = {
     [17] = "OffHand",
 }
 
--- Check if an item has a socket by scanning its tooltip
+-- Check if an item has a socket
 -- Returns: { hasSocket = bool, hasGem = bool }
 function WoWStatTracker:ItemHasSocket(itemLink)
     local result = { hasSocket = false, hasGem = false }
@@ -227,23 +227,28 @@ function WoWStatTracker:ItemHasSocket(itemLink)
         return result
     end
 
-    -- Use C_TooltipInfo to get tooltip data
+    -- Method 1: Check for socketed gem using GetItemGem API
+    -- This is the most reliable way to detect filled sockets
+    if GetItemGem then
+        local gemLink = GetItemGem(itemLink, 1)
+        if gemLink and gemLink ~= "" then
+            result.hasSocket = true
+            result.hasGem = true
+            return result
+        end
+    end
+
+    -- Method 2: Check tooltip for empty sockets
+    -- Empty sockets show "Prismatic Socket" or "Empty Socket" in tooltip
     if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
         local tooltipData = C_TooltipInfo.GetHyperlink(itemLink)
         if tooltipData and tooltipData.lines then
             for _, line in ipairs(tooltipData.lines) do
                 if line.leftText then
-                    -- Empty sockets show "Prismatic Socket" or "Empty Socket"
                     if line.leftText:match("Prismatic Socket") or
                        line.leftText:match("Empty Socket") then
                         result.hasSocket = true
-                    end
-                    -- Filled sockets show gem effects
-                    if line.leftText:match("Algari gem") or
-                       line.leftText:match("Blasphemite") or
-                       line.leftText:match("per Unique.*gem") then
-                        result.hasSocket = true
-                        result.hasGem = true
+                        -- hasGem stays false since GetItemGem check above found nothing
                     end
                 end
             end
