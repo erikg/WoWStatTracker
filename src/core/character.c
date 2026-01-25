@@ -89,6 +89,8 @@ Character* character_copy(const Character* src) {
     c->old_items = src->old_items;
     c->vault_visited = src->vault_visited;
     c->delves = src->delves;
+    c->dungeons = src->dungeons;
+    c->vault_t8_plus = src->vault_t8_plus;
     c->gilded_stash = src->gilded_stash;
     c->gearing_up = src->gearing_up;
     c->quests = src->quests;
@@ -218,6 +220,8 @@ void character_reset_weekly(Character* c) {
 
     c->vault_visited = false;
     c->delves = 0;
+    c->dungeons = 0;
+    c->vault_t8_plus = 0;
     c->gilded_stash = 0;
     c->gearing_up = false;
     c->quests = false;
@@ -241,11 +245,18 @@ cJSON* character_to_json(const Character* c) {
     cJSON_AddNumberToObject(json, "old_items", c->old_items);
     cJSON_AddBoolToObject(json, "vault_visited", c->vault_visited);
     cJSON_AddNumberToObject(json, "delves", c->delves);
+    cJSON_AddNumberToObject(json, "dungeons", c->dungeons);
+    cJSON_AddNumberToObject(json, "vault_t8_plus", c->vault_t8_plus);
     cJSON_AddNumberToObject(json, "gilded_stash", c->gilded_stash);
     cJSON_AddBoolToObject(json, "gearing_up", c->gearing_up);
     cJSON_AddBoolToObject(json, "quests", c->quests);
     cJSON_AddNumberToObject(json, "timewalk", c->timewalk);
     cJSON_AddStringToObject(json, "notes", c->notes ? c->notes : "");
+
+    /* Week ID for tracking data freshness */
+    if (c->week_id) {
+        cJSON_AddStringToObject(json, "week_id", c->week_id);
+    }
 
     /* New aggregate fields */
     cJSON_AddNumberToObject(json, "upgrade_current", c->upgrade_current);
@@ -319,10 +330,18 @@ Character* character_from_json(const cJSON* json) {
     c->old_items = (int)get_json_number(json, "old_items", 0);
     c->vault_visited = get_json_bool(json, "vault_visited", false);
     c->delves = (int)get_json_number(json, "delves", 0);
+    c->dungeons = (int)get_json_number(json, "dungeons", 0);
+    c->vault_t8_plus = (int)get_json_number(json, "vault_t8_plus", 0);
     c->gilded_stash = (int)get_json_number(json, "gilded_stash", 0);
     c->gearing_up = get_json_bool(json, "gearing_up", false);
     c->quests = get_json_bool(json, "quests", false);
     c->timewalk = (int)get_json_number(json, "timewalk", 0);
+
+    /* Week ID for tracking data freshness */
+    const char* week_id = get_json_string(json, "week_id", NULL);
+    if (week_id) {
+        character_set_week_id(c, week_id);
+    }
 
     /* New aggregate fields */
     c->upgrade_current = (int)get_json_number(json, "upgrade_current", 0);

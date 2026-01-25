@@ -24,7 +24,9 @@ struct Character {
     int adventure_items;    /* 0-50 */
     int old_items;          /* 0-50 */
     bool vault_visited;
-    int delves;             /* 0-8 */
+    int delves;             /* 0-8, vault World row */
+    int dungeons;           /* 0-8, vault Dungeons row */
+    int vault_t8_plus;      /* Count of vault rewards at T8+ (ilvl 694+) */
     int gilded_stash;       /* 0-3 */
     bool gearing_up;
     bool quests;

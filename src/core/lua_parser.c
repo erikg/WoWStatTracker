@@ -265,6 +265,42 @@ static bool get_nested_bool(lua_State* L, const char* table_key,
 }
 
 /*
+ * Count T8+ rewards in a vault tiers/levels table.
+ * T8+ is tier/level >= 8 (delve tier 8+ or M+ key level 8+).
+ * These reward ilvl 694+ gear (gilded crests).
+ * Table format: { [threshold] = tier_level, ... } e.g., { [2] = 8, [4] = 11 }
+ */
+static int count_t8_plus_rewards(lua_State* L, const char* vault_key,
+                                  const char* tiers_key) {
+    lua_getfield(L, -1, vault_key);
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return 0;
+    }
+
+    lua_getfield(L, -1, tiers_key);
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 2);
+        return 0;
+    }
+
+    int count = 0;
+    lua_pushnil(L);
+    while (lua_next(L, -2) != 0) {
+        if (lua_isnumber(L, -1)) {
+            int tier_level = (int)lua_tonumber(L, -1);
+            if (tier_level >= 8) {
+                count++;
+            }
+        }
+        lua_pop(L, 1);
+    }
+
+    lua_pop(L, 2);  /* pop tiers_key and vault_key tables */
+    return count;
+}
+
+/*
  * Convert a Lua array to JSON array string: [1, 6, 9]
  */
 static char* lua_array_to_json_string(lua_State* L, const char* table_key,
@@ -425,6 +461,15 @@ static Character* parse_character(lua_State* L, const char* char_key) {
             c->delves--;
         }
     }
+
+    /* Dungeons: from vault_dungeons.count */
+    if (get_nested_number(L, "vault_dungeons", "count", &d)) {
+        c->dungeons = (int)d;
+    }
+
+    /* Count T8+ vault rewards (tier level >= 11 = ilvl 694+) */
+    c->vault_t8_plus = count_t8_plus_rewards(L, "vault_delves", "tiers") +
+                       count_t8_plus_rewards(L, "vault_dungeons", "levels");
 
     /* Gilded stash: from gilded_stash.claimed */
     if (get_nested_number(L, "gilded_stash", "claimed", &d)) {

@@ -292,12 +292,19 @@ static NSColor *kColorDefault;
         return 0;  /* ✅ Done */
     }
 
-    /* Check vault rewards - use delves as proxy for vault slots */
-    /* 1 delve = 1 slot, 4 delves = 2 slots, 8 delves = 3 slots */
-    int vaultSlots = 0;
-    if (character->delves >= 8) vaultSlots = 3;
-    else if (character->delves >= 4) vaultSlots = 2;
-    else if (character->delves >= 1) vaultSlots = 1;
+    /* Calculate vault slots from both delves (World row) and dungeons (Dungeons row) */
+    /* 1 = 1 slot, 4 = 2 slots, 8 = 3 slots (per row) */
+    int delveSlots = 0;
+    if (character->delves >= 8) delveSlots = 3;
+    else if (character->delves >= 4) delveSlots = 2;
+    else if (character->delves >= 1) delveSlots = 1;
+
+    int dungeonSlots = 0;
+    if (character->dungeons >= 8) dungeonSlots = 3;
+    else if (character->dungeons >= 4) dungeonSlots = 2;
+    else if (character->dungeons >= 1) dungeonSlots = 1;
+
+    int vaultSlots = delveSlots + dungeonSlots;
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {
@@ -311,6 +318,12 @@ static NSColor *kColorDefault;
 
     /* All hero gear + 3 vault slots = done */
     if (!hasNonHero && vaultSlots >= 3) {
+        return 0;  /* ✅ Done */
+    }
+
+    /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
+    /* (getting high-tier rewards means the character is effectively maxing out) */
+    if (hasNonHero && character->vault_t8_plus >= 3 && vaultSlots >= 3) {
         return 0;  /* ✅ Done */
     }
 

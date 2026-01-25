@@ -474,6 +474,121 @@ static void test_lua_parser_gear_fields_missing(void) {
     lua_parser_free_result(&result);
 }
 
+static void test_lua_parser_vault_t8_plus(void) {
+    /* Test parsing vault_t8_plus from vault_delves.tiers and vault_dungeons.levels */
+    const char* content =
+        "{\n"
+        "  characters = {\n"
+        "    [\"TestChar-Realm\"] = {\n"
+        "      item_level = 630,\n"
+        "      vault_delves = {\n"
+        "        count = 4,\n"
+        "        tiers = {\n"
+        "          [2] = 11,\n"  /* T8+ (tier >= 8) */
+        "          [4] = 8,\n"   /* T8+ (tier >= 8) */
+        "        },\n"
+        "      },\n"
+        "      vault_dungeons = {\n"
+        "        count = 4,\n"
+        "        levels = {\n"
+        "          [2] = 11,\n"  /* T8+ (level >= 8) */
+        "          [4] = 8,\n"   /* T8+ (level >= 8) */
+        "        },\n"
+        "      },\n"
+        "    }\n"
+        "  },\n"
+        "  metadata = { version = \"1.2.0\" }\n"
+        "}";
+
+    LuaParseResult result = lua_parser_parse_content(content);
+    TEST_ASSERT_NOT_NULL(result.characters);
+    TEST_ASSERT_EQUAL(1, result.count);
+
+    Character* c = result.characters[0];
+    TEST_ASSERT_NOT_NULL(c);
+
+    /* Should count 4 T8+ rewards (2 from delves + 2 from dungeons) */
+    TEST_ASSERT_EQUAL(4, c->vault_t8_plus);
+    TEST_ASSERT_EQUAL(4, c->delves);
+    TEST_ASSERT_EQUAL(4, c->dungeons);
+
+    lua_parser_free_result(&result);
+}
+
+static void test_lua_parser_vault_t8_plus_mixed(void) {
+    /* Test with mixed T8+ and lower tier rewards */
+    const char* content =
+        "{\n"
+        "  characters = {\n"
+        "    [\"TestChar-Realm\"] = {\n"
+        "      item_level = 630,\n"
+        "      vault_delves = {\n"
+        "        count = 8,\n"
+        "        tiers = {\n"
+        "          [2] = 7,\n"   /* NOT T8+ (tier < 8) */
+        "          [4] = 8,\n"   /* T8+ (tier >= 8) */
+        "          [8] = 11,\n"  /* T8+ (tier >= 8) */
+        "        },\n"
+        "      },\n"
+        "      vault_dungeons = {\n"
+        "        count = 2,\n"
+        "        levels = {\n"
+        "          [2] = 5,\n"   /* NOT T8+ (level < 8) */
+        "        },\n"
+        "      },\n"
+        "    }\n"
+        "  },\n"
+        "  metadata = { version = \"1.2.0\" }\n"
+        "}";
+
+    LuaParseResult result = lua_parser_parse_content(content);
+    TEST_ASSERT_NOT_NULL(result.characters);
+    TEST_ASSERT_EQUAL(1, result.count);
+
+    Character* c = result.characters[0];
+    TEST_ASSERT_NOT_NULL(c);
+
+    /* Should count 2 T8+ rewards (tier 8 and tier 11 from delves only) */
+    TEST_ASSERT_EQUAL(2, c->vault_t8_plus);
+    TEST_ASSERT_EQUAL(8, c->delves);
+    TEST_ASSERT_EQUAL(2, c->dungeons);
+
+    lua_parser_free_result(&result);
+}
+
+static void test_lua_parser_vault_t8_plus_none(void) {
+    /* Test with no T8+ rewards (all below tier 8) */
+    const char* content =
+        "{\n"
+        "  characters = {\n"
+        "    [\"TestChar-Realm\"] = {\n"
+        "      item_level = 630,\n"
+        "      vault_delves = {\n"
+        "        count = 4,\n"
+        "        tiers = {\n"
+        "          [2] = 5,\n"   /* NOT T8+ */
+        "          [4] = 7,\n"   /* NOT T8+ */
+        "        },\n"
+        "      },\n"
+        "    }\n"
+        "  },\n"
+        "  metadata = { version = \"1.2.0\" }\n"
+        "}";
+
+    LuaParseResult result = lua_parser_parse_content(content);
+    TEST_ASSERT_NOT_NULL(result.characters);
+    TEST_ASSERT_EQUAL(1, result.count);
+
+    Character* c = result.characters[0];
+    TEST_ASSERT_NOT_NULL(c);
+
+    /* Should count 0 T8+ rewards */
+    TEST_ASSERT_EQUAL(0, c->vault_t8_plus);
+    TEST_ASSERT_EQUAL(4, c->delves);
+
+    lua_parser_free_result(&result);
+}
+
 void test_lua_parser_suite(void) {
     RUN_TEST(test_lua_parser_empty_content);
     RUN_TEST(test_lua_parser_null_content);
@@ -494,4 +609,7 @@ void test_lua_parser_suite(void) {
     RUN_TEST(test_lua_parser_new_gear_fields);
     RUN_TEST(test_lua_parser_slot_upgrades);
     RUN_TEST(test_lua_parser_gear_fields_missing);
+    RUN_TEST(test_lua_parser_vault_t8_plus);
+    RUN_TEST(test_lua_parser_vault_t8_plus_mixed);
+    RUN_TEST(test_lua_parser_vault_t8_plus_none);
 }

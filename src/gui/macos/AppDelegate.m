@@ -688,12 +688,25 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
 
     if (addonIsCurrentWeek) {
         /* Addon data is from current week - import weekly fields */
+        /* Update week_id so we know this character's data is current */
+        if (!existing->week_id || !week_id_equal(existing->week_id, addon->week_id)) {
+            character_set_week_id(existing, addon->week_id);
+            changed = YES;
+        }
         if (addon->vault_visited != existing->vault_visited) {
             existing->vault_visited = addon->vault_visited;
             changed = YES;
         }
         if (addon->delves != existing->delves) {
             existing->delves = addon->delves;
+            changed = YES;
+        }
+        if (addon->dungeons != existing->dungeons) {
+            existing->dungeons = addon->dungeons;
+            changed = YES;
+        }
+        if (addon->vault_t8_plus != existing->vault_t8_plus) {
+            existing->vault_t8_plus = addon->vault_t8_plus;
             changed = YES;
         }
         if (addon->gilded_stash != existing->gilded_stash) {
@@ -714,9 +727,14 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
         }
     } else {
         /* Addon data is from a previous week - reset weekly fields */
-        if (existing->vault_visited || existing->delves > 0 || existing->gilded_stash > 0 ||
+        if (existing->vault_visited || existing->delves > 0 || existing->dungeons > 0 || existing->gilded_stash > 0 ||
             existing->gearing_up || existing->quests || existing->timewalk > 0) {
             character_reset_weekly(existing);
+            changed = YES;
+        }
+        /* Clear week_id since data is stale */
+        if (existing->week_id) {
+            character_set_week_id(existing, NULL);
             changed = YES;
         }
     }
