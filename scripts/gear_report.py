@@ -14,8 +14,11 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
-# Config and data paths
-CONFIG_DIR = Path.home() / "Library" / "Application Support" / "wowstat"
+# Config and data paths - platform specific
+if sys.platform == "win32":
+    CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home())) / "WoWStatTracker"
+else:
+    CONFIG_DIR = Path.home() / "Library" / "Application Support" / "WoWStatTracker"
 CONFIG_FILE = CONFIG_DIR / "wowstat_config.json"
 
 # Vault thresholds (activities needed for each slot)

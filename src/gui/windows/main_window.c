@@ -26,6 +26,7 @@
 #include "platform.h"
 #include "week_id.h"
 #include "version.h"
+#include "cJSON.h"
 
 /* Forward declarations for external app state */
 extern CharacterStore* GetCharacterStore(void);
@@ -108,6 +109,9 @@ static void HandleColumnClick(HWND hWnd, int column);
 static void SortListView(void);
 static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
 static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult);
+static const wchar_t* GetSlotName(int slotId);
+static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferLen);
+static int GetCharacterStatus(Character *ch);
 
 /* Register window class */
 static BOOL RegisterMainWindowClass(HINSTANCE hInstance) {
@@ -880,32 +884,148 @@ static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferL
     buffer[0] = L'\0';
     size_t pos = 0;
 
-    /* Show upgrade progress summary */
-    if (ch->upgrade_max > 0) {
-        int len = swprintf(buffer + pos, bufferLen - pos,
-            L"Upgrade Progress: %d/%d\n", ch->upgrade_current, ch->upgrade_max);
-        if (len > 0) pos += len;
+    /* Parse slot_upgrades_json to show per-slot upgrade needs */
+    if (ch->slot_upgrades_json && strlen(ch->slot_upgrades_json) > 2) {
+        cJSON *slots = cJSON_Parse(ch->slot_upgrades_json);
+        if (slots && cJSON_IsArray(slots) && cJSON_GetArraySize(slots) > 0) {
+            int len = swprintf(buffer + pos, bufferLen - pos, L"Upgrades Needed:\n");
+            if (len > 0) pos += len;
+
+            cJSON *slot;
+            cJSON_ArrayForEach(slot, slots) {
+                if (pos >= bufferLen - 50) break;  /* Leave room for text */
+
+                cJSON *slotName = cJSON_GetObjectItem(slot, "slot_name");
+                cJSON *track = cJSON_GetObjectItem(slot, "track");
+                cJSON *current = cJSON_GetObjectItem(slot, "current");
+                cJSON *max = cJSON_GetObjectItem(slot, "max");
+
+                if (slotName && track && current && max) {
+                    wchar_t slotNameW[64], trackW[32];
+                    MultiByteToWideChar(CP_UTF8, 0,
+                        cJSON_IsString(slotName) ? slotName->valuestring : "Unknown",
+                        -1, slotNameW, 64);
+                    MultiByteToWideChar(CP_UTF8, 0,
+                        cJSON_IsString(track) ? track->valuestring : "",
+                        -1, trackW, 32);
+
+                    len = swprintf(buffer + pos, bufferLen - pos,
+                        L"  %s - %s %d/%d\n",
+                        slotNameW, trackW,
+                        cJSON_IsNumber(current) ? current->valueint : 0,
+                        cJSON_IsNumber(max) ? max->valueint : 0);
+                    if (len > 0) pos += len;
+                }
+            }
+        }
+        if (slots) cJSON_Delete(slots);
     }
 
     /* Show sockets needing Technomancer's Gift */
-    if (ch->socket_missing_count > 0) {
-        int len = swprintf(buffer + pos, bufferLen - pos,
-            L"\nNeeds Technomancer's Gift: %d slot(s)\n", ch->socket_missing_count);
-        if (len > 0) pos += len;
+    if (ch->socket_missing_count > 0 && ch->missing_sockets_json) {
+        cJSON *slots = cJSON_Parse(ch->missing_sockets_json);
+        if (slots && cJSON_IsArray(slots) && cJSON_GetArraySize(slots) > 0) {
+            if (pos > 0) {
+                int len = swprintf(buffer + pos, bufferLen - pos, L"\n");
+                if (len > 0) pos += len;
+            }
+            int len = swprintf(buffer + pos, bufferLen - pos, L"Needs Technomancer's Gift:\n");
+            if (len > 0) pos += len;
+
+            cJSON *slotId;
+            cJSON_ArrayForEach(slotId, slots) {
+                if (pos >= bufferLen - 30) break;
+                if (cJSON_IsNumber(slotId)) {
+                    len = swprintf(buffer + pos, bufferLen - pos, L"  %s\n",
+                        GetSlotName(slotId->valueint));
+                    if (len > 0) pos += len;
+                }
+            }
+        }
+        if (slots) cJSON_Delete(slots);
     }
 
     /* Show empty sockets needing gems */
-    if (ch->socket_empty_count > 0) {
-        int len = swprintf(buffer + pos, bufferLen - pos,
-            L"\nNeeds Gem: %d socket(s)\n", ch->socket_empty_count);
-        if (len > 0) pos += len;
+    if (ch->socket_empty_count > 0 && ch->empty_sockets_json) {
+        cJSON *slots = cJSON_Parse(ch->empty_sockets_json);
+        if (slots && cJSON_IsArray(slots) && cJSON_GetArraySize(slots) > 0) {
+            if (pos > 0) {
+                int len = swprintf(buffer + pos, bufferLen - pos, L"\n");
+                if (len > 0) pos += len;
+            }
+            int len = swprintf(buffer + pos, bufferLen - pos, L"Needs Gem:\n");
+            if (len > 0) pos += len;
+
+            cJSON *slotId;
+            cJSON_ArrayForEach(slotId, slots) {
+                if (pos >= bufferLen - 30) break;
+                if (cJSON_IsNumber(slotId)) {
+                    len = swprintf(buffer + pos, bufferLen - pos, L"  %s\n",
+                        GetSlotName(slotId->valueint));
+                    if (len > 0) pos += len;
+                }
+            }
+        }
+        if (slots) cJSON_Delete(slots);
     }
 
     /* Show missing enchants */
-    if (ch->enchant_missing_count > 0) {
+    if (ch->enchant_missing_count > 0 && ch->missing_enchants_json) {
+        cJSON *slots = cJSON_Parse(ch->missing_enchants_json);
+        if (slots && cJSON_IsArray(slots) && cJSON_GetArraySize(slots) > 0) {
+            if (pos > 0) {
+                int len = swprintf(buffer + pos, bufferLen - pos, L"\n");
+                if (len > 0) pos += len;
+            }
+            int len = swprintf(buffer + pos, bufferLen - pos, L"Needs Enchant:\n  ");
+            if (len > 0) pos += len;
+
+            BOOL first = TRUE;
+            cJSON *slotId;
+            cJSON_ArrayForEach(slotId, slots) {
+                if (pos >= bufferLen - 30) break;
+                if (cJSON_IsNumber(slotId)) {
+                    if (!first) {
+                        len = swprintf(buffer + pos, bufferLen - pos, L", ");
+                        if (len > 0) pos += len;
+                    }
+                    len = swprintf(buffer + pos, bufferLen - pos, L"%s",
+                        GetSlotName(slotId->valueint));
+                    if (len > 0) pos += len;
+                    first = FALSE;
+                }
+            }
+            len = swprintf(buffer + pos, bufferLen - pos, L"\n");
+            if (len > 0) pos += len;
+        }
+        if (slots) cJSON_Delete(slots);
+    }
+
+    /* Show upgrade progress summary */
+    if (ch->upgrade_max > 0) {
+        if (pos > 0) {
+            int len = swprintf(buffer + pos, bufferLen - pos, L"\n");
+            if (len > 0) pos += len;
+        }
         int len = swprintf(buffer + pos, bufferLen - pos,
-            L"\nNeeds Enchant: %d slot(s)\n", ch->enchant_missing_count);
+            L"Upgrade Progress: %d/%d", ch->upgrade_current, ch->upgrade_max);
         if (len > 0) pos += len;
+    }
+
+    /* If no detailed info, show basic character info */
+    if (pos == 0) {
+        wchar_t nameW[256], realmW[256];
+        MultiByteToWideChar(CP_UTF8, 0, ch->name ? ch->name : "Unknown", -1, nameW, 256);
+        MultiByteToWideChar(CP_UTF8, 0, ch->realm ? ch->realm : "Unknown", -1, realmW, 256);
+
+        int len = swprintf(buffer + pos, bufferLen - pos,
+            L"%s - %s\niLevel: %.1f", nameW, realmW, ch->item_level);
+        if (len > 0) pos += len;
+
+        if (ch->heroic_items > 0) {
+            len = swprintf(buffer + pos, bufferLen - pos, L"\nHeroic: %d", ch->heroic_items);
+            if (len > 0) pos += len;
+        }
     }
 
     /* Trim trailing newline */
@@ -922,6 +1042,7 @@ static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferL
  * - Done if fully upgraded AND all sockets gemmed (enchants not required)
  * - Red X if no vault rewards at all
  * - Done if all hero gear AND 3+ vault slots
+ * - Done if non-hero gear but 3+ T8+ vault rewards with 3+ total slots
  * - Warning otherwise
  */
 static int GetCharacterStatus(Character *ch) {
@@ -940,12 +1061,19 @@ static int GetCharacterStatus(Character *ch) {
         return 0;  /* Done */
     }
 
-    /* Check vault rewards - use delves as proxy for vault slots */
-    /* 1 delve = 1 slot, 4 delves = 2 slots, 8 delves = 3 slots */
-    int vaultSlots = 0;
-    if (ch->delves >= 8) vaultSlots = 3;
-    else if (ch->delves >= 4) vaultSlots = 2;
-    else if (ch->delves >= 1) vaultSlots = 1;
+    /* Calculate vault slots from both delves (World row) and dungeons (Dungeons row) */
+    /* 1 = 1 slot, 4 = 2 slots, 8 = 3 slots (per row) */
+    int delveSlots = 0;
+    if (ch->delves >= 8) delveSlots = 3;
+    else if (ch->delves >= 4) delveSlots = 2;
+    else if (ch->delves >= 1) delveSlots = 1;
+
+    int dungeonSlots = 0;
+    if (ch->dungeons >= 8) dungeonSlots = 3;
+    else if (ch->dungeons >= 4) dungeonSlots = 2;
+    else if (ch->dungeons >= 1) dungeonSlots = 1;
+
+    int vaultSlots = delveSlots + dungeonSlots;
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {
@@ -959,6 +1087,12 @@ static int GetCharacterStatus(Character *ch) {
 
     /* All hero gear + 3 vault slots = done */
     if (!hasNonHero && vaultSlots >= 3) {
+        return 0;  /* Done */
+    }
+
+    /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
+    /* (getting high-tier rewards means the character is effectively maxing out) */
+    if (hasNonHero && ch->vault_t8_plus >= 3 && vaultSlots >= 3) {
         return 0;  /* Done */
     }
 
@@ -1336,10 +1470,10 @@ void DoAddonImport(HWND hWnd) {
     char svPath[MAX_PATH * 3];
     snprintf(svPath, sizeof(svPath), "%s/_retail_/WTF/Account", wowPath);
 
-    /* Find SavedVariables file - look for WoWStatTracker.lua in any account folder */
+    /* Find SavedVariables file - look for WoWStatTracker_Addon.lua in any account folder */
     /* For now, just try a pattern */
     char pattern[MAX_PATH * 4];
-    snprintf(pattern, sizeof(pattern), "%s/*/SavedVariables/WoWStatTracker.lua", svPath);
+    snprintf(pattern, sizeof(pattern), "%s/*/SavedVariables/WoWStatTracker_Addon.lua", svPath);
 
     /* Use FindFirstFile to search */
     wchar_t patternW[MAX_PATH * 4];
@@ -1363,7 +1497,7 @@ void DoAddonImport(HWND hWnd) {
                     char accountName[256];
                     WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, accountName, 256, NULL, NULL);
                     snprintf(firstAccountPath, sizeof(firstAccountPath),
-                             "%s/%s/SavedVariables/WoWStatTracker.lua", svPath, accountName);
+                             "%s/%s/SavedVariables/WoWStatTracker_Addon.lua", svPath, accountName);
 
                     /* Check if file exists */
                     DWORD attrs = GetFileAttributesA(firstAccountPath);
@@ -1418,6 +1552,8 @@ void DoAddonImport(HWND hWnd) {
                 existing->old_items = addonChar->old_items;
                 existing->vault_visited = addonChar->vault_visited;
                 existing->delves = addonChar->delves;
+                existing->dungeons = addonChar->dungeons;
+                existing->vault_t8_plus = addonChar->vault_t8_plus;
                 existing->gilded_stash = addonChar->gilded_stash;
                 existing->gearing_up = addonChar->gearing_up;
                 existing->quests = addonChar->quests;

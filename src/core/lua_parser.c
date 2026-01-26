@@ -330,14 +330,15 @@ static char* lua_array_to_json_string(lua_State* L, const char* table_key,
             snprintf(num, sizeof(num), "%s%d", first ? "" : ",", val);
             size_t len = strlen(num);
             if (pos + len < sizeof(buf) - 2) {
-                strcat(buf, num);
+                memcpy(buf + pos, num, len + 1);
                 pos += len;
                 first = 0;
             }
         }
         lua_pop(L, 1);
     }
-    strcat(buf, "]");
+    buf[pos++] = ']';
+    buf[pos] = '\0';
 
     lua_pop(L, 2);  /* pop array_key and table_key tables */
     return wst_strdup(buf);
@@ -390,7 +391,7 @@ static char* slot_upgrades_to_json_string(lua_State* L) {
                     first ? "" : ",", slot, slot_name, track, current, max);
                 size_t len = strlen(entry);
                 if (pos + len < sizeof(buf) - 2) {
-                    strcat(buf, entry);
+                    memcpy(buf + pos, entry, len + 1);
                     pos += len;
                     first = 0;
                 }
@@ -398,7 +399,8 @@ static char* slot_upgrades_to_json_string(lua_State* L) {
         }
         lua_pop(L, 1);
     }
-    strcat(buf, "]");
+    buf[pos++] = ']';
+    buf[pos] = '\0';
 
     lua_pop(L, 1);  /* pop slot_upgrades table */
     return first ? NULL : wst_strdup(buf);  /* Return NULL if empty */
