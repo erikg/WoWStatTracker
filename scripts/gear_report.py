@@ -16,9 +16,9 @@ from typing import Any
 
 # Config and data paths - platform specific
 if sys.platform == "win32":
-    CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home())) / "WoWStatTracker"
+    CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home())) / "wowstat"
 else:
-    CONFIG_DIR = Path.home() / "Library" / "Application Support" / "WoWStatTracker"
+    CONFIG_DIR = Path.home() / "Library" / "Application Support" / "wowstat"
 CONFIG_FILE = CONFIG_DIR / "wowstat_config.json"
 
 # Vault thresholds (activities needed for each slot)
