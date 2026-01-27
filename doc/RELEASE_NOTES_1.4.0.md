@@ -1,6 +1,6 @@
 # WoWStatTracker 1.4.0 Release Notes
 
-**Release Date:** January 26, 2026
+**Release Date:** January 27, 2026
 
 ## Overview
 
@@ -16,12 +16,14 @@ Version 1.4.0 adds a visual status column, detailed gear tooltips, and improved 
 ## New Features
 
 ### Status Column
-- ✅ Done: Fully upgraded gear OR 3+ vault slots (with T8+ rewards if non-hero gear)
+- ✅ Done: All Hero 8/8 gear with sockets gemmed, OR 3+ vault slots (with T8+ rewards if non-hero gear)
 - ⚠️ In Progress: Has vault rewards but not yet done
 - ❌ No Rewards: No vault activities completed
+- Characters with Champion/Veteran items at max level are not marked as done
 
 ### Per-Slot Tooltips
 - Shows which slots need upgrades (e.g., "Head - Hero 5/8")
+- Separates "Needs Hero Track" for Champion/Veteran 8/8 items (e.g., "Waist - Champion 8/8 (replace with Hero)")
 - Lists slots that can accept Technomancer's Gift sockets
 - Shows empty gem sockets and missing enchants
 
@@ -41,13 +43,15 @@ Version 1.4.0 adds a visual status column, detailed gear tooltips, and improved 
 - Added BfA timewalking quest ID (A Scarred Path Through Time)
 - Fixed socket detection using GetItemGem API
 - Improved vault tier/level data collection
+- Addon now reports non-hero items at max level for hero track guidance
 
 ## Bug Fixes
 
 - Fixed vault slot counting when SavedVariables has incomplete tier data
 - Fixed socket tracking to properly detect Technomancer's Gift
 - Fixed maxed characters (full upgrades + sockets) not showing as done
-- Fixed gear report script weekly reset detection
+- Fixed characters with Champion/Veteran 8/8 items incorrectly shown as fully upgraded
+- Fixed gear report config path and weekly reset detection
 
 ## Technical Improvements
 
