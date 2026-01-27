@@ -279,6 +279,11 @@ static NSColor *kColorDefault;
 - (int)statusForCharacter:(const Character *)character {
     if (!character) return 2;
 
+    /* Check if all hero gear (no champion/veteran/adventure) */
+    BOOL hasNonHero = (character->champion_items > 0 ||
+                       character->veteran_items > 0 ||
+                       character->adventure_items > 0);
+
     /* Check if fully upgraded */
     BOOL fullyUpgraded = (character->upgrade_max > 0 &&
                           character->upgrade_current >= character->upgrade_max);
@@ -287,8 +292,8 @@ static NSColor *kColorDefault;
     BOOL allSocketsGemmed = (character->socket_missing_count == 0 &&
                              character->socket_empty_count == 0);
 
-    /* Fully maxed = done regardless of vault */
-    if (fullyUpgraded && allSocketsGemmed) {
+    /* Fully maxed on all hero gear = done regardless of vault */
+    if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
         return 0;  /* ✅ Done */
     }
 
@@ -310,11 +315,6 @@ static NSColor *kColorDefault;
     if (vaultSlots == 0) {
         return 2;  /* ❌ No vault rewards */
     }
-
-    /* Check if all hero gear (no champion/veteran/adventure) */
-    BOOL hasNonHero = (character->champion_items > 0 ||
-                       character->veteran_items > 0 ||
-                       character->adventure_items > 0);
 
     /* All hero gear + 3 vault slots = done */
     if (!hasNonHero && vaultSlots >= 3) {
@@ -598,13 +598,42 @@ static NSColor *kColorDefault;
         NSData *data = [jsonStr dataUsingEncoding:NSUTF8StringEncoding];
         NSArray *slots = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
         if ([slots count] > 0) {
-            [tooltip appendString:@"Upgrades Needed:\n"];
+            /* Separate items needing upgrades vs needing hero track */
+            NSMutableArray *needsUpgrade = [NSMutableArray array];
+            NSMutableArray *needsHero = [NSMutableArray array];
             for (NSDictionary *slot in slots) {
-                NSString *slotName = slot[@"slot_name"] ?: @"Unknown";
-                NSString *track = slot[@"track"] ?: @"";
                 NSNumber *current = slot[@"current"] ?: @0;
                 NSNumber *max = slot[@"max"] ?: @0;
-                [tooltip appendFormat:@"  %@ - %@ %@/%@\n", slotName, track, current, max];
+                NSString *track = slot[@"track"] ?: @"";
+                if ([current intValue] >= [max intValue] &&
+                    ![track isEqualToString:@"Hero"] &&
+                    ![track isEqualToString:@"Myth"]) {
+                    [needsHero addObject:slot];
+                } else {
+                    [needsUpgrade addObject:slot];
+                }
+            }
+            if ([needsUpgrade count] > 0) {
+                [tooltip appendString:@"Upgrades Needed:\n"];
+                for (NSDictionary *slot in needsUpgrade) {
+                    NSString *slotName = slot[@"slot_name"] ?: @"Unknown";
+                    NSString *track = slot[@"track"] ?: @"";
+                    NSNumber *current = slot[@"current"] ?: @0;
+                    NSNumber *max = slot[@"max"] ?: @0;
+                    [tooltip appendFormat:@"  %@ - %@ %@/%@\n", slotName, track, current, max];
+                }
+            }
+            if ([needsHero count] > 0) {
+                if ([tooltip length] > 0) [tooltip appendString:@"\n"];
+                [tooltip appendString:@"Needs Hero Track:\n"];
+                for (NSDictionary *slot in needsHero) {
+                    NSString *slotName = slot[@"slot_name"] ?: @"Unknown";
+                    NSString *track = slot[@"track"] ?: @"";
+                    NSNumber *current = slot[@"current"] ?: @0;
+                    NSNumber *max = slot[@"max"] ?: @0;
+                    [tooltip appendFormat:@"  %@ - %@ %@/%@ (replace with Hero)\n",
+                        slotName, track, current, max];
+                }
             }
         }
     }

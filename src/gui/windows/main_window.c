@@ -888,34 +888,69 @@ static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferL
     if (ch->slot_upgrades_json && strlen(ch->slot_upgrades_json) > 2) {
         cJSON *slots = cJSON_Parse(ch->slot_upgrades_json);
         if (slots && cJSON_IsArray(slots) && cJSON_GetArraySize(slots) > 0) {
-            int len = swprintf(buffer + pos, bufferLen - pos, L"Upgrades Needed:\n");
-            if (len > 0) pos += len;
-
+            /* First pass: items needing upgrades on current track */
+            int hasUpgrades = 0;
             cJSON *slot;
             cJSON_ArrayForEach(slot, slots) {
-                if (pos >= bufferLen - 50) break;  /* Leave room for text */
-
-                cJSON *slotName = cJSON_GetObjectItem(slot, "slot_name");
-                cJSON *track = cJSON_GetObjectItem(slot, "track");
                 cJSON *current = cJSON_GetObjectItem(slot, "current");
                 cJSON *max = cJSON_GetObjectItem(slot, "max");
-
-                if (slotName && track && current && max) {
-                    wchar_t slotNameW[64], trackW[32];
-                    MultiByteToWideChar(CP_UTF8, 0,
-                        cJSON_IsString(slotName) ? slotName->valuestring : "Unknown",
-                        -1, slotNameW, 64);
-                    MultiByteToWideChar(CP_UTF8, 0,
-                        cJSON_IsString(track) ? track->valuestring : "",
-                        -1, trackW, 32);
-
-                    len = swprintf(buffer + pos, bufferLen - pos,
-                        L"  %s - %s %d/%d\n",
-                        slotNameW, trackW,
-                        cJSON_IsNumber(current) ? current->valueint : 0,
-                        cJSON_IsNumber(max) ? max->valueint : 0);
+                cJSON *track = cJSON_GetObjectItem(slot, "track");
+                if (!current || !max || !track) continue;
+                int cur = cJSON_IsNumber(current) ? current->valueint : 0;
+                int mx = cJSON_IsNumber(max) ? max->valueint : 0;
+                const char *trackStr = cJSON_IsString(track) ? track->valuestring : "";
+                /* Skip non-hero maxed items - they go in "Needs Hero Track" */
+                if (cur >= mx && strcmp(trackStr, "Hero") != 0 && strcmp(trackStr, "Myth") != 0)
+                    continue;
+                if (!hasUpgrades) {
+                    int len = swprintf(buffer + pos, bufferLen - pos, L"Upgrades Needed:\n");
                     if (len > 0) pos += len;
+                    hasUpgrades = 1;
                 }
+                if (pos >= bufferLen - 50) break;
+                cJSON *slotName = cJSON_GetObjectItem(slot, "slot_name");
+                wchar_t slotNameW[64], trackW[32];
+                MultiByteToWideChar(CP_UTF8, 0,
+                    cJSON_IsString(slotName) ? slotName->valuestring : "Unknown",
+                    -1, slotNameW, 64);
+                MultiByteToWideChar(CP_UTF8, 0, trackStr, -1, trackW, 32);
+                int len = swprintf(buffer + pos, bufferLen - pos,
+                    L"  %s - %s %d/%d\n", slotNameW, trackW, cur, mx);
+                if (len > 0) pos += len;
+            }
+
+            /* Second pass: non-hero items at max (need hero replacement) */
+            int hasNeedsHero = 0;
+            cJSON_ArrayForEach(slot, slots) {
+                cJSON *current = cJSON_GetObjectItem(slot, "current");
+                cJSON *max = cJSON_GetObjectItem(slot, "max");
+                cJSON *track = cJSON_GetObjectItem(slot, "track");
+                if (!current || !max || !track) continue;
+                int cur = cJSON_IsNumber(current) ? current->valueint : 0;
+                int mx = cJSON_IsNumber(max) ? max->valueint : 0;
+                const char *trackStr = cJSON_IsString(track) ? track->valuestring : "";
+                if (cur < mx || strcmp(trackStr, "Hero") == 0 || strcmp(trackStr, "Myth") == 0)
+                    continue;
+                if (!hasNeedsHero) {
+                    if (pos > 0) {
+                        int len = swprintf(buffer + pos, bufferLen - pos, L"\n");
+                        if (len > 0) pos += len;
+                    }
+                    int len = swprintf(buffer + pos, bufferLen - pos, L"Needs Hero Track:\n");
+                    if (len > 0) pos += len;
+                    hasNeedsHero = 1;
+                }
+                if (pos >= bufferLen - 60) break;
+                cJSON *slotName = cJSON_GetObjectItem(slot, "slot_name");
+                wchar_t slotNameW[64], trackW[32];
+                MultiByteToWideChar(CP_UTF8, 0,
+                    cJSON_IsString(slotName) ? slotName->valuestring : "Unknown",
+                    -1, slotNameW, 64);
+                MultiByteToWideChar(CP_UTF8, 0, trackStr, -1, trackW, 32);
+                int len = swprintf(buffer + pos, bufferLen - pos,
+                    L"  %s - %s %d/%d (replace with Hero)\n",
+                    slotNameW, trackW, cur, mx);
+                if (len > 0) pos += len;
             }
         }
         if (slots) cJSON_Delete(slots);
@@ -1048,6 +1083,11 @@ static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferL
 static int GetCharacterStatus(Character *ch) {
     if (!ch) return 2;
 
+    /* Check if all hero gear (no champion/veteran/adventure) */
+    BOOL hasNonHero = (ch->champion_items > 0 ||
+                       ch->veteran_items > 0 ||
+                       ch->adventure_items > 0);
+
     /* Check if fully upgraded */
     BOOL fullyUpgraded = (ch->upgrade_max > 0 &&
                           ch->upgrade_current >= ch->upgrade_max);
@@ -1056,8 +1096,8 @@ static int GetCharacterStatus(Character *ch) {
     BOOL allSocketsGemmed = (ch->socket_missing_count == 0 &&
                              ch->socket_empty_count == 0);
 
-    /* Fully maxed = done regardless of vault */
-    if (fullyUpgraded && allSocketsGemmed) {
+    /* Fully maxed on all hero gear = done regardless of vault */
+    if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
         return 0;  /* Done */
     }
 
@@ -1079,11 +1119,6 @@ static int GetCharacterStatus(Character *ch) {
     if (vaultSlots == 0) {
         return 2;  /* No vault rewards */
     }
-
-    /* Check if all hero gear (no champion/veteran/adventure) */
-    BOOL hasNonHero = (ch->champion_items > 0 ||
-                       ch->veteran_items > 0 ||
-                       ch->adventure_items > 0);
 
     /* All hero gear + 3 vault slots = done */
     if (!hasNonHero && vaultSlots >= 3) {

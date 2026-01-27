@@ -593,10 +593,11 @@ def analyze_character(char_data: dict, is_current_week: bool) -> dict:
         "class": char_class,
         "ilvl": ilvl,
         "hero_items": hero_items,
+        "champ_items": champ_items,
         "upgrade_current": upgrade_current,
         "upgrade_max": upgrade_max,
         "upgrades_left": upgrades_left,
-        "is_complete": upgrades_left == 0,
+        "is_complete": upgrades_left == 0 and champ_items == 0 and vet_items == 0,
         "vault_info": vault_info,
         "vault_display": format_vault_rewards(vault_info["rewards"]),
         "socket_info": socket_info,
@@ -696,7 +697,7 @@ def print_report(characters: list[dict]) -> None:
 
     print("## Hero Gear & Vault Report\n")
 
-    # Fully complete
+    # Fully complete (all hero 8/8, no champion/veteran items)
     if complete:
         print(f"### Fully 8/8 Hero ({len(complete)} characters)\n")
         headers = ["Character", "Class", "iLvl", "Vault Rewards", "Sockets", "Needs Gem", "Needs Enchant"]
