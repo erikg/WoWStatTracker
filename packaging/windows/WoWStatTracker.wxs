@@ -83,8 +83,12 @@
     <ComponentGroup Id="AddonComponents" Directory="AddonFolder">
       <Component Id="AddonTOC" Guid="*">
         <File Id="AddonTOCFile"
-              Source="$(var.AddonDir)\WoWStatTracker.toc"
+              Source="$(var.AddonDir)\WoWStatTracker_Addon.toc"
               KeyPath="yes" />
+      </Component>
+      <Component Id="AddonCore" Guid="*">
+        <File Id="CoreLua"
+              Source="$(var.AddonDir)\Core.lua" />
       </Component>
       <Component Id="AddonDataCollector" Guid="*">
         <File Id="DataCollectorLua"
@@ -93,6 +97,10 @@
       <Component Id="AddonEventHandler" Guid="*">
         <File Id="EventHandlerLua"
               Source="$(var.AddonDir)\EventHandler.lua" />
+      </Component>
+      <Component Id="AddonUI" Guid="*">
+        <File Id="UILua"
+              Source="$(var.AddonDir)\UI.lua" />
       </Component>
     </ComponentGroup>
 
@@ -127,7 +135,7 @@
 
     <!-- WiX UI -->
     <UIRef Id="WixUI_FeatureTree" />
-    <WixVariable Id="WixUILicenseRtf" Value="$(var.BuildDir)\..\..\..\LICENSE.rtf" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.BuildDir)\..\..\LICENSE.rtf" />
 
     <!-- Custom actions (optional) -->
     <!-- Add launch after install checkbox -->
