@@ -46,6 +46,9 @@ static HWND g_hMainWindow = NULL;
 static HWND g_hListView = NULL;
 static HWND g_hToolbar = NULL;
 static HWND g_hStatusBar = NULL;
+static HWND g_hRowTooltip = NULL;
+static wchar_t g_tooltipBuf[2048];
+static int g_lastTooltipItem = -1;
 
 /* Status message timer */
 #define STATUS_TIMEOUT_MS 8000
@@ -442,20 +445,6 @@ static LRESULT OnNotify(HWND hWnd, int idCtrl, LPNMHDR pnmh) {
                 return result;
             }
 
-            case LVN_GETINFOTIP: {
-                LPNMLVGETINFOTIP pGetInfoTip = (LPNMLVGETINFOTIP)pnmh;
-                CharacterStore *store = GetCharacterStore();
-                if (store && pGetInfoTip->iItem >= 0) {
-                    /* Get character index from lParam */
-                    LVITEMW lvi = { .mask = LVIF_PARAM, .iItem = pGetInfoTip->iItem };
-                    ListView_GetItem(g_hListView, &lvi);
-                    Character *ch = character_store_get(store, (int)lvi.lParam);
-                    if (ch) {
-                        BuildCharacterTooltip(ch, pGetInfoTip->pszText, pGetInfoTip->cchTextMax);
-                    }
-                }
-                break;
-            }
         }
     }
 
@@ -484,6 +473,80 @@ static void OnActivate(HWND hWnd, UINT state, HWND hWndActDeact, BOOL fMinimized
     }
 }
 
+/* ListView subclass to manage row tooltip on hover */
+static LRESULT CALLBACK ListViewSubclassProc(
+    HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+    UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+    (void)uIdSubclass;
+    (void)dwRefData;
+
+    if (uMsg == WM_MOUSEMOVE && g_hRowTooltip) {
+        POINT pt = { (SHORT)LOWORD(lParam), (SHORT)HIWORD(lParam) };
+        LVHITTESTINFO ht = { .pt = pt };
+        int item = ListView_HitTest(hWnd, &ht);
+
+        if (item != g_lastTooltipItem) {
+            TOOLINFOW ti = {
+                .cbSize = sizeof(TOOLINFOW),
+                .hwnd = hWnd,
+                .uId = 0,
+            };
+
+            if (g_lastTooltipItem >= 0) {
+                /* Hide old tooltip */
+                SendMessage(g_hRowTooltip, TTM_TRACKACTIVATE, FALSE, (LPARAM)&ti);
+            }
+
+            g_lastTooltipItem = item;
+
+            if (item >= 0) {
+                /* Build tooltip text for this row */
+                g_tooltipBuf[0] = L'\0';
+                CharacterStore *store = GetCharacterStore();
+                if (store) {
+                    LVITEMW lvi = { .mask = LVIF_PARAM, .iItem = item };
+                    ListView_GetItem(hWnd, &lvi);
+                    Character *ch = character_store_get(store, (int)lvi.lParam);
+                    if (ch) {
+                        BuildCharacterTooltip(ch, g_tooltipBuf, 2048);
+                    }
+                }
+
+                if (g_tooltipBuf[0] != L'\0') {
+                    ti.lpszText = g_tooltipBuf;
+                    SendMessage(g_hRowTooltip, TTM_UPDATETIPTEXTW, 0, (LPARAM)&ti);
+
+                    /* Position below cursor */
+                    POINT screen;
+                    GetCursorPos(&screen);
+                    SendMessage(g_hRowTooltip, TTM_TRACKPOSITION, 0,
+                        MAKELPARAM(screen.x + 16, screen.y + 16));
+                    SendMessage(g_hRowTooltip, TTM_TRACKACTIVATE, TRUE, (LPARAM)&ti);
+                }
+            }
+        }
+
+        /* Request WM_MOUSELEAVE tracking */
+        TRACKMOUSEEVENT tme = {
+            .cbSize = sizeof(tme),
+            .dwFlags = TME_LEAVE,
+            .hwndTrack = hWnd,
+        };
+        TrackMouseEvent(&tme);
+    } else if (uMsg == WM_MOUSELEAVE && g_hRowTooltip) {
+        TOOLINFOW ti = {
+            .cbSize = sizeof(TOOLINFOW),
+            .hwnd = hWnd,
+            .uId = 0,
+        };
+        SendMessage(g_hRowTooltip, TTM_TRACKACTIVATE, FALSE, (LPARAM)&ti);
+        g_lastTooltipItem = -1;
+    }
+
+    return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+}
+
 /* Create ListView control */
 static void CreateListView(HWND hWnd) {
     g_hListView = CreateWindowExW(
@@ -499,9 +562,33 @@ static void CreateListView(HWND hWnd) {
         NULL
     );
 
-    /* Set extended styles */
+    /* Set extended styles (no LVS_EX_INFOTIP - we use our own tooltip) */
     ListView_SetExtendedListViewStyle(g_hListView,
-        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP);
+        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
+
+    /* Create custom tooltip for full-row hover */
+    g_hRowTooltip = CreateWindowExW(
+        WS_EX_TOPMOST, TOOLTIPS_CLASSW, NULL,
+        WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+        hWnd, NULL, GetAppInstance(), NULL);
+
+    if (g_hRowTooltip) {
+        SendMessage(g_hRowTooltip, TTM_SETMAXTIPWIDTH, 0, 400);
+        SendMessage(g_hRowTooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 30000);
+
+        TOOLINFOW ti = {
+            .cbSize = sizeof(TOOLINFOW),
+            .uFlags = TTF_TRACK | TTF_ABSOLUTE,
+            .hwnd = g_hListView,
+            .uId = 0,
+            .lpszText = L"",
+        };
+        SendMessage(g_hRowTooltip, TTM_ADDTOOLW, 0, (LPARAM)&ti);
+
+        /* Subclass ListView to relay mouse events to our tooltip */
+        SetWindowSubclass(g_hListView, ListViewSubclassProc, 0, 0);
+    }
 
     /* Add columns */
     for (int i = 0; i < g_numColumns; i++) {
