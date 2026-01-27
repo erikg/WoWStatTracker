@@ -6,6 +6,7 @@
 #include "unity.h"
 #include "test_suites.h"
 #include "character.h"
+#include "util.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -72,10 +73,10 @@ static void test_character_copy_new_fields(void) {
     c1->socket_missing_count = 2;
     c1->socket_empty_count = 1;
     c1->enchant_missing_count = 3;
-    c1->slot_upgrades_json = strdup("[{\"slot\":1}]");
-    c1->missing_sockets_json = strdup("[1,6]");
-    c1->empty_sockets_json = strdup("[9]");
-    c1->missing_enchants_json = strdup("[5,7,8]");
+    c1->slot_upgrades_json = wst_strdup("[{\"slot\":1}]");
+    c1->missing_sockets_json = wst_strdup("[1,6]");
+    c1->empty_sockets_json = wst_strdup("[9]");
+    c1->missing_enchants_json = wst_strdup("[5,7,8]");
 
     Character* c2 = character_copy(c1);
     TEST_ASSERT_NOT_NULL(c2);
@@ -234,10 +235,10 @@ static void test_character_to_json_new_fields(void) {
     c->socket_missing_count = 2;
     c->socket_empty_count = 1;
     c->enchant_missing_count = 3;
-    c->slot_upgrades_json = strdup("[{\"slot\":1,\"track\":\"Hero\",\"current\":5,\"max\":8}]");
-    c->missing_sockets_json = strdup("[1,6]");
-    c->empty_sockets_json = strdup("[9]");
-    c->missing_enchants_json = strdup("[5,7,8]");
+    c->slot_upgrades_json = wst_strdup("[{\"slot\":1,\"track\":\"Hero\",\"current\":5,\"max\":8}]");
+    c->missing_sockets_json = wst_strdup("[1,6]");
+    c->empty_sockets_json = wst_strdup("[9]");
+    c->missing_enchants_json = wst_strdup("[5,7,8]");
 
     cJSON* json = character_to_json(c);
     TEST_ASSERT_NOT_NULL(json);
