@@ -31,6 +31,7 @@ struct Character {
     bool gearing_up;
     bool quests;
     int timewalk;           /* 0-5 */
+    bool timewalk_accepted; /* Whether TW quest is accepted this week */
     char* notes;
     char* week_id;          /* Week ID when data was collected (e.g., "20251230") */
 

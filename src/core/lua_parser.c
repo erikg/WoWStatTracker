@@ -480,6 +480,9 @@ static Character* parse_character(lua_State* L, const char* char_key) {
 
     /* Timewalk: check timewalking_quest completion status */
     bool tw_complete = false;
+    bool tw_accepted = false;
+    get_nested_bool(L, "timewalking_quest", "accepted", &tw_accepted);
+    c->timewalk_accepted = tw_accepted;
     if (get_nested_bool(L, "timewalking_quest", "completed", &tw_complete)) {
         if (tw_complete) {
             c->timewalk = WST_MAX_TIMEWALK;

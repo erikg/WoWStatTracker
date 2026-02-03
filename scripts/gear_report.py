@@ -6,6 +6,7 @@ Reads character data from WoW addon SavedVariables and generates a report
 showing hero gear progress and vault rewards.
 """
 
+import argparse
 import json
 import os
 import re
@@ -490,7 +491,18 @@ def format_vault_rewards(rewards: list) -> str:
     return ", ".join(parts)
 
 
-def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict) -> str:
+def get_timewalk_progress(char_data: dict) -> int:
+    """Get timewalking quest progress (0-5)."""
+    tw_quest = char_data.get("timewalking_quest", {})
+    if isinstance(tw_quest, dict):
+        if tw_quest.get("completed"):
+            return 5
+        return int(tw_quest.get("progress", 0))
+    return 0
+
+
+def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict,
+                     tw_available: bool) -> str:
     """Determine status emoji for character."""
     hero_items = char_data.get("heroic_items", 0)
     champ_items = char_data.get("champion_items", 0)
@@ -500,6 +512,7 @@ def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict) -> st
     has_non_hero = champ_items > 0 or vet_items > 0 or adv_items > 0
     total_slots = vault_info["total_slots"]
     has_t8_plus = vault_info["has_t8_plus"]
+    timewalk = get_timewalk_progress(char_data)
 
     # Check if fully maxed (all upgrades done + all sockets gemmed)
     upgrade_current = char_data.get("upgrade_current", 0)
@@ -507,13 +520,20 @@ def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict) -> st
     fully_upgraded = upgrade_max > 0 and upgrade_current == upgrade_max
     all_sockets_gemmed = socket_info["missing_count"] == 0 and socket_info["empty_count"] == 0
 
-    # Fully maxed character = done regardless of vault
-    if fully_upgraded and all_sockets_gemmed:
+    # Fully maxed character on all hero gear = done regardless of vault
+    # But still need at least 1 TW if available
+    if fully_upgraded and all_sockets_gemmed and not has_non_hero:
+        if tw_available and timewalk < 1:
+            return "⚠️"
         return "✅"
 
     # No vault rewards at all = red X
     if total_slots == 0:
         return "❌"
+
+    # If TW is available, everyone needs at least 1 TW completion
+    if tw_available and timewalk < 1:
+        return "⚠️"
 
     # Done criteria (vault-based for characters still upgrading)
     if not has_non_hero and total_slots >= 3:
@@ -521,18 +541,23 @@ def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict) -> st
         return "✅"
     elif has_non_hero and has_t8_plus >= 3 and total_slots >= 3:
         # Has champ/vet gear: need 3+ T8+ (gilded) + 3 total vault rewards
+        # Also need 5/5 timewalking if TW is available (drops random hero gear)
+        if tw_available and timewalk < 5:
+            return "⚠️"
         return "✅"
 
     # In between (has some rewards but not done)
     return "⚠️"
 
 
-def analyze_character(char_data: dict, is_current_week: bool) -> dict:
+def analyze_character(char_data: dict, is_current_week: bool,
+                      tw_available: bool) -> dict:
     """Analyze a single character's data.
 
     Args:
         char_data: Character data from SavedVariables
         is_current_week: Whether the data's week_id matches the current week
+        tw_available: Whether timewalking is available this week
     """
     name = char_data.get("name", "Unknown")
     realm = char_data.get("realm", "Unknown")
@@ -547,6 +572,7 @@ def analyze_character(char_data: dict, is_current_week: bool) -> dict:
         char_data["vault_dungeons"] = {}
         char_data["delves"] = 0
         char_data["timewalking_done"] = False
+        char_data["timewalking_quest"] = {}
 
     hero_items = char_data.get("heroic_items", 0)
     champ_items = char_data.get("champion_items", 0)
@@ -559,7 +585,7 @@ def analyze_character(char_data: dict, is_current_week: bool) -> dict:
     vault_info = analyze_vault_rewards(char_data)
     socket_info = analyze_socket_info(char_data)
     enchant_info = analyze_enchant_info(char_data)
-    status = get_status_emoji(char_data, vault_info, socket_info)
+    status = get_status_emoji(char_data, vault_info, socket_info, tw_available)
 
     # Determine missing gear notes
     missing = []
@@ -771,6 +797,16 @@ def print_report(characters: list[dict]) -> None:
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Generate hero gear and vault progress report from WoW addon data"
+    )
+    parser.add_argument(
+        "--hide-done",
+        action="store_true",
+        help="Hide characters that are done for the week (✅ status)"
+    )
+    args = parser.parse_args()
+
     # Load config
     config = load_config()
     wow_path = config.get("wow_path")
@@ -807,6 +843,18 @@ def main():
     # Get current week_id for comparison
     current_week_id = get_current_week_id()
 
+    # First pass: detect if timewalking is available this week
+    # (any character with current week data has TW quest accepted or progress > 0)
+    tw_available = False
+    for char_key, char_data in characters_data.items():
+        if isinstance(char_data, dict):
+            char_week_id = char_data.get("week_id", "")
+            if char_week_id == current_week_id:
+                tw_quest = char_data.get("timewalking_quest", {})
+                if isinstance(tw_quest, dict) and (tw_quest.get("accepted") or tw_quest.get("progress", 0) > 0):
+                    tw_available = True
+                    break
+
     # Analyze characters
     characters = []
     for char_key, char_data in characters_data.items():
@@ -814,11 +862,15 @@ def main():
             # Check if this character's data is from the current week
             char_week_id = char_data.get("week_id", "")
             is_current_week = char_week_id == current_week_id
-            analysis = analyze_character(char_data, is_current_week)
+            analysis = analyze_character(char_data, is_current_week, tw_available)
             # Add notes from app data
             if analysis["full_name"] in notes_map:
                 analysis["user_notes"] = notes_map[analysis["full_name"]]
             characters.append(analysis)
+
+    # Filter out done characters if requested
+    if args.hide_done:
+        characters = [c for c in characters if c["status"] != "✅"]
 
     # Print report
     print_report(characters)

@@ -95,6 +95,7 @@ Character* character_copy(const Character* src) {
     c->gearing_up = src->gearing_up;
     c->quests = src->quests;
     c->timewalk = src->timewalk;
+    c->timewalk_accepted = src->timewalk_accepted;
 
     /* Copy new aggregate fields */
     c->upgrade_current = src->upgrade_current;
@@ -226,6 +227,7 @@ void character_reset_weekly(Character* c) {
     c->gearing_up = false;
     c->quests = false;
     c->timewalk = 0;
+    c->timewalk_accepted = false;
 }
 
 cJSON* character_to_json(const Character* c) {
@@ -251,6 +253,7 @@ cJSON* character_to_json(const Character* c) {
     cJSON_AddBoolToObject(json, "gearing_up", c->gearing_up);
     cJSON_AddBoolToObject(json, "quests", c->quests);
     cJSON_AddNumberToObject(json, "timewalk", c->timewalk);
+    cJSON_AddBoolToObject(json, "timewalk_accepted", c->timewalk_accepted);
     cJSON_AddStringToObject(json, "notes", c->notes ? c->notes : "");
 
     /* Week ID for tracking data freshness */
@@ -336,6 +339,7 @@ Character* character_from_json(const cJSON* json) {
     c->gearing_up = get_json_bool(json, "gearing_up", false);
     c->quests = get_json_bool(json, "quests", false);
     c->timewalk = (int)get_json_number(json, "timewalk", 0);
+    c->timewalk_accepted = get_json_bool(json, "timewalk_accepted", false);
 
     /* Week ID for tracking data freshness */
     const char* week_id = get_json_string(json, "week_id", NULL);

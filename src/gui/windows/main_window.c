@@ -37,6 +37,8 @@ extern HINSTANCE GetAppInstance(void);
 /* Forward declarations for static functions */
 static BOOL DoAddonInstall(HWND hWnd);
 static BOOL DoAddonUninstall(HWND hWnd);
+static BOOL IsTimewalkingAvailable(void);
+static int GetCharacterStatus(const Character *ch, BOOL twAvailable);
 
 /* Window class name */
 static const wchar_t CLASS_NAME[] = L"WoWStatTrackerMain";
@@ -114,7 +116,6 @@ static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSor
 static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult);
 static const wchar_t* GetSlotName(int slotId);
 static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferLen);
-static int GetCharacterStatus(Character *ch);
 
 /* Register window class */
 static BOOL RegisterMainWindowClass(HINSTANCE hInstance) {
@@ -774,9 +775,10 @@ static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSor
     if (!c1 || !c2) return 0;
 
     int result = 0;
+    BOOL twAvailable = IsTimewalkingAvailable();
 
     switch (g_sortColumn) {
-        case 0: result = GetCharacterStatus(c1) - GetCharacterStatus(c2); break; /* Status */
+        case 0: result = GetCharacterStatus(c1, twAvailable) - GetCharacterStatus(c2, twAvailable); break; /* Status */
         case 1: result = strcmp(c1->realm ? c1->realm : "", c2->realm ? c2->realm : ""); break;
         case 2: result = strcmp(c1->name ? c1->name : "", c2->name ? c2->name : ""); break;
         case 3: result = strcmp(c1->guild ? c1->guild : "", c2->guild ? c2->guild : ""); break;
@@ -855,10 +857,13 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
             /* For colored cells, use dark text in light mode, light text in dark mode */
             COLORREF coloredText = g_darkMode ? DARK_TEXT_COLOR : RGB(0, 0, 0);
 
+            /* Check if timewalking is available (cached per paint cycle) */
+            BOOL twAvailable = IsTimewalkingAvailable();
+
             switch (subItem) {
                 case 0: /* Status column */
                     {
-                        int status = GetCharacterStatus(ch);
+                        int status = GetCharacterStatus(ch, twAvailable);
                         if (status == 0) {
                             pcd->clrTextBk = green;
                             pcd->clrText = coloredText;
@@ -1157,17 +1162,35 @@ static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferL
 }
 
 /*
+ * Check if timewalking is available this week.
+ * Returns TRUE if any character has timewalk quest accepted or progress > 0.
+ */
+static BOOL IsTimewalkingAvailable(void) {
+    CharacterStore *store = GetCharacterStore();
+    if (!store) return FALSE;
+
+    size_t count = character_store_count(store);
+    for (size_t i = 0; i < count; i++) {
+        Character *ch = character_store_get(store, i);
+        if (ch && (ch->timewalk_accepted || ch->timewalk > 0)) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/*
  * Calculate character status for the status column.
  * Returns: 0 = done, 1 = needs work, 2 = not started/bad
  *
  * Logic matches gear_report.py:
- * - Done if fully upgraded AND all sockets gemmed (enchants not required)
+ * - Done if fully upgraded AND all sockets gemmed AND all hero gear
  * - Red X if no vault rewards at all
  * - Done if all hero gear AND 3+ vault slots
- * - Done if non-hero gear but 3+ T8+ vault rewards with 3+ total slots
+ * - Done if non-hero gear AND 3+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
  * - Warning otherwise
  */
-static int GetCharacterStatus(Character *ch) {
+static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
     if (!ch) return 2;
 
     /* Check if all hero gear (no champion/veteran/adventure) */
@@ -1184,7 +1207,11 @@ static int GetCharacterStatus(Character *ch) {
                              ch->socket_empty_count == 0);
 
     /* Fully maxed on all hero gear = done regardless of vault */
+    /* But still need at least 1 TW if available */
     if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
+        if (twAvailable && ch->timewalk < 1) {
+            return 1;  /* Need to do at least 1 timewalking */
+        }
         return 0;  /* Done */
     }
 
@@ -1207,14 +1234,22 @@ static int GetCharacterStatus(Character *ch) {
         return 2;  /* No vault rewards */
     }
 
+    /* If TW is available, everyone needs at least 1 TW completion */
+    if (twAvailable && ch->timewalk < 1) {
+        return 1;  /* Need to do at least 1 timewalking */
+    }
+
     /* All hero gear + 3 vault slots = done */
     if (!hasNonHero && vaultSlots >= 3) {
         return 0;  /* Done */
     }
 
     /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
-    /* (getting high-tier rewards means the character is effectively maxing out) */
+    /* Also need 5/5 timewalking if TW is available (drops random hero gear) */
     if (hasNonHero && ch->vault_t8_plus >= 3 && vaultSlots >= 3) {
+        if (twAvailable && ch->timewalk < 5) {
+            return 1;  /* Need to complete timewalking */
+        }
         return 0;  /* Done */
     }
 
@@ -1231,6 +1266,9 @@ void RefreshCharacterList(void) {
     /* Clear existing items */
     ListView_DeleteAllItems(g_hListView);
 
+    /* Check if timewalking is available this week */
+    BOOL twAvailable = IsTimewalkingAvailable();
+
     /* Add characters */
     int count = (int)character_store_count(store);
     for (int i = 0; i < count; i++) {
@@ -1245,7 +1283,7 @@ void RefreshCharacterList(void) {
         MultiByteToWideChar(CP_UTF8, 0, ch->notes ? ch->notes : "", -1, notes, 512);
 
         /* Calculate status */
-        int status = GetCharacterStatus(ch);
+        int status = GetCharacterStatus(ch, twAvailable);
         wchar_t statusText[4];
         switch (status) {
             case 0: wcscpy_s(statusText, 4, L"\u2705"); break; /* ✅ */

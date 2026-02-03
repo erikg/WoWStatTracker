@@ -181,8 +181,9 @@ static NSColor *kColorDefault;
             NSComparisonResult result = NSOrderedSame;
 
             if ([key isEqualToString:kColStatus]) {
-                int statusA = [self statusForCharacter:charA];
-                int statusB = [self statusForCharacter:charB];
+                BOOL twAvailable = [self isTimewalkingAvailable];
+                int statusA = [self statusForCharacter:charA twAvailable:twAvailable];
+                int statusB = [self statusForCharacter:charB twAvailable:twAvailable];
                 if (statusA < statusB) result = NSOrderedAscending;
                 else if (statusA > statusB) result = NSOrderedDescending;
             } else if ([key isEqualToString:kColRealm]) {
@@ -267,16 +268,34 @@ static NSColor *kColorDefault;
 }
 
 /*
+ * Check if timewalking is available this week.
+ * Returns YES if any character has timewalk quest accepted or progress > 0.
+ */
+- (BOOL)isTimewalkingAvailable {
+    if (!self.characterStore) return NO;
+
+    size_t count = character_store_count(self.characterStore);
+    for (size_t i = 0; i < count; i++) {
+        const Character *ch = character_store_get(self.characterStore, i);
+        if (ch && (ch->timewalk_accepted || ch->timewalk > 0)) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+/*
  * Calculate character status for the status column.
  * Returns: 0 = done (✅), 1 = needs work (⚠️), 2 = not started/bad (❌)
  *
  * Logic matches gear_report.py:
- * - ✅ if fully upgraded AND all sockets gemmed (enchants not required)
+ * - ✅ if fully upgraded AND all sockets gemmed AND all hero gear
  * - ❌ if no vault rewards at all
  * - ✅ if all hero gear AND 3+ vault slots
+ * - ✅ if non-hero gear AND 3+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
  * - ⚠️ otherwise
  */
-- (int)statusForCharacter:(const Character *)character {
+- (int)statusForCharacter:(const Character *)character twAvailable:(BOOL)twAvailable {
     if (!character) return 2;
 
     /* Check if all hero gear (no champion/veteran/adventure) */
@@ -293,7 +312,11 @@ static NSColor *kColorDefault;
                              character->socket_empty_count == 0);
 
     /* Fully maxed on all hero gear = done regardless of vault */
+    /* But still need at least 1 TW if available */
     if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
+        if (twAvailable && character->timewalk < 1) {
+            return 1;  /* ⚠️ Need to do at least 1 timewalking */
+        }
         return 0;  /* ✅ Done */
     }
 
@@ -316,14 +339,22 @@ static NSColor *kColorDefault;
         return 2;  /* ❌ No vault rewards */
     }
 
+    /* If TW is available, everyone needs at least 1 TW completion */
+    if (twAvailable && character->timewalk < 1) {
+        return 1;  /* ⚠️ Need to do at least 1 timewalking */
+    }
+
     /* All hero gear + 3 vault slots = done */
     if (!hasNonHero && vaultSlots >= 3) {
         return 0;  /* ✅ Done */
     }
 
     /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
-    /* (getting high-tier rewards means the character is effectively maxing out) */
+    /* Also need 5/5 timewalking if TW is available (drops random hero gear) */
     if (hasNonHero && character->vault_t8_plus >= 3 && vaultSlots >= 3) {
+        if (twAvailable && character->timewalk < 5) {
+            return 1;  /* ⚠️ Need to complete timewalking */
+        }
         return 0;  /* ✅ Done */
     }
 
@@ -342,7 +373,8 @@ static NSColor *kColorDefault;
     NSString *identifier = [tableColumn identifier];
 
     if ([identifier isEqualToString:kColStatus]) {
-        int status = [self statusForCharacter:character];
+        BOOL twAvailable = [self isTimewalkingAvailable];
+        int status = [self statusForCharacter:character twAvailable:twAvailable];
         switch (status) {
             case 0: return @"✅";
             case 2: return @"❌";
