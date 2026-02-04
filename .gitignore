@@ -42,3 +42,4 @@ tmp/
 
 # Claude Code
 CLAUDE.md
+dist/
