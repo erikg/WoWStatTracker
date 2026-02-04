@@ -4,7 +4,7 @@
 
 ## Overview
 
-Version 1.4.0 adds a visual status column, detailed gear tooltips, and improved vault tracking to help you quickly see which characters are done for the week.
+Version 1.4.0 adds a visual status column, detailed gear tooltips, improved vault tracking, Technomancer's Gift socket tracking, and a gear report script. This release includes all changes since 1.2.0.
 
 ## Highlights
 
@@ -12,6 +12,8 @@ Version 1.4.0 adds a visual status column, detailed gear tooltips, and improved 
 - **Gear Tooltips**: Hover over rows to see per-slot upgrade, socket, and enchant details
 - **T8+ Vault Tracking**: Accurately tracks high-tier (ilvl 694+) vault rewards
 - **Dungeon Vault Support**: Now tracks both delve and dungeon vault progress
+- **Technomancer's Gift Tracking**: Detects items missing sockets in Head, Waist, Wrist slots
+- **Gear Report Script**: New Python script generates markdown reports from SavedVariables
 
 ## New Features
 
@@ -32,10 +34,17 @@ Version 1.4.0 adds a visual status column, detailed gear tooltips, and improved 
 - Counts T8+ rewards (tier/level 8+) for accurate done status
 - Characters with non-hero gear need 3+ T8+ rewards to show done
 
-### Socket and Enchant Tracking
-- Tracks Technomancer's Gift socketable slots (Head, Waist, Wrist)
-- Detects empty sockets missing gems
-- Identifies slots missing enchants
+### Technomancer's Gift Socket Tracking
+- Addon detects items missing Technomancer's Gift sockets (Head, Waist, Wrist)
+- Uses GetItemGem API for reliable socket detection
+- Reports socketable vs socketed counts per character
+
+### Gear Report Script
+- New `scripts/gear_report.py` generates a markdown report from SavedVariables
+- Shows hero gear upgrade progress (X/Y levels, upgrades remaining)
+- Vault rewards by tier with item levels (T8+ at 710, T2 at 678, T1 at 671)
+- Status indicators: done, needs work, no vault rewards
+- Empty socket and missing enchantment tracking
 
 ## Addon Changes
 
@@ -46,6 +55,7 @@ Version 1.4.0 adds a visual status column, detailed gear tooltips, and improved 
 - Fixed socket detection using GetItemGem API
 - Improved vault tier/level data collection
 - Addon now reports non-hero items at max level for hero track guidance
+- Fixed `/wst update` not clearing chat box by deferring to next frame
 
 ## Bug Fixes
 
