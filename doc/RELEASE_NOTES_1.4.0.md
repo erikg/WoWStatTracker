@@ -64,4 +64,5 @@ Version 1.4.0 adds a visual status column, detailed gear tooltips, and improved 
 ## Download
 
 - **macOS**: WoWStatTracker-1.4.0-macOS.dmg
-- **Windows**: WoWStatTracker-1.4.0-windows-x64-setup.exe
+- **Windows (installer)**: WoWStatTracker-1.4.0-windows-x64-setup.exe
+- **Windows (standalone)**: WoWStatTracker-1.4.0-windows-x64.zip - no installation required
