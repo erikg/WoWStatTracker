@@ -1,6 +1,6 @@
 # WoWStatTracker 1.4.0 Release Notes
 
-**Release Date:** January 27, 2026
+**Release Date:** February 4, 2026
 
 ## Overview
 
@@ -40,7 +40,9 @@ Version 1.4.0 adds a visual status column, detailed gear tooltips, and improved 
 ## Addon Changes
 
 - Updated interface version for WoW patch 12.0.0
+- Added Shadowlands timewalking quest ID (A Shadowed Path Through Time - 92649)
 - Added BfA timewalking quest ID (A Scarred Path Through Time)
+- Improved timewalking detection: now detects TW availability when quest is accepted (not just when progress > 0)
 - Fixed socket detection using GetItemGem API
 - Improved vault tier/level data collection
 - Addon now reports non-hero items at max level for hero track guidance
@@ -62,4 +64,4 @@ Version 1.4.0 adds a visual status column, detailed gear tooltips, and improved 
 ## Download
 
 - **macOS**: WoWStatTracker-1.4.0-macOS.dmg
-- **Windows**: WoWStatTracker-1.4.0-Setup.exe
+- **Windows**: WoWStatTracker-1.4.0-windows-x64-setup.exe
