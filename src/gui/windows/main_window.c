@@ -39,6 +39,7 @@ static BOOL DoAddonInstall(HWND hWnd);
 static BOOL DoAddonUninstall(HWND hWnd);
 static BOOL IsTimewalkingAvailable(void);
 static int GetCharacterStatus(const Character *ch, BOOL twAvailable);
+static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buffer, size_t bufferLen);
 
 /* Window class name */
 static const wchar_t CLASS_NAME[] = L"WoWStatTrackerMain";
@@ -115,7 +116,7 @@ static void SortListView(void);
 static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
 static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult);
 static const wchar_t* GetSlotName(int slotId);
-static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferLen);
+static void BuildCharacterTooltip(Character *ch, BOOL twAvailable, wchar_t *buffer, size_t bufferLen);
 
 /* Register window class */
 static BOOL RegisterMainWindowClass(HINSTANCE hInstance) {
@@ -510,7 +511,8 @@ static LRESULT CALLBACK ListViewSubclassProc(
                     ListView_GetItem(hWnd, &lvi);
                     Character *ch = character_store_get(store, (int)lvi.lParam);
                     if (ch) {
-                        BuildCharacterTooltip(ch, g_tooltipBuf, 2048);
+                        BOOL twAvailable = IsTimewalkingAvailable();
+                        BuildCharacterTooltip(ch, twAvailable, g_tooltipBuf, 2048);
                     }
                 }
 
@@ -970,11 +972,17 @@ static const wchar_t* GetSlotName(int slotId) {
 }
 
 /* Build tooltip text for a character */
-static void BuildCharacterTooltip(Character *ch, wchar_t *buffer, size_t bufferLen) {
+static void BuildCharacterTooltip(Character *ch, BOOL twAvailable, wchar_t *buffer, size_t bufferLen) {
     if (!ch || !buffer || bufferLen == 0) return;
 
     buffer[0] = L'\0';
     size_t pos = 0;
+
+    /* Add status reason at the top */
+    wchar_t statusReason[256];
+    GetStatusReason(ch, twAvailable, statusReason, 256);
+    int len = swprintf(buffer + pos, bufferLen - pos, L"%s\n", statusReason);
+    if (len > 0) pos += len;
 
     /* Parse slot_upgrades_json to show per-slot upgrade needs */
     if (ch->slot_upgrades_json && strlen(ch->slot_upgrades_json) > 2) {
@@ -1254,6 +1262,115 @@ static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
     }
 
     return 1;  /* In progress */
+}
+
+/*
+ * Get a human-readable explanation for why the character has their current status.
+ */
+static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buffer, size_t bufferLen) {
+    if (!ch || !buffer || bufferLen == 0) {
+        if (buffer && bufferLen > 0) wcscpy_s(buffer, bufferLen, L"No character data");
+        return;
+    }
+
+    /* Check if all hero gear (no champion/veteran/adventure) */
+    BOOL hasNonHero = (ch->champion_items > 0 ||
+                       ch->veteran_items > 0 ||
+                       ch->adventure_items > 0);
+
+    /* Check if fully upgraded */
+    BOOL fullyUpgraded = (ch->upgrade_max > 0 &&
+                          ch->upgrade_current >= ch->upgrade_max);
+
+    /* Check sockets */
+    BOOL allSocketsGemmed = (ch->socket_missing_count == 0 &&
+                             ch->socket_empty_count == 0);
+
+    /* Fully maxed on all hero gear = done regardless of vault */
+    if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
+        if (twAvailable && ch->timewalk < 1) {
+            wcscpy_s(buffer, bufferLen, L"\u26A0 Need timewalking (0/1)");
+            return;
+        }
+        wcscpy_s(buffer, bufferLen, L"\u2705 Fully upgraded");
+        return;
+    }
+
+    /* Calculate vault slots */
+    int delveSlots = 0;
+    if (ch->delves >= 8) delveSlots = 3;
+    else if (ch->delves >= 4) delveSlots = 2;
+    else if (ch->delves >= 1) delveSlots = 1;
+
+    int dungeonSlots = 0;
+    if (ch->dungeons >= 8) dungeonSlots = 3;
+    else if (ch->dungeons >= 4) dungeonSlots = 2;
+    else if (ch->dungeons >= 1) dungeonSlots = 1;
+
+    int vaultSlots = delveSlots + dungeonSlots;
+
+    /* No vault rewards at all = red X */
+    if (vaultSlots == 0) {
+        wcscpy_s(buffer, bufferLen, L"\u274C No vault activities");
+        return;
+    }
+
+    /* If TW is available, everyone needs at least 1 TW completion */
+    if (twAvailable && ch->timewalk < 1) {
+        wcscpy_s(buffer, bufferLen, L"\u26A0 Need timewalking (0/1)");
+        return;
+    }
+
+    /* All hero gear + 3 vault slots = done */
+    if (!hasNonHero && vaultSlots >= 3) {
+        wcscpy_s(buffer, bufferLen, L"\u2705 All hero gear, 3+ vault slots");
+        return;
+    }
+
+    /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
+    if (hasNonHero && ch->vault_t8_plus >= 3 && vaultSlots >= 3) {
+        if (twAvailable && ch->timewalk < 5) {
+            swprintf_s(buffer, bufferLen, L"\u26A0 Need timewalking (%d/5)", ch->timewalk);
+            return;
+        }
+        wcscpy_s(buffer, bufferLen, L"\u2705 3+ T8 vault, 3+ slots, timewalking done");
+        return;
+    }
+
+    /* Build reason for why not done */
+    wchar_t reasons[512] = L"";
+    size_t pos = 0;
+
+    if (hasNonHero) {
+        int nonHeroCount = ch->champion_items + ch->veteran_items + ch->adventure_items;
+        int len = swprintf_s(reasons + pos, 512 - pos, L"%d non-hero item%s",
+            nonHeroCount, nonHeroCount == 1 ? L"" : L"s");
+        if (len > 0) pos += len;
+    }
+
+    if (vaultSlots < 3) {
+        if (pos > 0) {
+            int len = swprintf_s(reasons + pos, 512 - pos, L", ");
+            if (len > 0) pos += len;
+        }
+        int len = swprintf_s(reasons + pos, 512 - pos, L"%d/3 vault slots", vaultSlots);
+        if (len > 0) pos += len;
+    }
+
+    if (hasNonHero && ch->vault_t8_plus < 3) {
+        if (pos > 0) {
+            int len = swprintf_s(reasons + pos, 512 - pos, L", ");
+            if (len > 0) pos += len;
+        }
+        int len = swprintf_s(reasons + pos, 512 - pos, L"%d/3 T8+ vault rewards", ch->vault_t8_plus);
+        if (len > 0) pos += len;
+    }
+
+    if (pos > 0) {
+        swprintf_s(buffer, bufferLen, L"\u26A0 %s", reasons);
+    } else {
+        wcscpy_s(buffer, bufferLen, L"\u26A0 In progress");
+    }
 }
 
 /* Refresh character list from store */

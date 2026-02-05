@@ -361,6 +361,93 @@ static NSColor *kColorDefault;
     return 1;  /* ⚠️ In progress */
 }
 
+/*
+ * Get a human-readable explanation for why the character has their current status.
+ */
+- (NSString *)statusReasonForCharacter:(const Character *)character twAvailable:(BOOL)twAvailable {
+    if (!character) return @"No character data";
+
+    /* Check if all hero gear (no champion/veteran/adventure) */
+    BOOL hasNonHero = (character->champion_items > 0 ||
+                       character->veteran_items > 0 ||
+                       character->adventure_items > 0);
+
+    /* Check if fully upgraded */
+    BOOL fullyUpgraded = (character->upgrade_max > 0 &&
+                          character->upgrade_current >= character->upgrade_max);
+
+    /* Check sockets */
+    BOOL allSocketsGemmed = (character->socket_missing_count == 0 &&
+                             character->socket_empty_count == 0);
+
+    /* Fully maxed on all hero gear = done regardless of vault */
+    if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
+        if (twAvailable && character->timewalk < 1) {
+            return @"⚠️ Need timewalking (0/1)";
+        }
+        return @"✅ Fully upgraded";
+    }
+
+    /* Calculate vault slots */
+    int delveSlots = 0;
+    if (character->delves >= 8) delveSlots = 3;
+    else if (character->delves >= 4) delveSlots = 2;
+    else if (character->delves >= 1) delveSlots = 1;
+
+    int dungeonSlots = 0;
+    if (character->dungeons >= 8) dungeonSlots = 3;
+    else if (character->dungeons >= 4) dungeonSlots = 2;
+    else if (character->dungeons >= 1) dungeonSlots = 1;
+
+    int vaultSlots = delveSlots + dungeonSlots;
+
+    /* No vault rewards at all = red X */
+    if (vaultSlots == 0) {
+        return @"❌ No vault activities";
+    }
+
+    /* If TW is available, everyone needs at least 1 TW completion */
+    if (twAvailable && character->timewalk < 1) {
+        return @"⚠️ Need timewalking (0/1)";
+    }
+
+    /* All hero gear + 3 vault slots = done */
+    if (!hasNonHero && vaultSlots >= 3) {
+        return @"✅ All hero gear, 3+ vault slots";
+    }
+
+    /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
+    if (hasNonHero && character->vault_t8_plus >= 3 && vaultSlots >= 3) {
+        if (twAvailable && character->timewalk < 5) {
+            return [NSString stringWithFormat:@"⚠️ Need timewalking (%d/5)", character->timewalk];
+        }
+        return @"✅ 3+ T8 vault, 3+ slots, timewalking done";
+    }
+
+    /* Build reason for why not done */
+    NSMutableArray *reasons = [NSMutableArray array];
+
+    if (hasNonHero) {
+        int nonHeroCount = character->champion_items + character->veteran_items + character->adventure_items;
+        [reasons addObject:[NSString stringWithFormat:@"%d non-hero item%@",
+            nonHeroCount, nonHeroCount == 1 ? @"" : @"s"]];
+    }
+
+    if (vaultSlots < 3) {
+        [reasons addObject:[NSString stringWithFormat:@"%d/3 vault slots", vaultSlots]];
+    }
+
+    if (hasNonHero && character->vault_t8_plus < 3) {
+        [reasons addObject:[NSString stringWithFormat:@"%d/3 T8+ vault rewards", character->vault_t8_plus]];
+    }
+
+    if ([reasons count] > 0) {
+        return [NSString stringWithFormat:@"⚠️ %@", [reasons componentsJoinedByString:@", "]];
+    }
+
+    return @"⚠️ In progress";
+}
+
 - (id)tableView:(NSTableView *)tableView objectValueForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     if (!self.characterStore) return nil;
 
@@ -449,6 +536,9 @@ static NSColor *kColorDefault;
     size_t charIndex = [self characterIndexForRow:row];
     if (charIndex == (size_t)-1) return nil;
 
+    /* Cache timewalking availability for tooltip status reason */
+    BOOL twAvailable = [self isTimewalkingAvailable];
+
     /* Check if this is a checkbox column */
     BOOL isCheckbox = [identifier isEqualToString:kColVaultVisited] ||
                       [identifier isEqualToString:kColGearingUp] ||
@@ -483,7 +573,7 @@ static NSColor *kColorDefault;
         objc_setAssociatedObject(checkbox, "columnId", identifier, OBJC_ASSOCIATION_COPY);
 
         /* Set tooltip for the row */
-        NSString *tooltip = [self buildTooltipForCharacter:character];
+        NSString *tooltip = [self buildTooltipForCharacter:character twAvailable:twAvailable];
         [checkbox setToolTip:tooltip];
 
         /* Apply background color */
@@ -531,7 +621,7 @@ static NSColor *kColorDefault;
 
     /* Set tooltip for the row */
     const Character *character = character_store_get(self.characterStore, charIndex);
-    NSString *tooltip = [self buildTooltipForCharacter:character];
+    NSString *tooltip = [self buildTooltipForCharacter:character twAvailable:twAvailable];
     if (tooltip) {
         [textField setToolTip:tooltip];
     } else {
@@ -617,12 +707,18 @@ static NSColor *kColorDefault;
 
 /*
  * Build tooltip text from per-slot JSON data.
- * Shows: upgrades needed, sockets needed, gems needed, enchants needed.
+ * Shows: status reason, upgrades needed, sockets needed, gems needed, enchants needed.
  */
-- (NSString *)buildTooltipForCharacter:(const Character *)character {
+- (NSString *)buildTooltipForCharacter:(const Character *)character twAvailable:(BOOL)twAvailable {
     if (!character) return nil;
 
     NSMutableString *tooltip = [NSMutableString string];
+
+    /* Add status reason at the top */
+    NSString *statusReason = [self statusReasonForCharacter:character twAvailable:twAvailable];
+    if (statusReason) {
+        [tooltip appendFormat:@"%@\n", statusReason];
+    }
 
     /* Parse slot_upgrades_json to show upgrade needs */
     if (character->slot_upgrades_json && strlen(character->slot_upgrades_json) > 2) {
@@ -776,8 +872,9 @@ static NSColor *kColorDefault;
     size_t charIndex = [self characterIndexForRow:row];
     if (charIndex == (size_t)-1) return nil;
 
+    BOOL twAvailable = [self isTimewalkingAvailable];
     const Character *character = character_store_get(self.characterStore, charIndex);
-    return [self buildTooltipForCharacter:character];
+    return [self buildTooltipForCharacter:character twAvailable:twAvailable];
 }
 
 #pragma mark - Actions
