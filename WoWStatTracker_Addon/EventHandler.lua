@@ -471,6 +471,8 @@ function WoWStatTracker:GetTimewalkingQuestStatus()
         progress = 0,
     }
 
+    -- Only report timewalking progress if quest is currently active in quest log
+    -- IsQuestFlaggedCompleted() persists across weekly resets, so we can't rely on it alone
     for _, questId in ipairs(self.TIMEWALKING_QUEST_IDS) do
         if C_QuestLog.IsOnQuest(questId) then
             result.questId = questId
@@ -479,16 +481,17 @@ function WoWStatTracker:GetTimewalkingQuestStatus()
             if objectives and objectives[1] then
                 result.progress = objectives[1].numFulfilled or 0
             end
-            return result
-        end
-        if C_QuestLog.IsQuestFlaggedCompleted(questId) then
-            result.questId = questId
-            result.completed = true
-            result.progress = 5
+            -- Check if completed while still in log (just turned in)
+            if C_QuestLog.IsQuestFlaggedCompleted(questId) then
+                result.completed = true
+                result.progress = 5
+            end
             return result
         end
     end
 
+    -- No active timewalking quest found - return 0 progress
+    -- Don't check IsQuestFlaggedCompleted here since it returns true for previous weeks
     return result
 end
 
