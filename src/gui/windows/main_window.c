@@ -990,8 +990,8 @@ static void BuildCharacterTooltip(Character *ch, BOOL twAvailable, wchar_t *buff
     /* Add status reason at the top */
     wchar_t statusReason[256];
     GetStatusReason(ch, twAvailable, statusReason, 256);
-    int len = swprintf(buffer + pos, bufferLen - pos, L"%s\n", statusReason);
-    if (len > 0) pos += len;
+    int n = swprintf(buffer + pos, bufferLen - pos, L"%s\n", statusReason);
+    if (n > 0) pos += n;
 
     /* Parse slot_upgrades_json to show per-slot upgrade needs */
     if (ch->slot_upgrades_json && strlen(ch->slot_upgrades_json) > 2) {
