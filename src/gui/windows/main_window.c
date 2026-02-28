@@ -74,6 +74,7 @@ static const ColumnDef g_columns[] = {
     { L"Veteran",      55, LVCFMT_RIGHT },
     { L"Adventure",    65, LVCFMT_RIGHT },
     { L"Old",          40, LVCFMT_RIGHT },
+    { L"Upgrade",      70, LVCFMT_RIGHT },
     { L"Vault",        45, LVCFMT_CENTER },
     { L"Delves",       50, LVCFMT_RIGHT },
     { L"Gilded",       50, LVCFMT_RIGHT },
@@ -790,13 +791,14 @@ static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSor
         case 7: result = c1->veteran_items - c2->veteran_items; break;
         case 8: result = c1->adventure_items - c2->adventure_items; break;
         case 9: result = c1->old_items - c2->old_items; break;
-        case 10: result = c1->vault_visited - c2->vault_visited; break;
-        case 11: result = c1->delves - c2->delves; break;
-        case 12: result = c1->gilded_stash - c2->gilded_stash; break;
-        case 13: result = c1->gearing_up - c2->gearing_up; break;
-        case 14: result = c1->quests - c2->quests; break;
-        case 15: result = c1->timewalk - c2->timewalk; break;
-        case 16: result = strcmp(c1->notes ? c1->notes : "", c2->notes ? c2->notes : ""); break;
+        case 10: result = c1->upgrade_current - c2->upgrade_current; break;
+        case 11: result = c1->vault_visited - c2->vault_visited; break;
+        case 12: result = c1->delves - c2->delves; break;
+        case 13: result = c1->gilded_stash - c2->gilded_stash; break;
+        case 14: result = c1->gearing_up - c2->gearing_up; break;
+        case 15: result = c1->quests - c2->quests; break;
+        case 16: result = c1->timewalk - c2->timewalk; break;
+        case 17: result = strcmp(c1->notes ? c1->notes : "", c2->notes ? c2->notes : ""); break;
         default: break;
     }
 
@@ -879,7 +881,14 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 10: /* Vault (was 9) */
+                case 10: /* Upgrade Progress */
+                    if (ch->upgrade_max > 0 && ch->upgrade_current >= ch->upgrade_max) {
+                        pcd->clrTextBk = green;
+                        pcd->clrText = coloredText;
+                    }
+                    break;
+
+                case 11: /* Vault */
                     if (ch->vault_visited) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -897,7 +906,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 11: /* Delves (was 10) */
+                case 12: /* Delves */
                     if (ch->delves >= 4) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -907,7 +916,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 12: /* Gilded (was 11) */
+                case 13: /* Gilded */
                     if (ch->gilded_stash >= 3) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -917,7 +926,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 13: /* Gearing Up (was 12) */
+                case 14: /* Gearing Up */
                     if (ch->gearing_up) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -927,7 +936,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 15: /* Timewalk (was 14) */
+                case 16: /* Timewalk */
                     if (ch->timewalk >= 5) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -1194,7 +1203,7 @@ static BOOL IsTimewalkingAvailable(void) {
  * Logic matches gear_report.py:
  * - Done if fully upgraded AND all sockets gemmed AND all hero gear
  * - Red X if no vault rewards at all
- * - Done if all hero gear AND 3+ vault slots
+ * - Done if all hero gear AND 3+ vault slots AND 3+ gilded
  * - Done if non-hero gear AND 3+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
  * - Warning otherwise
  */
@@ -1247,8 +1256,8 @@ static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
         return 1;  /* Need to do at least 1 timewalking */
     }
 
-    /* All hero gear + 3 vault slots = done */
-    if (!hasNonHero && vaultSlots >= 3) {
+    /* All hero gear + 3 vault slots + 3 gilded = done */
+    if (!hasNonHero && vaultSlots >= 3 && ch->gilded_stash >= 3) {
         return 0;  /* Done */
     }
 
@@ -1321,9 +1330,9 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
         return;
     }
 
-    /* All hero gear + 3 vault slots = done */
-    if (!hasNonHero && vaultSlots >= 3) {
-        wcscpy_s(buffer, bufferLen, L"\u2705 All hero gear, 3+ vault slots");
+    /* All hero gear + 3 vault slots + 3 gilded = done */
+    if (!hasNonHero && vaultSlots >= 3 && ch->gilded_stash >= 3) {
+        wcscpy_s(buffer, bufferLen, L"\u2705 All hero gear, 3+ gilded");
         return;
     }
 
@@ -1357,7 +1366,14 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
         if (len > 0) pos += len;
     }
 
-    if (hasNonHero && ch->vault_t8_plus < 3) {
+    if (!hasNonHero && ch->gilded_stash < 3) {
+        if (pos > 0) {
+            int len = swprintf_s(reasons + pos, 512 - pos, L", ");
+            if (len > 0) pos += len;
+        }
+        int len = swprintf_s(reasons + pos, 512 - pos, L"%d/3 gilded", ch->gilded_stash);
+        if (len > 0) pos += len;
+    } else if (hasNonHero && ch->vault_t8_plus < 3) {
         if (pos > 0) {
             int len = swprintf_s(reasons + pos, 512 - pos, L", ");
             if (len > 0) pos += len;
@@ -1443,22 +1459,25 @@ void RefreshCharacterList(void) {
         swprintf(buf, 64, L"%d", ch->old_items);
         ListView_SetItemText(g_hListView, idx, 9, buf);
 
-        ListView_SetItemText(g_hListView, idx, 10, ch->vault_visited ? L"Yes" : L"No");
+        swprintf(buf, 64, L"%d/%d", ch->upgrade_current, ch->upgrade_max);
+        ListView_SetItemText(g_hListView, idx, 10, buf);
+
+        ListView_SetItemText(g_hListView, idx, 11, ch->vault_visited ? L"Yes" : L"No");
 
         swprintf(buf, 64, L"%d", ch->delves);
-        ListView_SetItemText(g_hListView, idx, 11, buf);
-
-        swprintf(buf, 64, L"%d", ch->gilded_stash);
         ListView_SetItemText(g_hListView, idx, 12, buf);
 
-        ListView_SetItemText(g_hListView, idx, 13, ch->gearing_up ? L"Yes" : L"No");
+        swprintf(buf, 64, L"%d", ch->gilded_stash);
+        ListView_SetItemText(g_hListView, idx, 13, buf);
 
-        ListView_SetItemText(g_hListView, idx, 14, ch->quests ? L"Yes" : L"No");
+        ListView_SetItemText(g_hListView, idx, 14, ch->gearing_up ? L"Yes" : L"No");
+
+        ListView_SetItemText(g_hListView, idx, 15, ch->quests ? L"Yes" : L"No");
 
         swprintf(buf, 64, L"%d", ch->timewalk);
-        ListView_SetItemText(g_hListView, idx, 15, buf);
+        ListView_SetItemText(g_hListView, idx, 16, buf);
 
-        ListView_SetItemText(g_hListView, idx, 16, notes);
+        ListView_SetItemText(g_hListView, idx, 17, notes);
     }
 
     /* Apply current sort order */

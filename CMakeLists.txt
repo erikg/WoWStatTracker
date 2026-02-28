@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WoWStatTracker VERSION 1.4.0 LANGUAGES C)
+project(WoWStatTracker VERSION 1.6.0 LANGUAGES C)
 
 # C standard
 set(CMAKE_C_STANDARD 11)

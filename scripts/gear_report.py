@@ -536,8 +536,10 @@ def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict,
         return "⚠️"
 
     # Done criteria (vault-based for characters still upgrading)
-    if not has_non_hero and total_slots >= 3:
-        # All hero gear + 3 vault rewards
+    gilded_stash = char_data.get("gilded_stash", {})
+    gilded_claimed = gilded_stash.get("claimed", 0) if isinstance(gilded_stash, dict) else 0
+    if not has_non_hero and total_slots >= 3 and gilded_claimed >= 3:
+        # All hero gear + 3 gilded + 3 vault slots
         return "✅"
     elif has_non_hero and has_t8_plus >= 3 and total_slots >= 3:
         # Has champ/vet gear: need 3+ T8+ (gilded) + 3 total vault rewards
