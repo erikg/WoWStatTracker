@@ -655,11 +655,11 @@ function WoWStatTracker:HasVisitedVault()
     local hasUnlockedSlot = false
     local hasClaimedSlot = false
 
-    -- Activity types to check: 1=Raid, 2=MythicPlus, 3=World
+    -- Activity types: Activities=1, RankedPvP=2, Raid=3, AlsoReceive=4, Concession=5, World=6
     local activityTypes = {
-        {type = 1, name = "Raid"},
-        {type = 2, name = "MythicPlus"},
-        {type = 3, name = "World"},
+        {type = Enum.WeeklyRewardChestThresholdType.Activities, name = "Activities"},
+        {type = Enum.WeeklyRewardChestThresholdType.Raid, name = "Raid"},
+        {type = Enum.WeeklyRewardChestThresholdType.World, name = "World"},
     }
 
     if C_WeeklyRewards.GetActivities then
@@ -711,9 +711,9 @@ function WoWStatTracker:HasVisitedVault()
                    " claimed=" .. tostring(hasClaimedSlot))
     end
 
-    -- Vault visited = claimed a reward OR no rewards available to claim
-    -- (either already claimed, or no activities done this week)
-    return hasClaimedSlot or not canClaim
+    -- Vault visited = claimed a reward OR had rewards but already claimed them all
+    -- (not canClaim alone is insufficient - it's also false when no activities were done)
+    return hasClaimedSlot or (hasUnlockedSlot and not canClaim)
 end
 
 -- Get delve/world activity information from Great Vault
@@ -760,7 +760,7 @@ function WoWStatTracker:GetDungeonsFromVault()
     }
 
     if C_WeeklyRewards and C_WeeklyRewards.GetActivities then
-        local activities = C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.MythicPlus)
+        local activities = C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Activities)
         if activities then
             for _, activity in ipairs(activities) do
                 if activity.progress and activity.progress > result.count then
