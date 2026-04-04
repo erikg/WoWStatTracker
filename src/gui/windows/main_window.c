@@ -894,7 +894,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                         pcd->clrText = coloredText;
                     } else {
                         /* Check if weeklies are incomplete */
-                        BOOL weekliesIncomplete = (ch->delves < 4 || ch->gilded_stash < 3 ||
+                        BOOL weekliesIncomplete = (ch->delves < 4 || ch->gilded_stash < 4 ||
                                                    !ch->gearing_up || ch->timewalk < 5);
                         if (weekliesIncomplete) {
                             pcd->clrTextBk = yellow;
@@ -917,7 +917,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     break;
 
                 case 13: /* Gilded */
-                    if (ch->gilded_stash >= 3) {
+                    if (ch->gilded_stash >= 4) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
                     } else if (ch->gilded_stash >= 1) {
@@ -1256,8 +1256,8 @@ static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
         return 1;  /* Need to do at least 1 timewalking */
     }
 
-    /* All hero gear + 3 vault slots + 3 gilded = done */
-    if (!hasNonHero && vaultSlots >= 3 && ch->gilded_stash >= 3) {
+    /* All hero gear + 3 vault slots + 4 gilded = done */
+    if (!hasNonHero && vaultSlots >= 3 && ch->gilded_stash >= 4) {
         return 0;  /* Done */
     }
 
@@ -1330,9 +1330,9 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
         return;
     }
 
-    /* All hero gear + 3 vault slots + 3 gilded = done */
-    if (!hasNonHero && vaultSlots >= 3 && ch->gilded_stash >= 3) {
-        wcscpy_s(buffer, bufferLen, L"\u2705 All hero gear, 3+ gilded");
+    /* All hero gear + 3 vault slots + 4 gilded = done */
+    if (!hasNonHero && vaultSlots >= 3 && ch->gilded_stash >= 4) {
+        wcscpy_s(buffer, bufferLen, L"\u2705 All hero gear, 4+ gilded");
         return;
     }
 
@@ -1366,12 +1366,12 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
         if (len > 0) pos += len;
     }
 
-    if (!hasNonHero && ch->gilded_stash < 3) {
+    if (!hasNonHero && ch->gilded_stash < 4) {
         if (pos > 0) {
             int len = swprintf_s(reasons + pos, 512 - pos, L", ");
             if (len > 0) pos += len;
         }
-        int len = swprintf_s(reasons + pos, 512 - pos, L"%d/3 gilded", ch->gilded_stash);
+        int len = swprintf_s(reasons + pos, 512 - pos, L"%d/4 gilded", ch->gilded_stash);
         if (len > 0) pos += len;
     } else if (hasNonHero && ch->vault_t8_plus < 3) {
         if (pos > 0) {

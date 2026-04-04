@@ -27,7 +27,7 @@ typedef enum {
 #define WST_MAX_ITEM_LEVEL      1000.0
 #define WST_MAX_ITEMS_PER_CAT   50
 #define WST_MAX_DELVES          8
-#define WST_MAX_GILDED_STASH    3
+#define WST_MAX_GILDED_STASH    4
 #define WST_MAX_TIMEWALK        5
 
 /* Theme constants */

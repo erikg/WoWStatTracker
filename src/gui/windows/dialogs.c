@@ -207,7 +207,7 @@ static INT_PTR CALLBACK CharacterDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LP
                     if (ch->delves > 8) ch->delves = 8;
 
                     ch->gilded_stash = GetDlgItemInt(hDlg, IDC_CHAR_GILDED, NULL, FALSE);
-                    if (ch->gilded_stash > 3) ch->gilded_stash = 3;
+                    if (ch->gilded_stash > 4) ch->gilded_stash = 4;
 
                     ch->gearing_up = IsDlgButtonChecked(hDlg, IDC_CHAR_GEARINGUP) == BST_CHECKED;
                     ch->quests = IsDlgButtonChecked(hDlg, IDC_CHAR_QUESTS) == BST_CHECKED;

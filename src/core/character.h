@@ -27,7 +27,7 @@ struct Character {
     int delves;             /* 0-8, vault World row */
     int dungeons;           /* 0-8, vault Dungeons row */
     int vault_t8_plus;      /* Count of vault rewards at T8+ (ilvl 694+) */
-    int gilded_stash;       /* 0-3 */
+    int gilded_stash;       /* 0-4 */
     bool gearing_up;
     bool quests;
     int timewalk;           /* 0-5 */

@@ -349,8 +349,8 @@ static NSColor *kColorDefault;
         return 1;  /* ⚠️ Need to do at least 1 timewalking */
     }
 
-    /* All hero gear + 3 vault slots + 3 gilded = done */
-    if (!hasNonHero && vaultSlots >= 3 && character->gilded_stash >= 3) {
+    /* All hero gear + 3 vault slots + 4 gilded = done */
+    if (!hasNonHero && vaultSlots >= 3 && character->gilded_stash >= 4) {
         return 0;  /* ✅ Done */
     }
 
@@ -416,9 +416,9 @@ static NSColor *kColorDefault;
         return @"⚠️ Need timewalking (0/1)";
     }
 
-    /* All hero gear + 3 vault slots + 3 gilded = done */
-    if (!hasNonHero && vaultSlots >= 3 && character->gilded_stash >= 3) {
-        return @"✅ All hero gear, 3+ gilded";
+    /* All hero gear + 3 vault slots + 4 gilded = done */
+    if (!hasNonHero && vaultSlots >= 3 && character->gilded_stash >= 4) {
+        return @"✅ All hero gear, 4+ gilded";
     }
 
     /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
@@ -442,8 +442,8 @@ static NSColor *kColorDefault;
         [reasons addObject:[NSString stringWithFormat:@"%d/3 vault slots", vaultSlots]];
     }
 
-    if (!hasNonHero && character->gilded_stash < 3) {
-        [reasons addObject:[NSString stringWithFormat:@"%d/3 gilded", character->gilded_stash]];
+    if (!hasNonHero && character->gilded_stash < 4) {
+        [reasons addObject:[NSString stringWithFormat:@"%d/4 gilded", character->gilded_stash]];
     } else if (hasNonHero && character->vault_t8_plus < 3) {
         [reasons addObject:[NSString stringWithFormat:@"%d/3 T8+ vault rewards", character->vault_t8_plus]];
     }
@@ -691,7 +691,7 @@ static NSColor *kColorDefault;
             return kColorYellow;
         }
     } else if ([identifier isEqualToString:kColGildedStash]) {
-        if (character->gilded_stash >= 3) {
+        if (character->gilded_stash >= 4) {
             return kColorGreen;
         } else if (character->gilded_stash > 0) {
             return kColorYellow;
