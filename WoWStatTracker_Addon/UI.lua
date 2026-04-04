@@ -54,7 +54,8 @@ function WoWStatTracker:ExportData()
             delves = charData.delves or 0,
             gearing_up = charData.gearing_up or false,
             quests = charData.quests or false,
-            timewalk = charData.timewalk or 0,
+            timewalk = (charData.timewalking_quest and charData.timewalking_quest.progress) or 0,
+            timewalk_accepted = (charData.timewalking_quest and charData.timewalking_quest.accepted) or false,
             
             -- Metadata
             lastUpdate = charData.lastUpdate or 0,
