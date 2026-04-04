@@ -821,7 +821,12 @@ end
 -- The War Within (11.x) uses 833xx IDs, older expansions used 727xx
 -- Shared via WoWStatTracker object so EventHandler.lua can use it too
 WoWStatTracker.TIMEWALKING_QUEST_IDS = {
-    -- The War Within (current)
+    -- Midnight
+    93608,  -- A Burning Path Through Time (BC)
+    93611,  -- A Shattered Path Through Time (Cataclysm)
+    93612,  -- A Shrouded Path Through Time (MoP)
+    93613,  -- A Savage Path Through Time (WoD)
+    -- The War Within
     83363,  -- A Burning Path Through Time (BC)
     83365,  -- A Frozen Path Through Time (WotLK)
     83359,  -- A Shattered Path Through Time (Cataclysm)
@@ -831,7 +836,17 @@ WoWStatTracker.TIMEWALKING_QUEST_IDS = {
     83274,  -- An Original Path Through Time (Classic)
     88805,  -- A Scarred Path Through Time (BfA)
     92649,  -- A Shadowed Path Through Time (Shadowlands)
-    -- Legacy IDs (pre-War Within, kept for compatibility)
+    -- Non-max-level "Journey" variants
+    85947,  -- An Original Journey Through Time (Classic)
+    85948,  -- A Burning Journey Through Time (BC)
+    85949,  -- A Frozen Journey Through Time (WotLK)
+    86556,  -- A Shattered Journey Through Time (Cataclysm)
+    86560,  -- A Shrouded Journey Through Time (MoP)
+    86563,  -- A Savage Journey Through Time (WoD)
+    86564,  -- A Fel Journey Through Time (Legion)
+    88808,  -- A Scarred Journey Through Time (BfA)
+    92647,  -- A Shadowed Journey Through Time (Shadowlands)
+    -- Legacy IDs (pre-TWW)
     72727,  -- A Burning Path Through Time (BC)
     72726,  -- A Frozen Path Through Time (WotLK)
     72810,  -- A Shattered Path Through Time (Cataclysm)
