@@ -1097,7 +1097,7 @@ end
 
 -- Gilded Stash tracking via UI Widgets (from Plumber addon research)
 -- Widget IDs that may contain gilded stash spell info
-local GILDED_STASH_WIDGET_IDS = {6659, 6718, 6719, 6720, 6721, 6722, 6723, 6724, 6725, 6726, 6727, 6728, 6729, 6794, 7193}
+local GILDED_STASH_WIDGET_IDS = {7591, 6659, 6718, 6719, 6720, 6721, 6722, 6723, 6724, 6725, 6726, 6727, 6728, 6729, 6794, 7193}
 -- Spell ID for Gilded Stash (spell 1216211)
 local GILDED_STASH_SPELL_ID = 1216211
 
@@ -1110,7 +1110,7 @@ local function GetGildedStashTooltip()
     for _, widgetID in ipairs(GILDED_STASH_WIDGET_IDS) do
         local info = C_UIWidgetManager.GetSpellDisplayVisualizationInfo(widgetID)
         if info and info.spellInfo then
-            if info.spellInfo.spellID == GILDED_STASH_SPELL_ID and info.spellInfo.shownState == 1 then
+            if info.spellInfo.spellID == GILDED_STASH_SPELL_ID then
                 return info.spellInfo.tooltip
             end
         end
@@ -1119,12 +1119,12 @@ local function GetGildedStashTooltip()
 end
 
 -- Get gilded stash status (bonus crests from tier 11 delves)
--- Returns: { available = 3, claimed = 0, total = 3 }
+-- Returns: { available = 4, claimed = 0, total = 4 }
 function WoWStatTracker:GetGildedStashStatus()
     local result = {
         available = 0,  -- How many can still be claimed
         claimed = 0,    -- How many have been claimed
-        total = 3,      -- Total per week (usually 3)
+        total = 4,      -- Total per week (4 as of Midnight S1)
     }
 
     local debugMode = WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode
@@ -1158,7 +1158,7 @@ function WoWStatTracker:GetGildedStashStatus()
         end
     else
         if debugMode then
-            self:Debug("Gilded Stash: Widget not found (may need to be in Khaz Algar)")
+            self:Debug("Gilded Stash: Widget not found (may need to be in Silvermoon City)")
         end
     end
 
@@ -1185,7 +1185,7 @@ function WoWStatTracker:GetGildedStashStatus()
         local savedData = WoWStatTrackerDB.characters[charKey].gilded_stash
         if savedData and savedData.claimed then
             result.claimed = savedData.claimed
-            result.total = savedData.total or 3
+            result.total = savedData.total or 4
             result.available = result.total - result.claimed
             if debugMode then
                 self:Debug("Gilded Stash (cached): " .. result.claimed .. "/" .. result.total)
