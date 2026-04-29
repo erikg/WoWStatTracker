@@ -656,10 +656,14 @@ function WoWStatTracker:HasVisitedVault()
     local hasClaimedSlot = false
 
     -- Activity types: Activities=1, RankedPvP=2, Raid=3, AlsoReceive=4, Concession=5, World=6
+    -- Concession = carry-over claim from prior week's unclaimed rewards. Without it,
+    -- characters who only claim a concession after reset (no new activities this week)
+    -- show up as vault_visited=false even though they walked to the vault and claimed.
     local activityTypes = {
         {type = Enum.WeeklyRewardChestThresholdType.Activities, name = "Activities"},
         {type = Enum.WeeklyRewardChestThresholdType.Raid, name = "Raid"},
         {type = Enum.WeeklyRewardChestThresholdType.World, name = "World"},
+        {type = Enum.WeeklyRewardChestThresholdType.Concession or 5, name = "Concession"},
     }
 
     if C_WeeklyRewards.GetActivities then
