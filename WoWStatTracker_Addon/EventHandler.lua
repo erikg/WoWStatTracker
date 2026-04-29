@@ -68,6 +68,9 @@ function WoWStatTracker:HandleEvent(event, ...)
         
     elseif event == "QUEST_TURNED_IN" then
         local questID = ...
+        if questID then
+            self:OnQuestTurnedIn(questID)
+        end
         if questID and self:IsWeeklyQuest(questID) then
             shouldUpdate = true
             delay = 1
@@ -456,7 +459,48 @@ function WoWStatTracker:OnQuestAccepted(questId)
             end
             WoWStatTrackerDB.timewalking[charKey].questAccepted = questId
             WoWStatTrackerDB.timewalking[charKey].acceptedAt = time()
+            WoWStatTrackerDB.timewalking[charKey].acceptedWeek = self:GetCurrentWeekId()
             self:Debug("Timewalking quest accepted: " .. questId)
+            return
+        end
+    end
+end
+
+-- Timestamp (epoch seconds) of the most recent weekly reset (Tuesday 15:00 UTC).
+function WoWStatTracker:GetCurrentWeekResetTime()
+    local resetDay = 3  -- Tuesday (1=Sunday)
+    local resetHour = 15  -- 15:00 UTC
+
+    local now = time()
+    local utcDate = date("!*t", now)
+    local daysSinceReset = (utcDate.wday - resetDay) % 7
+    if utcDate.wday == resetDay and utcDate.hour < resetHour then
+        daysSinceReset = 7
+    end
+    local lastReset = now - (daysSinceReset * 86400)
+    local resetDate = date("!*t", lastReset)
+    resetDate.hour = resetHour
+    resetDate.min = 0
+    resetDate.sec = 0
+    return time(resetDate)
+end
+
+-- Record timewalking quest turn-in so we can report completion after the quest
+-- leaves the log. Stamps the current weekId so it doesn't bleed across resets.
+function WoWStatTracker:OnQuestTurnedIn(questId)
+    for _, twQuestId in ipairs(self.TIMEWALKING_QUEST_IDS) do
+        if questId == twQuestId then
+            local charKey = self:GetCharacterKey()
+            local weekId = self:GetCurrentWeekId()
+            if not WoWStatTrackerDB.timewalking then
+                WoWStatTrackerDB.timewalking = {}
+            end
+            if not WoWStatTrackerDB.timewalking[charKey] then
+                WoWStatTrackerDB.timewalking[charKey] = {}
+            end
+            WoWStatTrackerDB.timewalking[charKey].completedQuestId = questId
+            WoWStatTrackerDB.timewalking[charKey].completedWeek = weekId
+            self:Debug("Timewalking quest turned in: " .. questId .. " (week " .. weekId .. ")")
             return
         end
     end
@@ -490,8 +534,39 @@ function WoWStatTracker:GetTimewalkingQuestStatus()
         end
     end
 
-    -- No active timewalking quest found - return 0 progress
-    -- Don't check IsQuestFlaggedCompleted here since it returns true for previous weeks
+    -- Quest no longer in log: check if we recorded a turn-in for the current week.
+    -- This is how we survive the turn-in → quest-removed transition.
+    local charKey = self:GetCharacterKey()
+    local weekId = self:GetCurrentWeekId()
+    local tw = WoWStatTrackerDB.timewalking and WoWStatTrackerDB.timewalking[charKey]
+    if tw and tw.completedWeek == weekId then
+        result.questId = tw.completedQuestId
+        result.accepted = true
+        result.completed = true
+        result.progress = 5
+        return result
+    end
+
+    -- Rescue path for characters who turned in before QUEST_TURNED_IN tracking existed:
+    -- if we recorded an acceptance this week and the quest is now flagged completed
+    -- but not in the log, it was turned in this week. Backfill completedWeek so we
+    -- don't need this path on subsequent exports.
+    if tw and tw.questAccepted then
+        local acceptedThisWeek = (tw.acceptedWeek == weekId) or
+            (tw.acceptedAt and tw.acceptedAt >= self:GetCurrentWeekResetTime())
+        if acceptedThisWeek
+            and C_QuestLog.IsQuestFlaggedCompleted(tw.questAccepted)
+            and not C_QuestLog.IsOnQuest(tw.questAccepted) then
+            WoWStatTrackerDB.timewalking[charKey].completedQuestId = tw.questAccepted
+            WoWStatTrackerDB.timewalking[charKey].completedWeek = weekId
+            result.questId = tw.questAccepted
+            result.accepted = true
+            result.completed = true
+            result.progress = 5
+            return result
+        end
+    end
+
     return result
 end
 
