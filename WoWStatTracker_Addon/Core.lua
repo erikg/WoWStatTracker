@@ -42,7 +42,11 @@ function WoWStatTracker:Initialize()
     
     -- Set up event handling
     self:SetupEvents()
-    
+
+    -- Hook the Great Vault frame so we can detect "player visited the vault"
+    -- even when there are no rewards for the API to report.
+    self:SetupVaultFrameHook()
+
     -- Initial data collection
     self:ScheduleUpdate(5) -- Update after 5 seconds
     

@@ -637,13 +637,75 @@ function WoWStatTracker:CountItemsByQuality(quality)
     return count
 end
 
+-- Hook WeeklyRewardsFrame:OnShow to record "player walked to the vault" per week.
+-- Blizzard_WeeklyRewards is lazy-loaded the first time the vault is opened, so we
+-- wait for ADDON_LOADED if it isn't already in memory.
+function WoWStatTracker:SetupVaultFrameHook()
+    if self._vaultHookInstalled then
+        return
+    end
+
+    local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+
+    local function installHook()
+        if not WeeklyRewardsFrame then
+            return false
+        end
+        WeeklyRewardsFrame:HookScript("OnShow", function()
+            if not WoWStatTrackerDB then return end
+            if not WoWStatTrackerDB.vaultOpens then
+                WoWStatTrackerDB.vaultOpens = {}
+            end
+            local charKey = WoWStatTracker:GetCharacterKey()
+            local weekId = WoWStatTracker:GetCurrentWeekId()
+            WoWStatTrackerDB.vaultOpens[charKey] = weekId
+            WoWStatTracker:Debug("Vault frame opened (charKey=" .. charKey .. " week=" .. weekId .. ")")
+            -- Refresh character data so vault_visited flips immediately
+            C_Timer.After(1, function()
+                WoWStatTracker:UpdateCharacterData()
+            end)
+        end)
+        WoWStatTracker._vaultHookInstalled = true
+        WoWStatTracker:Debug("Installed WeeklyRewardsFrame OnShow hook")
+        return true
+    end
+
+    if isLoaded("Blizzard_WeeklyRewards") then
+        installHook()
+        return
+    end
+
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("ADDON_LOADED")
+    f:SetScript("OnEvent", function(frame, event, name)
+        if name == "Blizzard_WeeklyRewards" then
+            if installHook() then
+                frame:UnregisterEvent("ADDON_LOADED")
+            end
+        end
+    end)
+end
+
 -- Check if player has visited/claimed the Great Vault this week
 function WoWStatTracker:HasVisitedVault()
+    local debugMode = WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode
+
+    -- Manual visit detection: did the player open WeeklyRewardsFrame this week?
+    -- The C_WeeklyRewards API can't tell "I walked to the vault" from "no rewards exist"
+    -- when a character has zero activities, so we record frame opens via OnShow hook.
+    local charKey = self:GetCharacterKey()
+    local weekId = self:GetCurrentWeekId()
+    if WoWStatTrackerDB and WoWStatTrackerDB.vaultOpens
+       and WoWStatTrackerDB.vaultOpens[charKey] == weekId then
+        if debugMode then
+            self:Debug("Vault: manual open recorded this week")
+        end
+        return true
+    end
+
     if not C_WeeklyRewards then
         return false
     end
-
-    local debugMode = WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode
 
     -- Check if there are rewards available to claim
     local hasAvailable = C_WeeklyRewards.HasAvailableRewards and C_WeeklyRewards.HasAvailableRewards()
