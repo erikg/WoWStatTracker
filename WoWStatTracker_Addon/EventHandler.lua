@@ -68,6 +68,7 @@ function WoWStatTracker:HandleEvent(event, ...)
         
     elseif event == "QUEST_TURNED_IN" then
         local questID = ...
+        self:Debug("QUEST_TURNED_IN fired: questID=" .. tostring(questID))
         if questID then
             self:OnQuestTurnedIn(questID)
         end
@@ -113,6 +114,7 @@ function WoWStatTracker:HandleEvent(event, ...)
 
     elseif event == "QUEST_ACCEPTED" then
         local questId = ...
+        self:Debug("QUEST_ACCEPTED fired: questId=" .. tostring(questId))
         self:OnQuestAccepted(questId)
 
     elseif event == "PLAYER_ENTERING_WORLD" then
@@ -488,10 +490,13 @@ end
 -- Record timewalking quest turn-in so we can report completion after the quest
 -- leaves the log. Stamps the current weekId so it doesn't bleed across resets.
 function WoWStatTracker:OnQuestTurnedIn(questId)
+    local charKey = self:GetCharacterKey()
+    local weekId = self:GetCurrentWeekId()
+    self:Debug("OnQuestTurnedIn entered: questId=" .. tostring(questId) ..
+               " char=" .. charKey .. " week=" .. weekId)
+
     for _, twQuestId in ipairs(self.TIMEWALKING_QUEST_IDS) do
         if questId == twQuestId then
-            local charKey = self:GetCharacterKey()
-            local weekId = self:GetCurrentWeekId()
             if not WoWStatTrackerDB.timewalking then
                 WoWStatTrackerDB.timewalking = {}
             end
@@ -502,6 +507,25 @@ function WoWStatTracker:OnQuestTurnedIn(questId)
             WoWStatTrackerDB.timewalking[charKey].completedWeek = weekId
             self:Debug("Timewalking quest turned in: " .. questId .. " (week " .. weekId .. ")")
             return
+        end
+    end
+
+    if self.TIMEWARPED_CRYSTALS then
+        for _, crystal in ipairs(self.TIMEWARPED_CRYSTALS) do
+            for _, qid in ipairs(crystal.quest_ids) do
+                if questId == qid then
+                    if not WoWStatTrackerDB.crystalTurnIns then
+                        WoWStatTrackerDB.crystalTurnIns = {}
+                    end
+                    if not WoWStatTrackerDB.crystalTurnIns[charKey] then
+                        WoWStatTrackerDB.crystalTurnIns[charKey] = {}
+                    end
+                    WoWStatTrackerDB.crystalTurnIns[charKey][crystal.key] = weekId
+                    self:Debug("Timewarped crystal turned in: " .. crystal.key ..
+                               " (quest " .. questId .. ", week " .. weekId .. ")")
+                    return
+                end
+            end
         end
     end
 end

@@ -145,6 +145,7 @@ function WoWStatTracker:CollectCharacterData()
         delve_completions = self:GetWeeklyDelveCompletions(),  -- [{tier, timestamp}, ...]
         dungeon_completions = self:GetWeeklyDungeonCompletions(),  -- [{type, level, name, timestamp}, ...]
         timewalking_quest = self:GetTimewalkingQuestStatus(),  -- {questId, accepted, completed, progress}
+        timewarped_crystals = self:GetTimewarpedCrystals(),  -- per-expansion {in_bags, in_bank, completed, turned_in_week}
 
         -- Other weekly progress
         gearing_up = self:HasCompletedGearingUp(),
@@ -920,6 +921,58 @@ WoWStatTracker.TIMEWALKING_QUEST_IDS = {
     72724,  -- A Savage Path Through Time (WoD)
     72719,  -- A Fel Path Through Time (Legion)
 }
+
+-- Timewarped crystal quest items: each expansion's TW event drops a unique item
+-- from the first dungeon's final boss that starts a one-week 500-badge turn-in.
+-- Item is bind-on-pickup and unique (count is 0 or 1). The quest can only be
+-- turned in while that expansion's TW event is active, so items often park in
+-- the bank for weeks waiting for their event to come back around.
+-- Some expansions have separate Alliance/Horde quest IDs (when turn-in is in a
+-- faction city — Cataclysm and WoD). Others use one ID for both factions
+-- (turn-in NPC is in a neutral hub).
+WoWStatTracker.TIMEWARPED_CRYSTALS = {
+    { key = "bc",     item_id = 129747, quest_ids = { 40168 } },                -- The Swirling Vial (Shattrath, neutral)
+    { key = "wotlk",  item_id = 129928, quest_ids = { 40173 } },                -- The Unstable Prism (Dalaran, neutral)
+    { key = "cata",   item_id = 133377, quest_ids = { 40786, 40787 } },         -- The Smoldering Ember (Stormwind / Orgrimmar)
+    { key = "mop",    item_id = 143776, quest_ids = { 45563 } },                -- The Shrouded Coin (Timeless Isle, neutral)
+    { key = "wod",    item_id = 167922, quest_ids = { 55498, 55499 } },         -- The Shimmering Crystal (Stormshield / Warspear)
+    { key = "legion", item_id = 187611, quest_ids = { 64710 } },                -- Whispering Felflame Crystal (Dalaran above Broken Isles, neutral)
+}
+
+-- Collect timewarped-crystal state per expansion.
+-- in_bank counts only refresh when the player visits a banker that session;
+-- before then GetItemCount(.., true) reports the cached value from the last visit.
+function WoWStatTracker:GetTimewarpedCrystals()
+    local result = {}
+    local weekId = self:GetCurrentWeekId()
+    local charKey = self:GetCharacterKey()
+    local turnIns = WoWStatTrackerDB.crystalTurnIns and WoWStatTrackerDB.crystalTurnIns[charKey] or {}
+
+    for _, crystal in ipairs(self.TIMEWARPED_CRYSTALS) do
+        local bagsOnly = GetItemCount(crystal.item_id, false) or 0
+        local bagsAndBank = GetItemCount(crystal.item_id, true) or 0
+        local bankOnly = bagsAndBank - bagsOnly
+        if bankOnly < 0 then bankOnly = 0 end
+
+        local accepted = false
+        local completed = false
+        for _, qid in ipairs(crystal.quest_ids) do
+            if C_QuestLog.IsOnQuest(qid) then accepted = true end
+            if C_QuestLog.IsQuestFlaggedCompleted(qid) then completed = true end
+        end
+
+        local turnInWeek = turnIns[crystal.key]
+        result[crystal.key] = {
+            in_bags = bagsOnly > 0,
+            in_bank = bankOnly > 0,
+            accepted = accepted,
+            completed = completed,
+            turned_in_week = turnInWeek,
+            turned_in_this_week = (turnInWeek == weekId),
+        }
+    end
+    return result
+end
 
 -- Get timewalking progress
 function WoWStatTracker:GetTimewalkingCompleted()
