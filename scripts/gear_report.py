@@ -491,6 +491,58 @@ def format_vault_rewards(rewards: list) -> str:
     return ", ".join(parts)
 
 
+CRYSTAL_KEYS_ORDER = ["bc", "wotlk", "cata", "mop", "wod", "legion"]
+CRYSTAL_KEY_LABELS = {
+    "bc": "BC",
+    "wotlk": "WotLK",
+    "cata": "Cata",
+    "mop": "MoP",
+    "wod": "WoD",
+    "legion": "Legion",
+}
+
+
+def analyze_crystals(char_data: dict) -> dict:
+    """Summarize timewarped-crystal state per expansion.
+
+    Returns a dict with:
+      - per_exp: { key: marker } for non-empty entries
+      - display: compact string like "wod✓, bc📦"
+      - has_any: bool, true if any expansion has non-default state
+    """
+    result = {"per_exp": {}, "display": "-", "has_any": False}
+    crystals = char_data.get("timewarped_crystals", {})
+    if not isinstance(crystals, dict):
+        return result
+
+    parts = []
+    for key in CRYSTAL_KEYS_ORDER:
+        entry = crystals.get(key)
+        if not isinstance(entry, dict):
+            continue
+        marker = None
+        # Priority: turned in > active quest > item held > nothing.
+        if entry.get("completed"):
+            marker = "✓"
+        elif entry.get("accepted") and entry.get("in_bags"):
+            marker = "📜"
+        elif entry.get("in_bags"):
+            marker = "📦"
+        elif entry.get("in_bank"):
+            marker = "🏦"
+        elif entry.get("accepted"):
+            marker = "📜"  # quest in log but no item (rare)
+        if marker:
+            label = CRYSTAL_KEY_LABELS.get(key, key)
+            result["per_exp"][key] = marker
+            parts.append(f"{label}{marker}")
+
+    if parts:
+        result["display"] = ", ".join(parts)
+        result["has_any"] = True
+    return result
+
+
 def get_timewalk_progress(char_data: dict) -> int:
     """Get timewalking quest progress (0-5)."""
     tw_quest = char_data.get("timewalking_quest", {})
@@ -587,6 +639,7 @@ def analyze_character(char_data: dict, is_current_week: bool,
     vault_info = analyze_vault_rewards(char_data)
     socket_info = analyze_socket_info(char_data)
     enchant_info = analyze_enchant_info(char_data)
+    crystals = analyze_crystals(char_data)
     status = get_status_emoji(char_data, vault_info, socket_info, tw_available)
 
     # Determine missing gear notes
@@ -635,6 +688,7 @@ def analyze_character(char_data: dict, is_current_week: bool,
         "enchant_display": enchant_display,
         "status": status,
         "missing": ", ".join(missing) if missing else "-",
+        "crystals": crystals,
         "user_notes": "",  # Will be filled in from app data
     }
 
@@ -776,6 +830,29 @@ def print_report(characters: list[dict]) -> None:
                 get_notes_display(c)
             ]
             for c in needs_work
+        ]
+        print_table(headers, rows)
+        print()
+
+    # Timewarped Crystals
+    crystal_chars = [c for c in characters if c["crystals"]["has_any"]]
+    if crystal_chars:
+        # Order: turned-in first, then quest active, then bagged/banked.
+        def crystal_sort_key(c):
+            per = c["crystals"]["per_exp"]
+            has_completed = any(m == "✓" for m in per.values())
+            has_quest = any(m == "📜" for m in per.values())
+            has_item = any(m in ("📦", "🏦") for m in per.values())
+            return (0 if has_completed else 1 if has_quest else 2 if has_item else 3,
+                    c["name"])
+
+        crystal_chars.sort(key=crystal_sort_key)
+        print(f"### Timewarped Crystals ({len(crystal_chars)} characters)\n")
+        print("Legend: ✓ turned in · 📜 quest accepted · 📦 in bags · 🏦 in bank\n")
+        headers = ["Character", "Class", "Crystals"]
+        rows = [
+            [f"{c['name']}-{c['realm']}", c["class"], c["crystals"]["display"]]
+            for c in crystal_chars
         ]
         print_table(headers, rows)
         print()
