@@ -44,25 +44,19 @@ static NSColor *kColorDefault;
 
 @implementation CharacterTableView
 
-- (void)dealloc {
-    [_sortedIndices release];
-    [super dealloc];
-}
-
 + (void)initialize {
     if (self == [CharacterTableView class]) {
-        /* MRC: must retain static colors since colorWithRed: returns autoreleased objects */
-        kColorGreen = [[NSColor colorWithRed:0.56 green:0.93 blue:0.56 alpha:1.0] retain];  /* Light green #90EE90 */
-        kColorYellow = [[NSColor colorWithRed:1.0 green:1.0 blue:0.88 alpha:1.0] retain];   /* Light yellow #FFFFE0 */
-        kColorRed = [[NSColor colorWithRed:0.94 green:0.50 blue:0.50 alpha:1.0] retain];    /* Light red #F08080 */
-        kColorDefault = [[NSColor controlBackgroundColor] retain];
+        kColorGreen = [NSColor colorWithRed:0.56 green:0.93 blue:0.56 alpha:1.0];  /* Light green #90EE90 */
+        kColorYellow = [NSColor colorWithRed:1.0 green:1.0 blue:0.88 alpha:1.0];   /* Light yellow #FFFFE0 */
+        kColorRed = [NSColor colorWithRed:0.94 green:0.50 blue:0.50 alpha:1.0];    /* Light red #F08080 */
+        kColorDefault = [NSColor controlBackgroundColor];
     }
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        _sortedIndices = [[NSMutableArray alloc] init];  /* MRC: must alloc/init, not use autoreleased array */
+        _sortedIndices = [[NSMutableArray alloc] init];
         [self setupColumns];
         [self setDataSource:self];
         [self setDelegate:self];

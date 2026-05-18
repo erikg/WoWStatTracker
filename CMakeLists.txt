@@ -34,6 +34,10 @@ if(APPLE)
     set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -Wall -Wextra -Werror")
     set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -Wshadow -Wformat=2 -Wno-unused-parameter")
 
+    # ARC: compile-time reference counting. Compiler inserts retain/release.
+    # Forbids manual retain/release/autorelease/dealloc-super calls in source.
+    set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -fobjc-arc")
+
 elseif(WIN32)
     set(WST_PLATFORM_WINDOWS ON)
     # Use static runtime on Windows for all targets

@@ -40,6 +40,10 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
 
 @implementation MainWindowController
 
+- (void)dealloc {
+    [_statusTimer invalidate];
+}
+
 #pragma mark - Initialization
 
 - (instancetype)initWithDelegate:(AppDelegate *)delegate {
