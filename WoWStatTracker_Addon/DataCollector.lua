@@ -893,6 +893,7 @@ WoWStatTracker.TIMEWALKING_QUEST_IDS = {
     93611,  -- A Shattered Path Through Time (Cataclysm)
     93612,  -- A Shrouded Path Through Time (MoP)
     93613,  -- A Savage Path Through Time (WoD)
+    93614,  -- A Fel Path Through Time (Legion)
     -- The War Within
     83363,  -- A Burning Path Through Time (BC)
     83365,  -- A Frozen Path Through Time (WotLK)
@@ -1156,11 +1157,12 @@ function WoWStatTracker:LogDelvesAPIInfo()
 
     -- Scan for active timewalking quest (search wider range)
     self:Debug("  Timewalking quest scan:")
-    -- Check active quests for "Path Through Time" in title
+    -- Check active quests for "Through Time" in title (covers both the max-level
+    -- "Path" variants and the sub-max "Journey" variants)
     local numQuests = C_QuestLog.GetNumQuestLogEntries()
     for i = 1, numQuests do
         local info = C_QuestLog.GetInfo(i)
-        if info and info.title and info.title:find("Path") then
+        if info and info.title and info.title:find("Through Time") then
             self:Debug("    ACTIVE: " .. info.questID .. ": " .. info.title)
             local obj = C_QuestLog.GetQuestObjectives(info.questID)
             if obj and obj[1] then

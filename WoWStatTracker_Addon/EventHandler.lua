@@ -448,24 +448,48 @@ end
 
 -- Uses WoWStatTracker.TIMEWALKING_QUEST_IDS defined in DataCollector.lua
 
--- Track quest acceptance
-function WoWStatTracker:OnQuestAccepted(questId)
+-- Every weekly timewalking quest shares the title suffix "Through Time"
+-- ("A Fel Path Through Time", "A Shrouded Journey Through Time", etc.).
+-- Blizzard mints new quest IDs each expansion/season, so the hardcoded
+-- TIMEWALKING_QUEST_IDS list inevitably misses the current season's quest.
+-- This title check catches it regardless of ID. Returns true/false.
+function WoWStatTracker:IsTimewalkingQuest(questId)
+    if not questId then return false end
     for _, twQuestId in ipairs(self.TIMEWALKING_QUEST_IDS) do
-        if questId == twQuestId then
-            local charKey = self:GetCharacterKey()
-            if not WoWStatTrackerDB.timewalking then
-                WoWStatTrackerDB.timewalking = {}
-            end
-            if not WoWStatTrackerDB.timewalking[charKey] then
-                WoWStatTrackerDB.timewalking[charKey] = {}
-            end
-            WoWStatTrackerDB.timewalking[charKey].questAccepted = questId
-            WoWStatTrackerDB.timewalking[charKey].acceptedAt = time()
-            WoWStatTrackerDB.timewalking[charKey].acceptedWeek = self:GetCurrentWeekId()
-            self:Debug("Timewalking quest accepted: " .. questId)
-            return
+        if questId == twQuestId then return true end
+    end
+    local title = C_QuestLog.GetTitleForQuestID(questId)
+    return title ~= nil and title:find("Through Time") ~= nil
+end
+
+-- Find the active timewalking quest in the player's log by title, for seasons
+-- whose quest ID isn't in TIMEWALKING_QUEST_IDS yet. Returns questId or nil.
+function WoWStatTracker:FindActiveTimewalkingQuest()
+    local numEntries = C_QuestLog.GetNumQuestLogEntries()
+    for i = 1, numEntries do
+        local info = C_QuestLog.GetInfo(i)
+        if info and not info.isHeader and info.title
+           and info.title:find("Through Time") then
+            return info.questID
         end
     end
+    return nil
+end
+
+-- Track quest acceptance
+function WoWStatTracker:OnQuestAccepted(questId)
+    if not self:IsTimewalkingQuest(questId) then return end
+    local charKey = self:GetCharacterKey()
+    if not WoWStatTrackerDB.timewalking then
+        WoWStatTrackerDB.timewalking = {}
+    end
+    if not WoWStatTrackerDB.timewalking[charKey] then
+        WoWStatTrackerDB.timewalking[charKey] = {}
+    end
+    WoWStatTrackerDB.timewalking[charKey].questAccepted = questId
+    WoWStatTrackerDB.timewalking[charKey].acceptedAt = time()
+    WoWStatTrackerDB.timewalking[charKey].acceptedWeek = self:GetCurrentWeekId()
+    self:Debug("Timewalking quest accepted: " .. questId)
 end
 
 -- Timestamp (epoch seconds) of the most recent weekly reset (Tuesday 15:00 UTC).
@@ -495,19 +519,17 @@ function WoWStatTracker:OnQuestTurnedIn(questId)
     self:Debug("OnQuestTurnedIn entered: questId=" .. tostring(questId) ..
                " char=" .. charKey .. " week=" .. weekId)
 
-    for _, twQuestId in ipairs(self.TIMEWALKING_QUEST_IDS) do
-        if questId == twQuestId then
-            if not WoWStatTrackerDB.timewalking then
-                WoWStatTrackerDB.timewalking = {}
-            end
-            if not WoWStatTrackerDB.timewalking[charKey] then
-                WoWStatTrackerDB.timewalking[charKey] = {}
-            end
-            WoWStatTrackerDB.timewalking[charKey].completedQuestId = questId
-            WoWStatTrackerDB.timewalking[charKey].completedWeek = weekId
-            self:Debug("Timewalking quest turned in: " .. questId .. " (week " .. weekId .. ")")
-            return
+    if self:IsTimewalkingQuest(questId) then
+        if not WoWStatTrackerDB.timewalking then
+            WoWStatTrackerDB.timewalking = {}
         end
+        if not WoWStatTrackerDB.timewalking[charKey] then
+            WoWStatTrackerDB.timewalking[charKey] = {}
+        end
+        WoWStatTrackerDB.timewalking[charKey].completedQuestId = questId
+        WoWStatTrackerDB.timewalking[charKey].completedWeek = weekId
+        self:Debug("Timewalking quest turned in: " .. questId .. " (week " .. weekId .. ")")
+        return
     end
 
     if self.TIMEWARPED_CRYSTALS then
@@ -556,6 +578,27 @@ function WoWStatTracker:GetTimewalkingQuestStatus()
             end
             return result
         end
+    end
+
+    -- Fallback: the active quest's ID isn't in TIMEWALKING_QUEST_IDS (e.g. a new
+    -- season's variant like Midnight's "A Fel Path Through Time"). Detect it by
+    -- title instead so progress still reports.
+    local titleQuestId = self:FindActiveTimewalkingQuest()
+    if titleQuestId then
+        self:Debug("Timewalking quest found by title (not in ID list): " ..
+            titleQuestId .. " '" ..
+            tostring(C_QuestLog.GetTitleForQuestID(titleQuestId)) .. "'")
+        result.questId = titleQuestId
+        result.accepted = true
+        local objectives = C_QuestLog.GetQuestObjectives(titleQuestId)
+        if objectives and objectives[1] then
+            result.progress = objectives[1].numFulfilled or 0
+        end
+        if C_QuestLog.IsQuestFlaggedCompleted(titleQuestId) then
+            result.completed = true
+            result.progress = 5
+        end
+        return result
     end
 
     -- Quest no longer in log: check if we recorded a turn-in for the current week.
