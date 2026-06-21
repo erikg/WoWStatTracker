@@ -148,7 +148,6 @@ function WoWStatTracker:CollectCharacterData()
         timewarped_crystals = self:GetTimewarpedCrystals(),  -- per-expansion {in_bags, in_bank, completed, turned_in_week}
 
         -- Other weekly progress
-        gearing_up = self:HasCompletedGearingUp(),
         quests = self:GetWeeklyQuestsCompleted(),
 
         -- Gilded stash (tier 11 bonus crests)
@@ -848,33 +847,6 @@ function WoWStatTracker:GetDungeonsFromVault()
     end
 
     return result
-end
-
--- "Gearing Up for Trouble" - Awakening the Machine weekly quest
-local GEARING_UP_QUEST_ID = 83333
-
--- Check if "Gearing Up for Trouble" weekly quest is completed
-function WoWStatTracker:HasCompletedGearingUp()
-    -- Check if quest is completed this week
-    if C_QuestLog.IsQuestFlaggedCompleted(GEARING_UP_QUEST_ID) then
-        if WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode then
-            self:Debug("Awakening the Machine weekly completed")
-        end
-        return true
-    end
-
-    -- Check if quest is in progress and get wave count
-    if C_QuestLog.IsOnQuest(GEARING_UP_QUEST_ID) then
-        local objectives = C_QuestLog.GetQuestObjectives(GEARING_UP_QUEST_ID)
-        if objectives and objectives[1] then
-            local progress = objectives[1].numFulfilled or 0
-            if WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode then
-                self:Debug("Awakening the Machine progress: " .. progress .. "/20 waves")
-            end
-        end
-    end
-
-    return false
 end
 
 -- Get weekly quests completed (placeholder for future expansion)

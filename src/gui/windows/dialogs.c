@@ -120,7 +120,6 @@ static INT_PTR CALLBACK CharacterDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LP
                         SetDlgItemInt(hDlg, IDC_CHAR_DELVES, ch->delves, FALSE);
                         SetDlgItemInt(hDlg, IDC_CHAR_GILDED, ch->gilded_stash, FALSE);
 
-                        CheckDlgButton(hDlg, IDC_CHAR_GEARINGUP, ch->gearing_up ? BST_CHECKED : BST_UNCHECKED);
                         CheckDlgButton(hDlg, IDC_CHAR_QUESTS, ch->quests ? BST_CHECKED : BST_UNCHECKED);
 
                         SetDlgItemInt(hDlg, IDC_CHAR_TIMEWALK, ch->timewalk, FALSE);
@@ -209,7 +208,6 @@ static INT_PTR CALLBACK CharacterDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LP
                     ch->gilded_stash = GetDlgItemInt(hDlg, IDC_CHAR_GILDED, NULL, FALSE);
                     if (ch->gilded_stash > 4) ch->gilded_stash = 4;
 
-                    ch->gearing_up = IsDlgButtonChecked(hDlg, IDC_CHAR_GEARINGUP) == BST_CHECKED;
                     ch->quests = IsDlgButtonChecked(hDlg, IDC_CHAR_QUESTS) == BST_CHECKED;
 
                     ch->timewalk = GetDlgItemInt(hDlg, IDC_CHAR_TIMEWALK, NULL, FALSE);
@@ -402,7 +400,6 @@ static const char *g_manualText =
 "- Vault visited status\n"
 "- Delves completed (0-8)\n"
 "- Gilded stash opened (0-3)\n"
-"- Gearing Up quest\n"
 "- World Quests\n"
 "- Timewalking dungeons (0-5)\n\n"
 "The app automatically resets these when a new week begins.\n\n"

@@ -344,9 +344,6 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
         case 9: /* vault_visited */
             character->vault_visited = value;
             break;
-        case 12: /* gearing_up */
-            character->gearing_up = value;
-            break;
         case 13: /* quests */
             character->quests = value;
             break;
@@ -404,7 +401,7 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
         @"Realm:", @"Name:", @"Guild:", @"Item Level:",
         @"Heroic Items:", @"Champion Items:", @"Veteran Items:",
         @"Adventure Items:", @"Old Items:", @"Vault Visited:",
-        @"Delves (0-8):", @"Gilded Stash (0-3):", @"Gearing Up:",
+        @"Delves (0-8):", @"Gilded Stash (0-3):",
         @"World Quests:", @"Timewalk (0-5):", @"Notes:"
     ];
 
@@ -428,13 +425,13 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
         NSControl *control;
         NSInteger fieldIndex = (NSInteger)i;
 
-        if (fieldIndex == 9 || fieldIndex == 12 || fieldIndex == 13) {
+        if (fieldIndex == 9 || fieldIndex == 12) {
             /* Boolean checkbox */
             NSButton *checkbox = [[NSButton alloc] initWithFrame:NSMakeRect(150, y, 200, 22)];
             [checkbox setButtonType:NSButtonTypeSwitch];
             [checkbox setTitle:@""];
             control = checkbox;
-        } else if (fieldIndex >= 3 && fieldIndex != 15) {
+        } else if (fieldIndex >= 3 && fieldIndex != 14) {
             /* Numeric field */
             NSTextField *field = [[NSTextField alloc] initWithFrame:NSMakeRect(150, y, 100, 22)];
             control = field;
@@ -464,10 +461,9 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
         [(NSButton *)controls[9] setState:existing->vault_visited ? NSControlStateValueOn : NSControlStateValueOff];
         [(NSTextField *)controls[10] setIntegerValue:existing->delves];
         [(NSTextField *)controls[11] setIntegerValue:existing->gilded_stash];
-        [(NSButton *)controls[12] setState:existing->gearing_up ? NSControlStateValueOn : NSControlStateValueOff];
-        [(NSButton *)controls[13] setState:existing->quests ? NSControlStateValueOn : NSControlStateValueOff];
-        [(NSTextField *)controls[14] setIntegerValue:existing->timewalk];
-        [(NSTextField *)controls[15] setStringValue:existing->notes ? [NSString stringWithUTF8String:existing->notes] : @""];
+        [(NSButton *)controls[12] setState:existing->quests ? NSControlStateValueOn : NSControlStateValueOff];
+        [(NSTextField *)controls[13] setIntegerValue:existing->timewalk];
+        [(NSTextField *)controls[14] setStringValue:existing->notes ? [NSString stringWithUTF8String:existing->notes] : @""];
     }
 
     /* Buttons */
@@ -510,10 +506,9 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
             newChar->vault_visited = [(NSButton *)controls[9] state] == NSControlStateValueOn;
             newChar->delves = (int)[(NSTextField *)controls[10] integerValue];
             newChar->gilded_stash = (int)[(NSTextField *)controls[11] integerValue];
-            newChar->gearing_up = [(NSButton *)controls[12] state] == NSControlStateValueOn;
-            newChar->quests = [(NSButton *)controls[13] state] == NSControlStateValueOn;
-            newChar->timewalk = (int)[(NSTextField *)controls[14] integerValue];
-            character_set_notes(newChar, [[(NSTextField *)controls[15] stringValue] UTF8String]);
+            newChar->quests = [(NSButton *)controls[12] state] == NSControlStateValueOn;
+            newChar->timewalk = (int)[(NSTextField *)controls[13] integerValue];
+            character_set_notes(newChar, [[(NSTextField *)controls[14] stringValue] UTF8String]);
 
             /* Validate */
             char **errors = NULL;

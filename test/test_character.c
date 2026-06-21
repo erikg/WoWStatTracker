@@ -163,7 +163,6 @@ static void test_character_reset_weekly(void) {
     c->vault_visited = true;
     c->delves = 5;
     c->gilded_stash = 2;
-    c->gearing_up = true;
     c->quests = true;
     c->timewalk = 3;
 
@@ -172,7 +171,6 @@ static void test_character_reset_weekly(void) {
     TEST_ASSERT_FALSE(c->vault_visited);
     TEST_ASSERT_EQUAL(0, c->delves);
     TEST_ASSERT_EQUAL(0, c->gilded_stash);
-    TEST_ASSERT_FALSE(c->gearing_up);
     TEST_ASSERT_FALSE(c->quests);
     TEST_ASSERT_EQUAL(0, c->timewalk);
 
@@ -212,7 +210,6 @@ static void test_character_from_json(void) {
     cJSON_AddNumberToObject(json, "item_level", 520.25);
     cJSON_AddNumberToObject(json, "heroic_items", 8);
     cJSON_AddBoolToObject(json, "vault_visited", true);
-    cJSON_AddBoolToObject(json, "gearing_up", false);
 
     Character* c = character_from_json(json);
     TEST_ASSERT_NOT_NULL(c);
@@ -222,7 +219,6 @@ static void test_character_from_json(void) {
     TEST_ASSERT_EQUAL_DOUBLE(520.25, c->item_level);
     TEST_ASSERT_EQUAL(8, c->heroic_items);
     TEST_ASSERT_TRUE(c->vault_visited);
-    TEST_ASSERT_FALSE(c->gearing_up);
 
     cJSON_Delete(json);
     character_free(c);

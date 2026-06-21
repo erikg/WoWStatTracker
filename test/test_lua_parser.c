@@ -52,7 +52,6 @@ static void test_lua_parser_single_character(void) {
         "      adventure_items = 0,\n"
         "      old_items = 0,\n"
         "      vault_visited = true,\n"
-        "      gearing_up = false,\n"
         "      quests = true,\n"
         "      week_id = \"20251230\",\n"
         "    }\n"
@@ -74,7 +73,6 @@ static void test_lua_parser_single_character(void) {
     TEST_ASSERT_EQUAL(5, c->champion_items);
     TEST_ASSERT_EQUAL(1, c->veteran_items);
     TEST_ASSERT_TRUE(c->vault_visited);
-    TEST_ASSERT_FALSE(c->gearing_up);
     TEST_ASSERT_TRUE(c->quests);
     TEST_ASSERT_EQUAL_STRING("20251230", c->week_id);
 
@@ -124,7 +122,6 @@ static void test_lua_parser_nested_fields(void) {
         "      vault_delves = { count = 5 },\n"
         "      gilded_stash = { claimed = 3 },\n"
         "      timewalking_quest = { completed = true },\n"
-        "      gearing_up = true,\n"
         "    }\n"
         "  },\n"
         "  metadata = { version = \"1.2.0\" }\n"
@@ -135,8 +132,7 @@ static void test_lua_parser_nested_fields(void) {
     TEST_ASSERT_EQUAL(1, result.count);
 
     Character* c = result.characters[0];
-    /* delves = vault_delves.count - 1 (since gearing_up is true) */
-    TEST_ASSERT_EQUAL(4, c->delves);
+    TEST_ASSERT_EQUAL(5, c->delves);
     TEST_ASSERT_EQUAL(3, c->gilded_stash);
     TEST_ASSERT_EQUAL(5, c->timewalk);  /* WST_MAX_TIMEWALK when completed */
 
@@ -202,7 +198,6 @@ static void test_lua_parser_all_fields(void) {
         "      vault_visited = true,\n"
         "      vault_delves = { count = 5 },\n"
         "      gilded_stash = { claimed = 2 },\n"
-        "      gearing_up = true,\n"
         "      quests = false,\n"
         "      timewalking_quest = { completed = false, progress = 3 },\n"
         "    }\n"
@@ -226,10 +221,8 @@ static void test_lua_parser_all_fields(void) {
     TEST_ASSERT_EQUAL(1, c->adventure_items);
     TEST_ASSERT_EQUAL(0, c->old_items);
     TEST_ASSERT_TRUE(c->vault_visited);
-    /* vault_delves.count=5 minus 1 for gearing_up=true */
-    TEST_ASSERT_EQUAL(4, c->delves);
+    TEST_ASSERT_EQUAL(5, c->delves);
     TEST_ASSERT_EQUAL(2, c->gilded_stash);
-    TEST_ASSERT_TRUE(c->gearing_up);
     TEST_ASSERT_FALSE(c->quests);
     TEST_ASSERT_EQUAL(3, c->timewalk);
     /* notes are not imported from addon, they're user-entered */

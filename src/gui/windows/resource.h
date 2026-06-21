@@ -71,7 +71,6 @@
 #define IDC_CHAR_VAULT          419
 #define IDC_CHAR_DELVES         420
 #define IDC_CHAR_GILDED         421
-#define IDC_CHAR_GEARINGUP      422
 #define IDC_CHAR_QUESTS         423
 #define IDC_CHAR_TIMEWALK       424
 #define IDC_CHAR_NOTES          425

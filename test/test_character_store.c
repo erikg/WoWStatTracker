@@ -93,7 +93,7 @@ static void test_character_store_reset_weekly_all(void) {
     character_store_add(store, c1);
 
     Character* c2 = character_create("Realm", "Two");
-    c2->gearing_up = true;
+    c2->quests = true;
     c2->timewalk = 3;
     character_store_add(store, c2);
 
@@ -101,7 +101,7 @@ static void test_character_store_reset_weekly_all(void) {
 
     TEST_ASSERT_FALSE(character_store_get(store, 0)->vault_visited);
     TEST_ASSERT_EQUAL(0, character_store_get(store, 0)->delves);
-    TEST_ASSERT_FALSE(character_store_get(store, 1)->gearing_up);
+    TEST_ASSERT_FALSE(character_store_get(store, 1)->quests);
     TEST_ASSERT_EQUAL(0, character_store_get(store, 1)->timewalk);
 
     character_store_free(store);
@@ -268,7 +268,6 @@ static void test_character_store_save_all_fields(void) {
         c->vault_visited = true;
         c->delves = 4;
         c->gilded_stash = 3;
-        c->gearing_up = true;
         c->quests = true;
         c->timewalk = 5;
         c->notes = wst_strdup("Test notes here");
@@ -297,7 +296,6 @@ static void test_character_store_save_all_fields(void) {
         TEST_ASSERT_TRUE(c->vault_visited);
         TEST_ASSERT_EQUAL(4, c->delves);
         TEST_ASSERT_EQUAL(3, c->gilded_stash);
-        TEST_ASSERT_TRUE(c->gearing_up);
         TEST_ASSERT_TRUE(c->quests);
         TEST_ASSERT_EQUAL(5, c->timewalk);
         TEST_ASSERT_EQUAL_STRING("Test notes here", c->notes);

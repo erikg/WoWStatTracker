@@ -713,10 +713,6 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
             existing->gilded_stash = addon->gilded_stash;
             changed = YES;
         }
-        if (addon->gearing_up != existing->gearing_up) {
-            existing->gearing_up = addon->gearing_up;
-            changed = YES;
-        }
         if (addon->quests != existing->quests) {
             existing->quests = addon->quests;
             changed = YES;
@@ -728,7 +724,7 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
     } else {
         /* Addon data is from a previous week - reset weekly fields */
         if (existing->vault_visited || existing->delves > 0 || existing->dungeons > 0 || existing->gilded_stash > 0 ||
-            existing->gearing_up || existing->quests || existing->timewalk > 0) {
+            existing->quests || existing->timewalk > 0) {
             character_reset_weekly(existing);
             changed = YES;
         }

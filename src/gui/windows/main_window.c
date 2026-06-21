@@ -78,7 +78,6 @@ static const ColumnDef g_columns[] = {
     { L"Vault",        45, LVCFMT_CENTER },
     { L"Delves",       50, LVCFMT_RIGHT },
     { L"Gilded",       50, LVCFMT_RIGHT },
-    { L"Gearing",      55, LVCFMT_CENTER },
     { L"Quests",       50, LVCFMT_CENTER },
     { L"Timewalk",     60, LVCFMT_RIGHT },
     { L"Notes",       120, LVCFMT_LEFT },
@@ -293,7 +292,6 @@ static void OnCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify) {
                 L"- Vault visited status\n"
                 L"- Delves count\n"
                 L"- Gilded stash count\n"
-                L"- Gearing Up quest\n"
                 L"- World Quests\n"
                 L"- Timewalking progress",
                 L"Reset Weekly Data",
@@ -795,10 +793,9 @@ static int CALLBACK CompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSor
         case 11: result = c1->vault_visited - c2->vault_visited; break;
         case 12: result = c1->delves - c2->delves; break;
         case 13: result = c1->gilded_stash - c2->gilded_stash; break;
-        case 14: result = c1->gearing_up - c2->gearing_up; break;
-        case 15: result = c1->quests - c2->quests; break;
-        case 16: result = c1->timewalk - c2->timewalk; break;
-        case 17: result = strcmp(c1->notes ? c1->notes : "", c2->notes ? c2->notes : ""); break;
+        case 14: result = c1->quests - c2->quests; break;
+        case 15: result = c1->timewalk - c2->timewalk; break;
+        case 16: result = strcmp(c1->notes ? c1->notes : "", c2->notes ? c2->notes : ""); break;
         default: break;
     }
 
@@ -895,7 +892,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     } else {
                         /* Check if weeklies are incomplete */
                         BOOL weekliesIncomplete = (ch->delves < 4 || ch->gilded_stash < 4 ||
-                                                   !ch->gearing_up || ch->timewalk < 5);
+                                                   ch->timewalk < 5);
                         if (weekliesIncomplete) {
                             pcd->clrTextBk = yellow;
                             pcd->clrText = coloredText;
@@ -926,17 +923,7 @@ static void HandleListViewCustomDraw(LPNMLVCUSTOMDRAW pcd, LRESULT *pResult) {
                     }
                     break;
 
-                case 14: /* Gearing Up */
-                    if (ch->gearing_up) {
-                        pcd->clrTextBk = green;
-                        pcd->clrText = coloredText;
-                    } else {
-                        pcd->clrTextBk = yellow;
-                        pcd->clrText = coloredText;
-                    }
-                    break;
-
-                case 16: /* Timewalk */
+                case 15: /* Timewalk */
                     if (ch->timewalk >= 5) {
                         pcd->clrTextBk = green;
                         pcd->clrText = coloredText;
@@ -1204,7 +1191,7 @@ static BOOL IsTimewalkingAvailable(void) {
  * - Done if fully upgraded AND all sockets gemmed AND all hero gear
  * - Red X if no vault rewards at all
  * - Done if all hero gear AND 3+ vault slots AND 3+ gilded
- * - Done if non-hero gear AND 3+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
+ * - Done if non-hero gear AND 2+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
  * - Warning otherwise
  */
 static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
@@ -1261,9 +1248,10 @@ static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
         return 0;  /* Done */
     }
 
-    /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
+    /* Non-hero gear but has 2+ T8+ vault rewards with 3+ total slots = done */
+    /* (3rd slot can be a non-8+ heroic/TW reward) */
     /* Also need 5/5 timewalking if TW is available (drops random hero gear) */
-    if (hasNonHero && ch->vault_t8_plus >= 3 && vaultSlots >= 3) {
+    if (hasNonHero && ch->vault_t8_plus >= 2 && vaultSlots >= 3) {
         if (twAvailable && ch->timewalk < 5) {
             return 1;  /* Need to complete timewalking */
         }
@@ -1336,13 +1324,13 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
         return;
     }
 
-    /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
-    if (hasNonHero && ch->vault_t8_plus >= 3 && vaultSlots >= 3) {
+    /* Non-hero gear but has 2+ T8+ vault rewards with 3+ total slots = done */
+    if (hasNonHero && ch->vault_t8_plus >= 2 && vaultSlots >= 3) {
         if (twAvailable && ch->timewalk < 5) {
             swprintf_s(buffer, bufferLen, L"\u26A0 Need timewalking (%d/5)", ch->timewalk);
             return;
         }
-        wcscpy_s(buffer, bufferLen, L"\u2705 3+ T8 vault, 3+ slots, timewalking done");
+        wcscpy_s(buffer, bufferLen, L"\u2705 2+ T8 vault, 3+ slots, timewalking done");
         return;
     }
 
@@ -1373,12 +1361,12 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
         }
         int len = swprintf_s(reasons + pos, 512 - pos, L"%d/4 gilded", ch->gilded_stash);
         if (len > 0) pos += len;
-    } else if (hasNonHero && ch->vault_t8_plus < 3) {
+    } else if (hasNonHero && ch->vault_t8_plus < 2) {
         if (pos > 0) {
             int len = swprintf_s(reasons + pos, 512 - pos, L", ");
             if (len > 0) pos += len;
         }
-        int len = swprintf_s(reasons + pos, 512 - pos, L"%d/3 T8+ vault rewards", ch->vault_t8_plus);
+        int len = swprintf_s(reasons + pos, 512 - pos, L"%d/2 T8+ vault rewards", ch->vault_t8_plus);
         if (len > 0) pos += len;
     }
 
@@ -1470,14 +1458,12 @@ void RefreshCharacterList(void) {
         swprintf(buf, 64, L"%d", ch->gilded_stash);
         ListView_SetItemText(g_hListView, idx, 13, buf);
 
-        ListView_SetItemText(g_hListView, idx, 14, ch->gearing_up ? L"Yes" : L"No");
-
-        ListView_SetItemText(g_hListView, idx, 15, ch->quests ? L"Yes" : L"No");
+        ListView_SetItemText(g_hListView, idx, 14, ch->quests ? L"Yes" : L"No");
 
         swprintf(buf, 64, L"%d", ch->timewalk);
-        ListView_SetItemText(g_hListView, idx, 16, buf);
+        ListView_SetItemText(g_hListView, idx, 15, buf);
 
-        ListView_SetItemText(g_hListView, idx, 17, notes);
+        ListView_SetItemText(g_hListView, idx, 16, notes);
     }
 
     /* Apply current sort order */
@@ -1851,7 +1837,6 @@ void DoAddonImport(HWND hWnd) {
                 existing->dungeons = addonChar->dungeons;
                 existing->vault_t8_plus = addonChar->vault_t8_plus;
                 existing->gilded_stash = addonChar->gilded_stash;
-                existing->gearing_up = addonChar->gearing_up;
                 existing->quests = addonChar->quests;
                 existing->timewalk = addonChar->timewalk;
 

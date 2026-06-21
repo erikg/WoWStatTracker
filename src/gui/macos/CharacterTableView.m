@@ -24,7 +24,6 @@ static NSString * const kColUpgradeProgress = @"upgrade_progress";
 static NSString * const kColVaultVisited = @"vault_visited";
 static NSString * const kColDelves = @"delves";
 static NSString * const kColGildedStash = @"gilded_stash";
-static NSString * const kColGearingUp = @"gearing_up";
 static NSString * const kColQuests = @"quests";
 static NSString * const kColTimewalk = @"timewalk";
 static NSString * const kColNotes = @"notes";
@@ -95,7 +94,6 @@ static NSColor *kColorDefault;
         @[kColVaultVisited, @"Vault", @50],
         @[kColDelves, @"Delves", @55],
         @[kColGildedStash, @"Gilded", @55],
-        @[kColGearingUp, @"Gearing Up", @80],
         @[kColQuests, @"Quests", @55],
         @[kColTimewalk, @"Timewalk", @70],
         @[kColNotes, @"Notes", @150],
@@ -224,9 +222,6 @@ static NSColor *kColorDefault;
             } else if ([key isEqualToString:kColGildedStash]) {
                 if (charA->gilded_stash < charB->gilded_stash) result = NSOrderedAscending;
                 else if (charA->gilded_stash > charB->gilded_stash) result = NSOrderedDescending;
-            } else if ([key isEqualToString:kColGearingUp]) {
-                if (charA->gearing_up < charB->gearing_up) result = NSOrderedAscending;
-                else if (charA->gearing_up > charB->gearing_up) result = NSOrderedDescending;
             } else if ([key isEqualToString:kColQuests]) {
                 if (charA->quests < charB->quests) result = NSOrderedAscending;
                 else if (charA->quests > charB->quests) result = NSOrderedDescending;
@@ -291,7 +286,7 @@ static NSColor *kColorDefault;
  * - ✅ if fully upgraded AND all sockets gemmed AND all hero gear
  * - ❌ if no vault rewards at all
  * - ✅ if all hero gear AND 3+ vault slots AND 3+ gilded
- * - ✅ if non-hero gear AND 3+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
+ * - ✅ if non-hero gear AND 2+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
  * - ⚠️ otherwise
  */
 - (int)statusForCharacter:(const Character *)character twAvailable:(BOOL)twAvailable {
@@ -348,9 +343,10 @@ static NSColor *kColorDefault;
         return 0;  /* ✅ Done */
     }
 
-    /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
+    /* Non-hero gear but has 2+ T8+ vault rewards with 3+ total slots = done */
+    /* (3rd slot can be a non-8+ heroic/TW reward) */
     /* Also need 5/5 timewalking if TW is available (drops random hero gear) */
-    if (hasNonHero && character->vault_t8_plus >= 3 && vaultSlots >= 3) {
+    if (hasNonHero && character->vault_t8_plus >= 2 && vaultSlots >= 3) {
         if (twAvailable && character->timewalk < 5) {
             return 1;  /* ⚠️ Need to complete timewalking */
         }
@@ -415,12 +411,12 @@ static NSColor *kColorDefault;
         return @"✅ All hero gear, 4+ gilded";
     }
 
-    /* Non-hero gear but has 3+ T8+ vault rewards with 3+ total slots = done */
-    if (hasNonHero && character->vault_t8_plus >= 3 && vaultSlots >= 3) {
+    /* Non-hero gear but has 2+ T8+ vault rewards with 3+ total slots = done */
+    if (hasNonHero && character->vault_t8_plus >= 2 && vaultSlots >= 3) {
         if (twAvailable && character->timewalk < 5) {
             return [NSString stringWithFormat:@"⚠️ Need timewalking (%d/5)", character->timewalk];
         }
-        return @"✅ 3+ T8 vault, 3+ slots, timewalking done";
+        return @"✅ 2+ T8 vault, 3+ slots, timewalking done";
     }
 
     /* Build reason for why not done */
@@ -438,8 +434,8 @@ static NSColor *kColorDefault;
 
     if (!hasNonHero && character->gilded_stash < 4) {
         [reasons addObject:[NSString stringWithFormat:@"%d/4 gilded", character->gilded_stash]];
-    } else if (hasNonHero && character->vault_t8_plus < 3) {
-        [reasons addObject:[NSString stringWithFormat:@"%d/3 T8+ vault rewards", character->vault_t8_plus]];
+    } else if (hasNonHero && character->vault_t8_plus < 2) {
+        [reasons addObject:[NSString stringWithFormat:@"%d/2 T8+ vault rewards", character->vault_t8_plus]];
     }
 
     if ([reasons count] > 0) {
@@ -494,8 +490,6 @@ static NSColor *kColorDefault;
         return @(character->delves);
     } else if ([identifier isEqualToString:kColGildedStash]) {
         return @(character->gilded_stash);
-    } else if ([identifier isEqualToString:kColGearingUp]) {
-        return @(character->gearing_up);
     } else if ([identifier isEqualToString:kColQuests]) {
         return @(character->quests);
     } else if ([identifier isEqualToString:kColTimewalk]) {
@@ -544,7 +538,6 @@ static NSColor *kColorDefault;
 
     /* Check if this is a checkbox column */
     BOOL isCheckbox = [identifier isEqualToString:kColVaultVisited] ||
-                      [identifier isEqualToString:kColGearingUp] ||
                       [identifier isEqualToString:kColQuests];
 
     if (isCheckbox) {
@@ -563,8 +556,6 @@ static NSColor *kColorDefault;
             BOOL value = NO;
             if ([identifier isEqualToString:kColVaultVisited]) {
                 value = character->vault_visited;
-            } else if ([identifier isEqualToString:kColGearingUp]) {
-                value = character->gearing_up;
             } else if ([identifier isEqualToString:kColQuests]) {
                 value = character->quests;
             }
@@ -664,7 +655,7 @@ static NSColor *kColorDefault;
 
     /* Determine completion status for weekly items */
     BOOL delvesDone = character->delves >= 4;
-    BOOL allWeekliesDone = character->gearing_up && character->quests && delvesDone;
+    BOOL allWeekliesDone = character->quests && delvesDone;
 
     if ([identifier isEqualToString:kColUpgradeProgress]) {
         if (character->upgrade_max > 0 && character->upgrade_current >= character->upgrade_max) {
@@ -692,9 +683,8 @@ static NSColor *kColorDefault;
         } else {
             return kColorRed;
         }
-    } else if ([identifier isEqualToString:kColGearingUp] || [identifier isEqualToString:kColQuests]) {
-        BOOL value = [identifier isEqualToString:kColGearingUp] ? character->gearing_up : character->quests;
-        if (value) {
+    } else if ([identifier isEqualToString:kColQuests]) {
+        if (character->quests) {
             return kColorGreen;
         } else {
             return useDark ? nil : kColorYellow;
@@ -905,8 +895,6 @@ static NSColor *kColorDefault;
         NSInteger column = 0;
         if ([columnId isEqualToString:kColVaultVisited]) {
             column = 9;
-        } else if ([columnId isEqualToString:kColGearingUp]) {
-            column = 12;
         } else if ([columnId isEqualToString:kColQuests]) {
             column = 13;
         }

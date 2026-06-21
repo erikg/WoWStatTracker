@@ -452,16 +452,11 @@ static Character* parse_character(lua_State* L, const char* char_key) {
 
     bool b;
     if (get_lua_bool(L, "vault_visited", &b)) c->vault_visited = b;
-    if (get_lua_bool(L, "gearing_up", &b)) c->gearing_up = b;
     if (get_lua_bool(L, "quests", &b)) c->quests = b;
 
     /* Delves: from vault_delves.count */
     if (get_nested_number(L, "vault_delves", "count", &d)) {
         c->delves = (int)d;
-        /* Subtract 1 if gearing_up was completed (it counts as a delve) */
-        if (c->gearing_up && c->delves > 0) {
-            c->delves--;
-        }
     }
 
     /* Dungeons: from vault_dungeons.count */

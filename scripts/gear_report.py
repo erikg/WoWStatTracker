@@ -593,8 +593,8 @@ def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict,
     if not has_non_hero and total_slots >= 3 and gilded_claimed >= 4:
         # All hero gear + 4 gilded + 3 vault slots
         return "✅"
-    elif has_non_hero and has_t8_plus >= 3 and total_slots >= 3:
-        # Has champ/vet gear: need 3+ T8+ (gilded) + 3 total vault rewards
+    elif has_non_hero and has_t8_plus >= 2 and total_slots >= 3:
+        # Has champ/vet gear: 2+ T8+ (gilded) + 3 total slots (3rd can be a non-8+ heroic/TW reward)
         # Also need 5/5 timewalking if TW is available (drops random hero gear)
         if tw_available and timewalk < 5:
             return "⚠️"

@@ -92,7 +92,6 @@ Character* character_copy(const Character* src) {
     c->dungeons = src->dungeons;
     c->vault_t8_plus = src->vault_t8_plus;
     c->gilded_stash = src->gilded_stash;
-    c->gearing_up = src->gearing_up;
     c->quests = src->quests;
     c->timewalk = src->timewalk;
     c->timewalk_accepted = src->timewalk_accepted;
@@ -224,7 +223,6 @@ void character_reset_weekly(Character* c) {
     c->dungeons = 0;
     c->vault_t8_plus = 0;
     c->gilded_stash = 0;
-    c->gearing_up = false;
     c->quests = false;
     c->timewalk = 0;
     c->timewalk_accepted = false;
@@ -250,7 +248,6 @@ cJSON* character_to_json(const Character* c) {
     cJSON_AddNumberToObject(json, "dungeons", c->dungeons);
     cJSON_AddNumberToObject(json, "vault_t8_plus", c->vault_t8_plus);
     cJSON_AddNumberToObject(json, "gilded_stash", c->gilded_stash);
-    cJSON_AddBoolToObject(json, "gearing_up", c->gearing_up);
     cJSON_AddBoolToObject(json, "quests", c->quests);
     cJSON_AddNumberToObject(json, "timewalk", c->timewalk);
     cJSON_AddBoolToObject(json, "timewalk_accepted", c->timewalk_accepted);
@@ -336,7 +333,6 @@ Character* character_from_json(const cJSON* json) {
     c->dungeons = (int)get_json_number(json, "dungeons", 0);
     c->vault_t8_plus = (int)get_json_number(json, "vault_t8_plus", 0);
     c->gilded_stash = (int)get_json_number(json, "gilded_stash", 0);
-    c->gearing_up = get_json_bool(json, "gearing_up", false);
     c->quests = get_json_bool(json, "quests", false);
     c->timewalk = (int)get_json_number(json, "timewalk", 0);
     c->timewalk_accepted = get_json_bool(json, "timewalk_accepted", false);
