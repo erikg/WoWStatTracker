@@ -995,8 +995,9 @@ static void BuildCharacterTooltip(Character *ch, BOOL twAvailable, wchar_t *buff
                 int cur = cJSON_IsNumber(current) ? current->valueint : 0;
                 int mx = cJSON_IsNumber(max) ? max->valueint : 0;
                 const char *trackStr = cJSON_IsString(track) ? track->valuestring : "";
-                /* Skip non-hero maxed items - they go in "Needs Hero Track" */
-                if (cur >= mx && strcmp(trackStr, "Hero") != 0 && strcmp(trackStr, "Myth") != 0)
+                /* Only items with upgrade levels remaining belong here. Maxed
+                 * sub-Hero items go in "Needs Hero Track"; maxed Hero/Myth are done. */
+                if (cur >= mx)
                     continue;
                 if (!hasUpgrades) {
                     int len = swprintf(buffer + pos, bufferLen - pos, L"Upgrades Needed:\n");

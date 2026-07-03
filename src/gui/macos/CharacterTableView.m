@@ -730,13 +730,15 @@ static NSColor *kColorDefault;
                 NSNumber *current = slot[@"current"] ?: @0;
                 NSNumber *max = slot[@"max"] ?: @0;
                 NSString *track = slot[@"track"] ?: @"";
-                if ([current intValue] >= [max intValue] &&
-                    ![track isEqualToString:@"Hero"] &&
-                    ![track isEqualToString:@"Myth"]) {
-                    [needsHero addObject:slot];
-                } else {
+                if ([current intValue] < [max intValue]) {
+                    /* Still has upgrade levels remaining on its track */
                     [needsUpgrade addObject:slot];
+                } else if (![track isEqualToString:@"Hero"] &&
+                           ![track isEqualToString:@"Myth"]) {
+                    /* Maxed on a sub-Hero track — should be replaced with Hero */
+                    [needsHero addObject:slot];
                 }
+                /* else: maxed on Hero/Myth — done, nothing needed */
             }
             if ([needsUpgrade count] > 0) {
                 [tooltip appendString:@"Upgrades Needed:\n"];

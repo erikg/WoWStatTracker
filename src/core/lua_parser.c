@@ -403,7 +403,9 @@ static char* slot_upgrades_to_json_string(lua_State* L) {
     buf[pos] = '\0';
 
     lua_pop(L, 1);  /* pop slot_upgrades table */
-    return first ? NULL : wst_strdup(buf);  /* Return NULL if empty */
+    /* Present-but-empty ("[]") clears stale stored data on merge; a truly
+     * absent field returns NULL earlier so old data is preserved. */
+    return wst_strdup(buf);
 }
 
 /*
