@@ -8,6 +8,7 @@
 #import "CharacterTableView.h"
 #import "character.h"
 #import "character_store.h"
+#import "gem_recs.h"
 #import "config.h"
 #import "notification.h"
 #import "platform.h"
@@ -35,6 +36,7 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
 @property (nonatomic, strong) NSView *statusBar;
 @property (nonatomic, strong) NSTimer *statusTimer;
 @property (nonatomic, strong) NSPanel *manualPanel;
+@property (nonatomic, strong) NSPanel *recsPanel;
 
 @end
 
@@ -329,7 +331,9 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
 #pragma mark - CharacterTableViewDelegate
 
 - (void)characterTableView:(CharacterTableView *)tableView didDoubleClickRow:(NSInteger)row {
-    [self showEditCharacterSheetForIndex:row];
+    /* Double-click now opens the details + recommendations window.
+     * Editing moved to Characters -> Edit Character... */
+    [self showDetailsForCharacterAtIndex:row];
 }
 
 - (void)characterTableView:(CharacterTableView *)tableView didToggleColumn:(NSInteger)column row:(NSInteger)row newValue:(BOOL)value {
@@ -755,6 +759,192 @@ static const NSTimeInterval kStatusDismissDelay = 5.0;
     [textView setString:content];
     [self.manualPanel center];
     [self.manualPanel makeKeyAndOrderFront:nil];
+}
+
+#pragma mark - Gem/Enchant Recommendations
+
+- (NSInteger)selectedCharacterIndex {
+    return [self.tableView selectedCharacterIndex];
+}
+
+/* Convert a cJSON string field to NSString, or nil if absent/non-string. */
+static NSString *json_string(const cJSON *obj, const char *key) {
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(obj, key);
+    if (cJSON_IsString(item) && item->valuestring) {
+        return [NSString stringWithUTF8String:item->valuestring];
+    }
+    return nil;
+}
+
+- (NSString *)formatRecommendations:(const cJSON *)node {
+    NSMutableString *out = [NSMutableString string];
+
+    /* Enchants: one row per slot */
+    [out appendString:@"ENCHANTS\n========\n"];
+    const cJSON *enchants = cJSON_GetObjectItemCaseSensitive(node, "enchants");
+    if (cJSON_IsObject(enchants) && enchants->child) {
+        const cJSON *slot = NULL;
+        cJSON_ArrayForEach(slot, enchants) {
+            if (!cJSON_IsObject(slot)) continue;
+            NSString *slotName = json_string(slot, "slot_name") ?: @"?";
+            const cJSON *primary = cJSON_GetObjectItemCaseSensitive(slot, "primary");
+            if (!cJSON_IsObject(primary)) continue;
+            NSString *ename = json_string(primary, "name") ?: @"—";
+            [out appendFormat:@"  %@: %@", slotName, ename];
+            const cJSON *usage = cJSON_GetObjectItemCaseSensitive(primary, "usage_pct");
+            if (cJSON_IsNumber(usage)) {
+                [out appendFormat:@" (%.0f%%)", usage->valuedouble];
+            }
+            const cJSON *disagree = cJSON_GetObjectItemCaseSensitive(slot, "disagreement");
+            if (cJSON_IsTrue(disagree)) {
+                [out appendString:@"  ⚠ sources differ"];
+            }
+            [out appendString:@"\n"];
+        }
+    } else {
+        [out appendString:@"  (none)\n"];
+    }
+
+    /* Gems */
+    [out appendString:@"\nGEMS\n====\n"];
+    const cJSON *gems = cJSON_GetObjectItemCaseSensitive(node, "gems");
+    if (cJSON_IsObject(gems)) {
+        const cJSON *special = cJSON_GetObjectItemCaseSensitive(gems, "special");
+        if (cJSON_IsArray(special) && cJSON_GetArraySize(special) > 0) {
+            [out appendString:@"  Special:\n"];
+            const cJSON *g = NULL;
+            cJSON_ArrayForEach(g, special) {
+                NSString *nm = json_string(g, "name");
+                if (!nm) continue;
+                [out appendFormat:@"    • %@", nm];
+                const cJSON *usage = cJSON_GetObjectItemCaseSensitive(g, "usage_pct");
+                if (cJSON_IsNumber(usage)) [out appendFormat:@" (%.0f%%)", usage->valuedouble];
+                [out appendString:@"\n"];
+            }
+        }
+
+        const cJSON *statGems = cJSON_GetObjectItemCaseSensitive(gems, "stat_gems");
+        if (cJSON_IsArray(statGems) && cJSON_GetArraySize(statGems) > 0) {
+            [out appendString:@"  Stat Gems:\n"];
+            const cJSON *g = NULL;
+            cJSON_ArrayForEach(g, statGems) {
+                NSString *nm = json_string(g, "name");
+                if (!nm) continue;
+                [out appendFormat:@"    • %@", nm];
+                NSString *stat = json_string(g, "stat");
+                if (stat) [out appendFormat:@" [%@]", stat];
+                const cJSON *usage = cJSON_GetObjectItemCaseSensitive(g, "usage_pct");
+                if (cJSON_IsNumber(usage)) [out appendFormat:@" (%.0f%%)", usage->valuedouble];
+                [out appendString:@"\n"];
+            }
+        }
+
+        const cJSON *statPriority = cJSON_GetObjectItemCaseSensitive(gems, "stat_priority");
+        if (cJSON_IsArray(statPriority) && cJSON_GetArraySize(statPriority) > 0) {
+            NSMutableArray *stats = [NSMutableArray array];
+            const cJSON *s = NULL;
+            cJSON_ArrayForEach(s, statPriority) {
+                NSString *st = json_string(s, "stat");
+                if (st) [stats addObject:st];
+            }
+            if (stats.count > 0) {
+                [out appendFormat:@"  Stat Priority: %@\n",
+                    [stats componentsJoinedByString:@" > "]];
+            }
+        }
+
+        NSString *note = json_string(gems, "note");
+        if (note) [out appendFormat:@"\n  Note: %@\n", note];
+    } else {
+        [out appendString:@"  (none)\n"];
+    }
+
+    return out;
+}
+
+- (void)showRecommendationsForSelectedCharacter {
+    [self showDetailsForCharacterAtIndex:[self.tableView selectedCharacterIndex]];
+}
+
+- (void)showDetailsForCharacterAtIndex:(NSInteger)index {
+    CharacterStore *store = [self.appDelegate getCharacterStore];
+    if (!store || index < 0) return;
+
+    const Character *c = character_store_get(store, (size_t)index);
+    if (!c) return;
+
+    NSString *charName = c->name ? [NSString stringWithUTF8String:c->name] : @"";
+    BOOL hasSpec = c->spec && c->spec[0] && c->wow_class && c->wow_class[0];
+    NSString *specName = hasSpec ? [NSString stringWithUTF8String:c->spec] : @"";
+    NSString *className = hasSpec ? [NSString stringWithUTF8String:c->wow_class] : @"";
+
+    NSString *title = hasSpec ?
+        [NSString stringWithFormat:@"%@ — %@ %@", charName, specName, className] :
+        charName;
+
+    /* Recommendations body */
+    NSString *recsBody;
+    if (!hasSpec) {
+        recsBody = @"Spec unknown — run /wst update in-game to enable recommendations.";
+    } else {
+        GemRecs *recs = [self.appDelegate getGemRecs];
+        const cJSON *node = recs ? gem_recs_lookup(recs, c->wow_class, c->spec) : NULL;
+        if (!node) {
+            recsBody = [NSString stringWithFormat:@"No recommendations available for %@ %@.",
+                        className, specName];
+        } else {
+            recsBody = [self formatRecommendations:node];
+        }
+    }
+
+    /* Status & gear detail (same content as the row hover tooltip) */
+    NSString *detail = [self.tableView detailTextForCharacterAtIndex:index];
+
+    NSMutableString *combined = [NSMutableString string];
+    if (detail.length > 0) {
+        [combined appendString:@"STATUS & GEAR\n"];
+        [combined appendString:@"────────────────────────────────\n"];
+        [combined appendString:detail];
+        if (![detail hasSuffix:@"\n"]) [combined appendString:@"\n"];
+        [combined appendString:@"\n"];
+    }
+    [combined appendString:@"GEM & ENCHANT RECOMMENDATIONS\n"];
+    [combined appendString:@"────────────────────────────────\n\n"];
+    [combined appendString:recsBody];
+
+    [self showRecommendationsWindowWithTitle:title body:combined];
+}
+
+- (void)showRecommendationsWindowWithTitle:(NSString *)title body:(NSString *)body {
+    if (!self.recsPanel) {
+        self.recsPanel = [[NSPanel alloc] initWithContentRect:NSMakeRect(0, 0, 520, 500)
+                                                    styleMask:NSWindowStyleMaskTitled |
+                                                              NSWindowStyleMaskClosable |
+                                                              NSWindowStyleMaskResizable
+                                                      backing:NSBackingStoreBuffered
+                                                        defer:NO];
+
+        NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:[[self.recsPanel contentView] bounds]];
+        [scrollView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+        [scrollView setHasVerticalScroller:YES];
+
+        NSTextView *textView = [[NSTextView alloc] initWithFrame:[[scrollView contentView] bounds]];
+        [textView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+        [textView setEditable:NO];
+        [textView setFont:[NSFont fontWithName:@"Menlo" size:12]];
+        [textView setTextContainerInset:NSMakeSize(10, 10)];
+
+        [scrollView setDocumentView:textView];
+        [[self.recsPanel contentView] addSubview:scrollView];
+
+        objc_setAssociatedObject(self.recsPanel, "textView", textView, OBJC_ASSOCIATION_RETAIN);
+    }
+
+    [self.recsPanel setTitle:title];
+    NSTextView *textView = objc_getAssociatedObject(self.recsPanel, "textView");
+    [textView setString:body];
+    [self.recsPanel center];
+    [self.recsPanel makeKeyAndOrderFront:nil];
 }
 
 #pragma mark - Status Bar

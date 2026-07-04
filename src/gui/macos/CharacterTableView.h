@@ -25,4 +25,11 @@ typedef struct CharacterStore CharacterStore;
 - (void)reloadWithCharacterStore:(CharacterStore *)store;
 - (void)refreshCellBackgrounds;
 
+/* Character-store index of the selected row, or -1 if no selection. */
+- (NSInteger)selectedCharacterIndex;
+
+/* Full status/gear detail text (the row tooltip content) for the character at
+ * the given store index, or nil. Used by the character details window. */
+- (NSString *)detailTextForCharacterAtIndex:(NSInteger)index;
+
 @end

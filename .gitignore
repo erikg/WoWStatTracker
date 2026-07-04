@@ -32,6 +32,11 @@ cmake_install.cmake
 
 # Data files (user-specific)
 *.json
+# ...but the generated gem/enchant recommendation table IS tracked
+!data/gem_enchant_recs.json
+
+# Gem/enchant scraper toolbox (generates data/gem_enchant_recs.json; not committed)
+tools/gem-recs/
 
 # Logs
 *.log
@@ -42,4 +47,8 @@ tmp/
 
 # Claude Code
 CLAUDE.md
+NOTES.md
 dist/
+
+# Local-only scratch/adjacent notes (not part of the repo)
+*.local.md

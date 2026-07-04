@@ -566,15 +566,16 @@ def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict,
     has_t8_plus = vault_info["has_t8_plus"]
     timewalk = get_timewalk_progress(char_data)
 
-    # Check if fully maxed (all upgrades done + all sockets gemmed)
+    # Check if fully maxed (all upgrades done + all gem-slot updates applied).
+    # Ungemmed sockets (empty_count) only warn, they don't block "done".
     upgrade_current = char_data.get("upgrade_current", 0)
     upgrade_max = char_data.get("upgrade_max", 0)
     fully_upgraded = upgrade_max > 0 and upgrade_current == upgrade_max
-    all_sockets_gemmed = socket_info["missing_count"] == 0 and socket_info["empty_count"] == 0
+    gem_slot_updates_applied = socket_info["missing_count"] == 0
 
     # Fully maxed character on all hero gear = done regardless of vault
     # But still need at least 1 TW if available
-    if fully_upgraded and all_sockets_gemmed and not has_non_hero:
+    if fully_upgraded and gem_slot_updates_applied and not has_non_hero:
         if tw_available and timewalk < 1:
             return "⚠️"
         return "✅"

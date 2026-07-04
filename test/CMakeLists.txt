@@ -18,6 +18,7 @@ set(TEST_SOURCES
     test_paths.c
     test_lua_parser.c
     test_notification.c
+    test_gem_recs.c
 )
 
 # Add platform tests if platform layer is being built
@@ -42,6 +43,11 @@ endif()
 target_include_directories(wst_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core
     ${CMAKE_SOURCE_DIR}/src/platform
+)
+
+# Absolute path to the recommendation data file for gem_recs tests
+target_compile_definitions(wst_tests PRIVATE
+    WST_GEM_RECS_PATH="${CMAKE_SOURCE_DIR}/data/gem_enchant_recs.json"
 )
 
 # Register with CTest

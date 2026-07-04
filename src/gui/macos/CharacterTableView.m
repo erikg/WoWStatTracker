@@ -247,6 +247,21 @@ static NSColor *kColorDefault;
     [self reloadData];
 }
 
+- (NSInteger)selectedCharacterIndex {
+    NSInteger row = [self selectedRow];
+    if (row < 0) return -1;
+    size_t idx = [self characterIndexForRow:row];
+    if (idx == (size_t)-1) return -1;
+    return (NSInteger)idx;
+}
+
+- (NSString *)detailTextForCharacterAtIndex:(NSInteger)index {
+    if (!self.characterStore || index < 0) return nil;
+    const Character *c = character_store_get(self.characterStore, (size_t)index);
+    if (!c) return nil;
+    return [self buildTooltipForCharacter:c twAvailable:[self isTimewalkingAvailable]];
+}
+
 /* Get the actual character store index for a display row */
 - (size_t)characterIndexForRow:(NSInteger)row {
     if (row < 0 || (NSUInteger)row >= [self.sortedIndices count]) {
@@ -283,7 +298,8 @@ static NSColor *kColorDefault;
  * Returns: 0 = done (✅), 1 = needs work (⚠️), 2 = not started/bad (❌)
  *
  * Logic matches gear_report.py:
- * - ✅ if fully upgraded AND all sockets gemmed AND all hero gear
+ * - ✅ if fully upgraded AND all gem-slot updates applied AND all hero gear
+ *   (ungemmed sockets warn in the tooltip but do not block done)
  * - ❌ if no vault rewards at all
  * - ✅ if all hero gear AND 3+ vault slots AND 3+ gilded
  * - ✅ if non-hero gear AND 2+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
@@ -301,13 +317,15 @@ static NSColor *kColorDefault;
     BOOL fullyUpgraded = (character->upgrade_max > 0 &&
                           character->upgrade_current >= character->upgrade_max);
 
-    /* Check sockets (enchants not required for "done" status) */
-    BOOL allSocketsGemmed = (character->socket_missing_count == 0 &&
-                             character->socket_empty_count == 0);
+    /* Check gem-slot updates (Technomancer's Gift). Enchants are not required
+     * for "done", and neither are inserted gems: an ungemmed socket only warns
+     * (see statusReasonForCharacter) rather than blocking done. Only unapplied
+     * gem-slot updates (socket_missing_count) count as unfinished. */
+    BOOL gemSlotUpdatesApplied = (character->socket_missing_count == 0);
 
     /* Fully maxed on all hero gear = done regardless of vault */
     /* But still need at least 1 TW if available */
-    if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
+    if (fullyUpgraded && gemSlotUpdatesApplied && !hasNonHero) {
         if (twAvailable && character->timewalk < 1) {
             return 1;  /* ⚠️ Need to do at least 1 timewalking */
         }
@@ -371,14 +389,18 @@ static NSColor *kColorDefault;
     BOOL fullyUpgraded = (character->upgrade_max > 0 &&
                           character->upgrade_current >= character->upgrade_max);
 
-    /* Check sockets */
-    BOOL allSocketsGemmed = (character->socket_missing_count == 0 &&
-                             character->socket_empty_count == 0);
+    /* Check gem-slot updates (see statusForCharacter) */
+    BOOL gemSlotUpdatesApplied = (character->socket_missing_count == 0);
 
     /* Fully maxed on all hero gear = done regardless of vault */
-    if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
+    if (fullyUpgraded && gemSlotUpdatesApplied && !hasNonHero) {
         if (twAvailable && character->timewalk < 1) {
             return @"⚠️ Need timewalking (0/1)";
+        }
+        if (character->socket_empty_count > 0) {
+            return [NSString stringWithFormat:@"✅ Fully upgraded (%d socket%@ ungemmed)",
+                character->socket_empty_count,
+                character->socket_empty_count == 1 ? @"" : @"s"];
         }
         return @"✅ Fully upgraded";
     }

@@ -83,6 +83,7 @@ add_library(wst_core STATIC
     src/core/week_id.c
     src/core/paths.c
     src/core/lua_parser.c
+    src/core/gem_recs.c
 )
 
 target_include_directories(wst_core PUBLIC
@@ -168,6 +169,14 @@ if(WST_BUILD_GUI)
             COMMENT "Bundling WoWStatTracker addon"
         )
 
+        # Copy gem/enchant recommendation data into app bundle Resources
+        add_custom_command(TARGET WoWStatTracker POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_CURRENT_SOURCE_DIR}/data/gem_enchant_recs.json
+                $<TARGET_BUNDLE_CONTENT_DIR:WoWStatTracker>/Resources/gem_enchant_recs.json
+            COMMENT "Bundling gem/enchant recommendations"
+        )
+
     elseif(WST_PLATFORM_WINDOWS)
         add_executable(WoWStatTracker WIN32
             src/gui/windows/main.c
@@ -214,6 +223,13 @@ if(WST_BUILD_GUI)
 
         # Install addon to Resources
         install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/WoWStatTracker_Addon
+            DESTINATION WoWStatTracker.app/Contents/Resources
+            COMPONENT Runtime
+            OPTIONAL
+        )
+
+        # Install gem/enchant recommendation data to Resources
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/data/gem_enchant_recs.json
             DESTINATION WoWStatTracker.app/Contents/Resources
             COMPONENT Runtime
             OPTIONAL

@@ -440,9 +440,31 @@ static Character* parse_character(lua_State* L, const char* char_key) {
         free(guild);
     }
 
+    /* Class/spec/role (optional; may be absent on old data) */
+    char* wow_class = NULL;
+    if (get_lua_string(L, "class", &wow_class)) {
+        character_set_wow_class(c, wow_class);
+        free(wow_class);
+    }
+    char* spec = NULL;
+    if (get_lua_string(L, "spec", &spec)) {
+        character_set_spec(c, spec);
+        free(spec);
+    }
+    char* role = NULL;
+    if (get_lua_string(L, "role", &role)) {
+        character_set_role(c, role);
+        free(role);
+    }
+
     double item_level = 0;
     if (get_lua_number(L, "item_level", &item_level)) {
         c->item_level = item_level;
+    }
+
+    double spec_id = 0;
+    if (get_lua_number(L, "spec_id", &spec_id)) {
+        c->spec_id = (int)spec_id;
     }
 
     double d;

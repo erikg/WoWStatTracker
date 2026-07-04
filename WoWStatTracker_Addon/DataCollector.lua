@@ -111,11 +111,17 @@ function WoWStatTracker:CollectCharacterData()
     local socketInfo = self:GetSocketInfo()
     local enchantInfo = self:GetEnchantInfo()
 
+    -- Get specialization info (spec_id is the locale-stable join key)
+    local specInfo = self:GetSpecInfo()
+
     local data = {
         -- Basic character info
         name = name,
         realm = realm,
         class = UnitClass("player"),
+        spec_id = specInfo.spec_id,   -- Numeric specID (locale-stable, e.g. 264 = Resto Shaman)
+        spec = specInfo.spec,         -- Spec name (human-readable, but localized)
+        role = specInfo.role,         -- Role (e.g. "DAMAGER"/"HEALER"/"TANK")
         level = UnitLevel("player"),
         guild = GetGuildInfo("player") or "",
 
@@ -260,6 +266,50 @@ function WoWStatTracker:ItemHasSocket(itemLink)
                 end
             end
         end
+    end
+
+    return result
+end
+
+-- Get active specialization info.
+-- spec_id is the numeric specID (locale-stable, the reliable join key for
+-- class->spec lookups, e.g. 264 = Restoration Shaman). spec is the localized
+-- display name; role is "DAMAGER"/"HEALER"/"TANK".
+-- GetSpecialization() can return nil at low levels or before talent data loads,
+-- so guard it and leave fields nil in that case.
+-- Returns: { spec_id = number|nil, spec = string|nil, role = string|nil }
+function WoWStatTracker:GetSpecInfo()
+    local result = {
+        spec_id = nil,
+        spec = nil,
+        role = nil,
+    }
+
+    -- Wrap in pcall to prevent errors from breaking the update
+    local success, err = pcall(function()
+        if not GetSpecialization then
+            return
+        end
+        local specIndex = GetSpecialization()
+        if not specIndex then
+            return
+        end
+        local specID, specName, _, _, role = GetSpecializationInfo(specIndex)
+        if specID and specID > 0 then
+            result.spec_id = specID
+            result.spec = specName
+            result.role = role
+        end
+    end)
+
+    if not success then
+        self:Debug("GetSpecInfo error: " .. tostring(err))
+    end
+
+    if WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode then
+        self:Debug("Spec: id=" .. tostring(result.spec_id) ..
+                   " name=" .. tostring(result.spec) ..
+                   " role=" .. tostring(result.role))
     end
 
     return result

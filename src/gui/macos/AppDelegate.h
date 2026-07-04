@@ -11,6 +11,7 @@
 typedef struct CharacterStore CharacterStore;
 typedef struct Config Config;
 typedef struct NotificationStore NotificationStore;
+typedef struct GemRecs GemRecs;
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
@@ -23,6 +24,7 @@ typedef struct NotificationStore NotificationStore;
 - (CharacterStore *)getCharacterStore;
 - (Config *)getConfig;
 - (NotificationStore *)getNotificationStore;
+- (GemRecs *)getGemRecs;
 
 @end
 

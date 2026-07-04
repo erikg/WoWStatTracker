@@ -34,6 +34,13 @@ struct Character {
     char* notes;
     char* week_id;          /* Week ID when data was collected (e.g., "20251230") */
 
+    /* Class/spec/role (from addon; optional - empty/0 on old data).
+     * wow_class avoids the C++/ObjC 'class' keyword; JSON key is "class". */
+    char* wow_class;        /* e.g. "Priest" */
+    char* spec;             /* e.g. "Holy" */
+    int spec_id;            /* Numeric spec ID (locale-stable) */
+    char* role;             /* e.g. "HEALER"/"DAMAGER"/"TANK" */
+
     /* Aggregate gear status for quick status calculation */
     int upgrade_current;         /* Total current upgrade levels (e.g., 111) */
     int upgrade_max;             /* Total max upgrade levels (e.g., 120) */
@@ -109,5 +116,8 @@ WstResult character_set_name(Character* c, const char* value);
 WstResult character_set_guild(Character* c, const char* value);
 WstResult character_set_notes(Character* c, const char* value);
 WstResult character_set_week_id(Character* c, const char* value);
+WstResult character_set_wow_class(Character* c, const char* value);
+WstResult character_set_spec(Character* c, const char* value);
+WstResult character_set_role(Character* c, const char* value);
 
 #endif /* WST_CHARACTER_H */

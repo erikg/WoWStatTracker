@@ -23,13 +23,20 @@ Character* character_new(void) {
     c->notes = wst_strdup("");
     c->week_id = NULL;  /* Only set when imported from addon */
 
+    /* Class/spec/role - empty/0 until imported from addon */
+    c->wow_class = wst_strdup("");
+    c->spec = wst_strdup("");
+    c->role = wst_strdup("");
+    c->spec_id = 0;
+
     /* Per-slot JSON strings - NULL until imported from addon */
     c->slot_upgrades_json = NULL;
     c->missing_sockets_json = NULL;
     c->empty_sockets_json = NULL;
     c->missing_enchants_json = NULL;
 
-    if (!c->realm || !c->name || !c->guild || !c->notes) {
+    if (!c->realm || !c->name || !c->guild || !c->notes ||
+        !c->wow_class || !c->spec || !c->role) {
         character_free(c);
         return NULL;
     }
@@ -58,6 +65,9 @@ void character_free(Character* c) {
     free(c->guild);
     free(c->notes);
     free(c->week_id);
+    free(c->wow_class);
+    free(c->spec);
+    free(c->role);
     free(c->slot_upgrades_json);
     free(c->missing_sockets_json);
     free(c->empty_sockets_json);
@@ -75,12 +85,17 @@ Character* character_copy(const Character* src) {
     c->name = wst_strdup(src->name ? src->name : "");
     c->guild = wst_strdup(src->guild ? src->guild : "");
     c->notes = wst_strdup(src->notes ? src->notes : "");
+    c->wow_class = wst_strdup(src->wow_class ? src->wow_class : "");
+    c->spec = wst_strdup(src->spec ? src->spec : "");
+    c->role = wst_strdup(src->role ? src->role : "");
 
-    if (!c->realm || !c->name || !c->guild || !c->notes) {
+    if (!c->realm || !c->name || !c->guild || !c->notes ||
+        !c->wow_class || !c->spec || !c->role) {
         character_free(c);
         return NULL;
     }
 
+    c->spec_id = src->spec_id;
     c->item_level = src->item_level;
     c->heroic_items = src->heroic_items;
     c->champion_items = src->champion_items;
@@ -258,6 +273,12 @@ cJSON* character_to_json(const Character* c) {
         cJSON_AddStringToObject(json, "week_id", c->week_id);
     }
 
+    /* Class/spec/role (JSON key "class" for the wow_class field) */
+    cJSON_AddStringToObject(json, "class", c->wow_class ? c->wow_class : "");
+    cJSON_AddStringToObject(json, "spec", c->spec ? c->spec : "");
+    cJSON_AddNumberToObject(json, "spec_id", c->spec_id);
+    cJSON_AddStringToObject(json, "role", c->role ? c->role : "");
+
     /* New aggregate fields */
     cJSON_AddNumberToObject(json, "upgrade_current", c->upgrade_current);
     cJSON_AddNumberToObject(json, "upgrade_max", c->upgrade_max);
@@ -343,6 +364,15 @@ Character* character_from_json(const cJSON* json) {
         character_set_week_id(c, week_id);
     }
 
+    /* Class/spec/role (optional; JSON key "class" maps to wow_class) */
+    if (character_set_wow_class(c, get_json_string(json, "class", "")) != WST_OK ||
+        character_set_spec(c, get_json_string(json, "spec", "")) != WST_OK ||
+        character_set_role(c, get_json_string(json, "role", "")) != WST_OK) {
+        character_free(c);
+        return NULL;
+    }
+    c->spec_id = (int)get_json_number(json, "spec_id", 0);
+
     /* New aggregate fields */
     c->upgrade_current = (int)get_json_number(json, "upgrade_current", 0);
     c->upgrade_max = (int)get_json_number(json, "upgrade_max", 0);
@@ -409,4 +439,19 @@ WstResult character_set_week_id(Character* c, const char* value) {
     }
     c->week_id = NULL;
     return WST_OK;
+}
+
+WstResult character_set_wow_class(Character* c, const char* value) {
+    if (!c) return WST_ERR_NULL_ARG;
+    return set_string_field(&c->wow_class, value);
+}
+
+WstResult character_set_spec(Character* c, const char* value) {
+    if (!c) return WST_ERR_NULL_ARG;
+    return set_string_field(&c->spec, value);
+}
+
+WstResult character_set_role(Character* c, const char* value) {
+    if (!c) return WST_ERR_NULL_ARG;
+    return set_string_field(&c->role, value);
 }

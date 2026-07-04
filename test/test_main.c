@@ -24,6 +24,7 @@ int main(void) {
     test_paths_suite();
     test_lua_parser_suite();
     test_notification_suite();
+    test_gem_recs_suite();
 
 #ifdef WST_BUILD_PLATFORM
     test_platform_suite();

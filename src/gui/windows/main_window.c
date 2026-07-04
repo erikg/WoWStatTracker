@@ -1207,13 +1207,15 @@ static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
     BOOL fullyUpgraded = (ch->upgrade_max > 0 &&
                           ch->upgrade_current >= ch->upgrade_max);
 
-    /* Check sockets (enchants not required for "done" status) */
-    BOOL allSocketsGemmed = (ch->socket_missing_count == 0 &&
-                             ch->socket_empty_count == 0);
+    /* Check gem-slot updates (Technomancer's Gift). Enchants are not required
+     * for "done", and neither are inserted gems: an ungemmed socket only warns
+     * (see GetStatusReason) rather than blocking done. Only unapplied gem-slot
+     * updates (socket_missing_count) count as unfinished. */
+    BOOL gemSlotUpdatesApplied = (ch->socket_missing_count == 0);
 
     /* Fully maxed on all hero gear = done regardless of vault */
     /* But still need at least 1 TW if available */
-    if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
+    if (fullyUpgraded && gemSlotUpdatesApplied && !hasNonHero) {
         if (twAvailable && ch->timewalk < 1) {
             return 1;  /* Need to do at least 1 timewalking */
         }
@@ -1280,14 +1282,19 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
     BOOL fullyUpgraded = (ch->upgrade_max > 0 &&
                           ch->upgrade_current >= ch->upgrade_max);
 
-    /* Check sockets */
-    BOOL allSocketsGemmed = (ch->socket_missing_count == 0 &&
-                             ch->socket_empty_count == 0);
+    /* Check gem-slot updates (see GetCharacterStatus) */
+    BOOL gemSlotUpdatesApplied = (ch->socket_missing_count == 0);
 
     /* Fully maxed on all hero gear = done regardless of vault */
-    if (fullyUpgraded && allSocketsGemmed && !hasNonHero) {
+    if (fullyUpgraded && gemSlotUpdatesApplied && !hasNonHero) {
         if (twAvailable && ch->timewalk < 1) {
             wcscpy_s(buffer, bufferLen, L"\u26A0 Need timewalking (0/1)");
+            return;
+        }
+        if (ch->socket_empty_count > 0) {
+            _snwprintf_s(buffer, bufferLen, _TRUNCATE,
+                L"\u2705 Fully upgraded (%d socket%ls ungemmed)",
+                ch->socket_empty_count, ch->socket_empty_count == 1 ? L"" : L"s");
             return;
         }
         wcscpy_s(buffer, bufferLen, L"\u2705 Fully upgraded");

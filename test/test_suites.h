@@ -13,6 +13,7 @@ void test_week_id_suite(void);
 void test_paths_suite(void);
 void test_lua_parser_suite(void);
 void test_notification_suite(void);
+void test_gem_recs_suite(void);
 
 #ifdef WST_BUILD_PLATFORM
 void test_platform_suite(void);

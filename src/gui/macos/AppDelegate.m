@@ -13,6 +13,7 @@
 #import "paths.h"
 #import "week_id.h"
 #import "lua_parser.h"
+#import "gem_recs.h"
 #import "util.h"
 #import <sys/stat.h>
 #import <objc/runtime.h>
@@ -39,6 +40,7 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
 @property (nonatomic, assign) CharacterStore *characterStore;
 @property (nonatomic, assign) Config *config;
 @property (nonatomic, assign) NotificationStore *notificationStore;
+@property (nonatomic, assign) GemRecs *gemRecs;
 @property (nonatomic, copy) NSString *configDir;
 @property (nonatomic, copy) NSString *lockFile;
 @property (nonatomic, assign) BOOL weeklyResetOccurred;
@@ -105,6 +107,9 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
         notification_store_load(self.notificationStore);
     }
 
+    /* Load gem/enchant recommendations (optional; missing file is non-fatal) */
+    self.gemRecs = [self loadGemRecs];
+
     /* Check for weekly reset */
     self.weeklyResetOccurred = [self checkWeeklyReset];
 
@@ -157,6 +162,10 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
     if (self.notificationStore) {
         notification_store_free(self.notificationStore);
         self.notificationStore = NULL;
+    }
+    if (self.gemRecs) {
+        gem_recs_free(self.gemRecs);
+        self.gemRecs = NULL;
     }
 }
 
@@ -218,6 +227,13 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
     [charsMenu addItemWithTitle:@"Add Character..."
                          action:@selector(addCharacter:)
                   keyEquivalent:@"n"];
+    [charsMenu addItemWithTitle:@"Edit Character..."
+                         action:@selector(editCharacter:)
+                  keyEquivalent:@""];
+    [charsMenu addItem:[NSMenuItem separatorItem]];
+    [charsMenu addItemWithTitle:@"Show Details & Recommendations"
+                         action:@selector(showRecommendations:)
+                  keyEquivalent:@""];
     [charsMenu addItem:[NSMenuItem separatorItem]];
     [charsMenu addItemWithTitle:@"Reset Weekly Data"
                          action:@selector(resetWeeklyData:)
@@ -308,6 +324,25 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
 
 - (void)addCharacter:(id)sender {
     [self.mainWindowController showAddCharacterSheet];
+}
+
+- (void)showRecommendations:(id)sender {
+    [self.mainWindowController showRecommendationsForSelectedCharacter];
+}
+
+- (void)editCharacter:(id)sender {
+    NSInteger index = [self.mainWindowController selectedCharacterIndex];
+    if (index >= 0) {
+        [self.mainWindowController showEditCharacterSheetForIndex:index];
+    }
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    if ([menuItem action] == @selector(showRecommendations:) ||
+        [menuItem action] == @selector(editCharacter:)) {
+        return [self.mainWindowController selectedCharacterIndex] >= 0;
+    }
+    return YES;
 }
 
 - (void)resetWeeklyData:(id)sender {
@@ -660,6 +695,29 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
         changed = YES;
     }
 
+    /* Update class/spec/role identity fields (added for gem/enchant recs).
+     * Only copy when the addon actually provides them, so older data that
+     * lacks these keys never wipes a value we already have. */
+    if (addon->wow_class && *addon->wow_class &&
+        (!existing->wow_class || strcmp(existing->wow_class, addon->wow_class) != 0)) {
+        character_set_wow_class(existing, addon->wow_class);
+        changed = YES;
+    }
+    if (addon->spec && *addon->spec &&
+        (!existing->spec || strcmp(existing->spec, addon->spec) != 0)) {
+        character_set_spec(existing, addon->spec);
+        changed = YES;
+    }
+    if (addon->role && *addon->role &&
+        (!existing->role || strcmp(existing->role, addon->role) != 0)) {
+        character_set_role(existing, addon->role);
+        changed = YES;
+    }
+    if (addon->spec_id != 0 && addon->spec_id != existing->spec_id) {
+        existing->spec_id = addon->spec_id;
+        changed = YES;
+    }
+
     /* Update per-slot JSON strings */
     if (addon->slot_upgrades_json) {
         free(existing->slot_upgrades_json);
@@ -804,6 +862,23 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
     return nil;
 }
 
+- (GemRecs *)loadGemRecs {
+    /* Prefer bundled Resources copy */
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"gem_enchant_recs"
+                                                     ofType:@"json"];
+    if (!path || ![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+        /* Development fallback: repo data/ directory next to the build tree */
+        NSString *devPath = [[[NSBundle mainBundle] bundlePath]
+                             stringByAppendingPathComponent:@"../../data/gem_enchant_recs.json"];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:devPath]) {
+            path = devPath;
+        }
+    }
+
+    if (!path) return NULL;
+    return gem_recs_load([path UTF8String]);
+}
+
 - (BOOL)checkWeeklyReset {
     char *currentWeekStr = week_id_current();
     if (!currentWeekStr) return NO;
@@ -927,6 +1002,10 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
 
 - (NotificationStore *)getNotificationStore {
     return self.notificationStore;
+}
+
+- (GemRecs *)getGemRecs {
+    return self.gemRecs;
 }
 
 #pragma mark - Error Handling

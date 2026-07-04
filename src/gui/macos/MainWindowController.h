@@ -20,6 +20,10 @@
 - (void)showPreferencesSheet;
 - (void)showManualWindow:(NSString *)content;
 
+/* Gem/enchant recommendations */
+- (NSInteger)selectedCharacterIndex;
+- (void)showRecommendationsForSelectedCharacter;
+
 /* Status bar */
 - (void)showStatusMessage:(NSString *)message type:(NSString *)type;
 - (void)updateNotificationBadge;
