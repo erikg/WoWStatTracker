@@ -22,8 +22,11 @@ else:
     CONFIG_DIR = Path.home() / "Library" / "Application Support" / "wowstat"
 CONFIG_FILE = CONFIG_DIR / "wowstat_config.json"
 
-# Vault thresholds (activities needed for each slot)
-VAULT_THRESHOLDS = [1, 4, 8]
+# Vault thresholds (activities needed for each slot). The two rows differ --
+# confirmed against the in-game vault UI for Midnight Season 2. Re-check at the
+# start of each season.
+WORLD_VAULT_THRESHOLDS = [2, 4, 8]      # delves, world activities, prey, ritual sites
+DUNGEON_VAULT_THRESHOLDS = [1, 4, 8]    # heroic, mythic, timewalking
 
 # Item level reference
 ILVL_REFERENCE = {
@@ -281,10 +284,10 @@ def load_saved_variables(sv_path: Path) -> dict:
     return parse_lua_table(content)
 
 
-def count_vault_slots(count: int) -> int:
+def count_vault_slots(count: int, thresholds: list) -> int:
     """Calculate how many vault slots are unlocked based on activity count."""
     slots = 0
-    for threshold in VAULT_THRESHOLDS:
+    for threshold in thresholds:
         if count >= threshold:
             slots += 1
     return slots
@@ -424,7 +427,7 @@ def analyze_vault_rewards(char_data: dict) -> dict:
         if isinstance(tiers, dict) and tiers:
             # Calculate slots from count (tiers dict may be incomplete)
             result["delve_count"] = vault_delves.get("count", 0)
-            result["delve_slots"] = count_vault_slots(result["delve_count"])
+            result["delve_slots"] = count_vault_slots(result["delve_count"], WORLD_VAULT_THRESHOLDS)
             for threshold, tier in tiers.items():
                 tier_str = get_tier_from_level(int(tier))
                 ilvl = get_ilvl_from_tier(tier_str)
@@ -445,7 +448,7 @@ def analyze_vault_rewards(char_data: dict) -> dict:
 
         if isinstance(levels, dict) and levels:
             # Calculate slots from count (levels dict may be incomplete)
-            result["dungeon_slots"] = count_vault_slots(result["dungeon_count"])
+            result["dungeon_slots"] = count_vault_slots(result["dungeon_count"], DUNGEON_VAULT_THRESHOLDS)
             for threshold, level in levels.items():
                 tier_str = get_tier_from_level(int(level))
                 ilvl = get_ilvl_from_tier(tier_str)
@@ -460,7 +463,7 @@ def analyze_vault_rewards(char_data: dict) -> dict:
         elif result["dungeon_count"] > 0:
             # TW/Heroic dungeons - no level data but count > 0
             # These unlock slots at T2 (678) level
-            result["dungeon_slots"] = count_vault_slots(result["dungeon_count"])
+            result["dungeon_slots"] = count_vault_slots(result["dungeon_count"], DUNGEON_VAULT_THRESHOLDS)
             for _ in range(result["dungeon_slots"]):
                 result["rewards"].append(("T2", ILVL_REFERENCE["T2"]))
 
