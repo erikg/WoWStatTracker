@@ -96,6 +96,21 @@ void character_free_errors(char** errors, size_t count);
 void character_reset_weekly(Character* c);
 
 /*
+ * Great Vault slots unlocked for a given activity count.
+ *
+ * The two rows have DIFFERENT thresholds, confirmed against the in-game
+ * vault UI for Midnight Season 2:
+ *   World row    (delves, world activities, prey, ritual sites): 2 / 4 / 8
+ *   Dungeons row (heroic, mythic, timewalking):                  1 / 4 / 8
+ *
+ * Blizzard has changed these between seasons; re-check the vault UI at the
+ * start of each season (see CLAUDE.md, "Did the vault reward tiers or slot
+ * thresholds change?").
+ */
+int character_vault_world_slots(int activities);
+int character_vault_dungeon_slots(int dungeons);
+
+/*
  * Convert character to cJSON object.
  * Returns NULL on allocation failure.
  */

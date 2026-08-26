@@ -243,6 +243,20 @@ void character_reset_weekly(Character* c) {
     c->timewalk_accepted = false;
 }
 
+int character_vault_world_slots(int activities) {
+    if (activities >= 8) return 3;
+    if (activities >= 4) return 2;
+    if (activities >= 2) return 1;
+    return 0;
+}
+
+int character_vault_dungeon_slots(int dungeons) {
+    if (dungeons >= 8) return 3;
+    if (dungeons >= 4) return 2;
+    if (dungeons >= 1) return 1;
+    return 0;
+}
+
 cJSON* character_to_json(const Character* c) {
     if (!c) return NULL;
 

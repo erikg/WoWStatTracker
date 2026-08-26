@@ -335,6 +335,30 @@ static void test_character_set_fields(void) {
     character_free(c);
 }
 
+static void test_character_vault_world_slots(void) {
+    /* World row unlocks at 2 / 4 / 8 (Midnight S2) -- a single activity
+     * unlocks nothing, unlike the Dungeons row. */
+    TEST_ASSERT_EQUAL(0, character_vault_world_slots(0));
+    TEST_ASSERT_EQUAL(0, character_vault_world_slots(1));
+    TEST_ASSERT_EQUAL(1, character_vault_world_slots(2));
+    TEST_ASSERT_EQUAL(1, character_vault_world_slots(3));
+    TEST_ASSERT_EQUAL(2, character_vault_world_slots(4));
+    TEST_ASSERT_EQUAL(2, character_vault_world_slots(7));
+    TEST_ASSERT_EQUAL(3, character_vault_world_slots(8));
+    TEST_ASSERT_EQUAL(3, character_vault_world_slots(99));
+}
+
+static void test_character_vault_dungeon_slots(void) {
+    /* Dungeons row unlocks at 1 / 4 / 8 */
+    TEST_ASSERT_EQUAL(0, character_vault_dungeon_slots(0));
+    TEST_ASSERT_EQUAL(1, character_vault_dungeon_slots(1));
+    TEST_ASSERT_EQUAL(1, character_vault_dungeon_slots(3));
+    TEST_ASSERT_EQUAL(2, character_vault_dungeon_slots(4));
+    TEST_ASSERT_EQUAL(2, character_vault_dungeon_slots(7));
+    TEST_ASSERT_EQUAL(3, character_vault_dungeon_slots(8));
+    TEST_ASSERT_EQUAL(3, character_vault_dungeon_slots(99));
+}
+
 void test_character_suite(void) {
     RUN_TEST(test_character_new);
     RUN_TEST(test_character_create);
@@ -345,6 +369,8 @@ void test_character_suite(void) {
     RUN_TEST(test_character_validate_item_level_range);
     RUN_TEST(test_character_validate_delves_range);
     RUN_TEST(test_character_reset_weekly);
+    RUN_TEST(test_character_vault_world_slots);
+    RUN_TEST(test_character_vault_dungeon_slots);
     RUN_TEST(test_character_to_json);
     RUN_TEST(test_character_from_json);
     RUN_TEST(test_character_to_json_new_fields);
