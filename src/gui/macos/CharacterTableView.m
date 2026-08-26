@@ -332,19 +332,10 @@ static NSColor *kColorDefault;
         return 0;  /* ✅ Done */
     }
 
-    /* Calculate vault slots from both delves (World row) and dungeons (Dungeons row) */
-    /* 1 = 1 slot, 4 = 2 slots, 8 = 3 slots (per row) */
-    int delveSlots = 0;
-    if (character->delves >= 8) delveSlots = 3;
-    else if (character->delves >= 4) delveSlots = 2;
-    else if (character->delves >= 1) delveSlots = 1;
-
-    int dungeonSlots = 0;
-    if (character->dungeons >= 8) dungeonSlots = 3;
-    else if (character->dungeons >= 4) dungeonSlots = 2;
-    else if (character->dungeons >= 1) dungeonSlots = 1;
-
-    int vaultSlots = delveSlots + dungeonSlots;
+    /* Calculate vault slots from both delves (World row) and dungeons (Dungeons row).
+     * Thresholds differ per row: World 2/4/8, Dungeons 1/4/8. */
+    int vaultSlots = character_vault_world_slots(character->delves) +
+                     character_vault_dungeon_slots(character->dungeons);
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {
@@ -405,18 +396,9 @@ static NSColor *kColorDefault;
         return @"✅ Fully upgraded";
     }
 
-    /* Calculate vault slots */
-    int delveSlots = 0;
-    if (character->delves >= 8) delveSlots = 3;
-    else if (character->delves >= 4) delveSlots = 2;
-    else if (character->delves >= 1) delveSlots = 1;
-
-    int dungeonSlots = 0;
-    if (character->dungeons >= 8) dungeonSlots = 3;
-    else if (character->dungeons >= 4) dungeonSlots = 2;
-    else if (character->dungeons >= 1) dungeonSlots = 1;
-
-    int vaultSlots = delveSlots + dungeonSlots;
+    /* Calculate vault slots (World 2/4/8, Dungeons 1/4/8) */
+    int vaultSlots = character_vault_world_slots(character->delves) +
+                     character_vault_dungeon_slots(character->dungeons);
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {

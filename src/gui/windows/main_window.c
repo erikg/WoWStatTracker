@@ -1222,19 +1222,10 @@ static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
         return 0;  /* Done */
     }
 
-    /* Calculate vault slots from both delves (World row) and dungeons (Dungeons row) */
-    /* 1 = 1 slot, 4 = 2 slots, 8 = 3 slots (per row) */
-    int delveSlots = 0;
-    if (ch->delves >= 8) delveSlots = 3;
-    else if (ch->delves >= 4) delveSlots = 2;
-    else if (ch->delves >= 1) delveSlots = 1;
-
-    int dungeonSlots = 0;
-    if (ch->dungeons >= 8) dungeonSlots = 3;
-    else if (ch->dungeons >= 4) dungeonSlots = 2;
-    else if (ch->dungeons >= 1) dungeonSlots = 1;
-
-    int vaultSlots = delveSlots + dungeonSlots;
+    /* Calculate vault slots from both delves (World row) and dungeons (Dungeons row).
+     * Thresholds differ per row: World 2/4/8, Dungeons 1/4/8. */
+    int vaultSlots = character_vault_world_slots(ch->delves) +
+                     character_vault_dungeon_slots(ch->dungeons);
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {
@@ -1301,18 +1292,9 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
         return;
     }
 
-    /* Calculate vault slots */
-    int delveSlots = 0;
-    if (ch->delves >= 8) delveSlots = 3;
-    else if (ch->delves >= 4) delveSlots = 2;
-    else if (ch->delves >= 1) delveSlots = 1;
-
-    int dungeonSlots = 0;
-    if (ch->dungeons >= 8) dungeonSlots = 3;
-    else if (ch->dungeons >= 4) dungeonSlots = 2;
-    else if (ch->dungeons >= 1) dungeonSlots = 1;
-
-    int vaultSlots = delveSlots + dungeonSlots;
+    /* Calculate vault slots (World 2/4/8, Dungeons 1/4/8) */
+    int vaultSlots = character_vault_world_slots(ch->delves) +
+                     character_vault_dungeon_slots(ch->dungeons);
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {
