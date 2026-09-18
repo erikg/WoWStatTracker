@@ -1192,7 +1192,8 @@ static BOOL IsTimewalkingAvailable(void) {
  * - Done if fully upgraded AND all sockets gemmed AND all hero gear
  * - Red X if no vault rewards at all
  * - Done if all hero gear AND 3+ vault slots AND 3+ gilded
- * - Done if non-hero gear AND 2+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
+ * - Done if non-hero gear AND 2+ T8+ rewards AND 3+ slots AND
+ *   (TW not available OR no veteran/adventurer/old gear OR timewalk >= 5)
  * - Warning otherwise
  */
 static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
@@ -1202,6 +1203,13 @@ static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
     BOOL hasNonHero = (ch->champion_items > 0 ||
                        ch->veteran_items > 0 ||
                        ch->adventure_items > 0);
+
+    /* Veteran/adventurer/untracked ("old") pieces are the only thing the
+     * 5/5 timewalking reward (champion gear) can upgrade. Untracked items
+     * are assumed below champion. */
+    BOOL hasSubChampion = (ch->veteran_items > 0 ||
+                           ch->adventure_items > 0 ||
+                           ch->old_items > 0);
 
     /* Check if fully upgraded */
     BOOL fullyUpgraded = (ch->upgrade_max > 0 &&
@@ -1244,9 +1252,9 @@ static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
 
     /* Non-hero gear but has 2+ T8+ vault rewards with 3+ total slots = done */
     /* (3rd slot can be a non-8+ heroic/TW reward) */
-    /* Also need 5/5 timewalking if TW is available (drops random hero gear) */
+    /* 5/5 timewalking (champion reward) only matters below champion */
     if (hasNonHero && ch->vault_t8_plus >= 2 && vaultSlots >= 3) {
-        if (twAvailable && ch->timewalk < 5) {
+        if (twAvailable && hasSubChampion && ch->timewalk < 5) {
             return 1;  /* Need to complete timewalking */
         }
         return 0;  /* Done */
@@ -1268,6 +1276,13 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
     BOOL hasNonHero = (ch->champion_items > 0 ||
                        ch->veteran_items > 0 ||
                        ch->adventure_items > 0);
+
+    /* Veteran/adventurer/untracked ("old") pieces are the only thing the
+     * 5/5 timewalking reward (champion gear) can upgrade. Untracked items
+     * are assumed below champion. */
+    BOOL hasSubChampion = (ch->veteran_items > 0 ||
+                           ch->adventure_items > 0 ||
+                           ch->old_items > 0);
 
     /* Check if fully upgraded */
     BOOL fullyUpgraded = (ch->upgrade_max > 0 &&
@@ -1316,7 +1331,7 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
 
     /* Non-hero gear but has 2+ T8+ vault rewards with 3+ total slots = done */
     if (hasNonHero && ch->vault_t8_plus >= 2 && vaultSlots >= 3) {
-        if (twAvailable && ch->timewalk < 5) {
+        if (twAvailable && hasSubChampion && ch->timewalk < 5) {
             swprintf_s(buffer, bufferLen, L"\u26A0 Need timewalking (%d/5)", ch->timewalk);
             return;
         }

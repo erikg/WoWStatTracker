@@ -302,7 +302,8 @@ static NSColor *kColorDefault;
  *   (ungemmed sockets warn in the tooltip but do not block done)
  * - ❌ if no vault rewards at all
  * - ✅ if all hero gear AND 3+ vault slots AND 3+ gilded
- * - ✅ if non-hero gear AND 2+ T8+ rewards AND 3+ slots AND (TW not available OR timewalk >= 5)
+ * - ✅ if non-hero gear AND 2+ T8+ rewards AND 3+ slots AND
+ *   (TW not available OR no veteran/adventurer/old gear OR timewalk >= 5)
  * - ⚠️ otherwise
  */
 - (int)statusForCharacter:(const Character *)character twAvailable:(BOOL)twAvailable {
@@ -312,6 +313,13 @@ static NSColor *kColorDefault;
     BOOL hasNonHero = (character->champion_items > 0 ||
                        character->veteran_items > 0 ||
                        character->adventure_items > 0);
+
+    /* Veteran/adventurer/untracked ("old") pieces are the only thing the
+     * 5/5 timewalking reward (champion gear) can upgrade. Untracked items
+     * are assumed below champion. */
+    BOOL hasSubChampion = (character->veteran_items > 0 ||
+                           character->adventure_items > 0 ||
+                           character->old_items > 0);
 
     /* Check if fully upgraded */
     BOOL fullyUpgraded = (character->upgrade_max > 0 &&
@@ -354,9 +362,9 @@ static NSColor *kColorDefault;
 
     /* Non-hero gear but has 2+ T8+ vault rewards with 3+ total slots = done */
     /* (3rd slot can be a non-8+ heroic/TW reward) */
-    /* Also need 5/5 timewalking if TW is available (drops random hero gear) */
+    /* 5/5 timewalking (champion reward) only matters below champion */
     if (hasNonHero && character->vault_t8_plus >= 2 && vaultSlots >= 3) {
-        if (twAvailable && character->timewalk < 5) {
+        if (twAvailable && hasSubChampion && character->timewalk < 5) {
             return 1;  /* ⚠️ Need to complete timewalking */
         }
         return 0;  /* ✅ Done */
@@ -375,6 +383,13 @@ static NSColor *kColorDefault;
     BOOL hasNonHero = (character->champion_items > 0 ||
                        character->veteran_items > 0 ||
                        character->adventure_items > 0);
+
+    /* Veteran/adventurer/untracked ("old") pieces are the only thing the
+     * 5/5 timewalking reward (champion gear) can upgrade. Untracked items
+     * are assumed below champion. */
+    BOOL hasSubChampion = (character->veteran_items > 0 ||
+                           character->adventure_items > 0 ||
+                           character->old_items > 0);
 
     /* Check if fully upgraded */
     BOOL fullyUpgraded = (character->upgrade_max > 0 &&
@@ -417,7 +432,7 @@ static NSColor *kColorDefault;
 
     /* Non-hero gear but has 2+ T8+ vault rewards with 3+ total slots = done */
     if (hasNonHero && character->vault_t8_plus >= 2 && vaultSlots >= 3) {
-        if (twAvailable && character->timewalk < 5) {
+        if (twAvailable && hasSubChampion && character->timewalk < 5) {
             return [NSString stringWithFormat:@"⚠️ Need timewalking (%d/5)", character->timewalk];
         }
         return @"✅ 2+ T8 vault, 3+ slots, timewalking done";

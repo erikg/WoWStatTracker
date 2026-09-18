@@ -565,6 +565,11 @@ def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict,
     adv_items = char_data.get("adventure_items", 0)
 
     has_non_hero = champ_items > 0 or vet_items > 0 or adv_items > 0
+    # The 5/5 timewalking reward is champion gear, so it only upgrades
+    # veteran/adventurer/untracked ("old") pieces. Untracked items are
+    # assumed below champion.
+    old_items = char_data.get("old_items", 0)
+    has_sub_champion = vet_items > 0 or adv_items > 0 or old_items > 0
     total_slots = vault_info["total_slots"]
     has_t8_plus = vault_info["has_t8_plus"]
     timewalk = get_timewalk_progress(char_data)
@@ -599,8 +604,8 @@ def get_status_emoji(char_data: dict, vault_info: dict, socket_info: dict,
         return "✅"
     elif has_non_hero and has_t8_plus >= 2 and total_slots >= 3:
         # Has champ/vet gear: 2+ T8+ (gilded) + 3 total slots (3rd can be a non-8+ heroic/TW reward)
-        # Also need 5/5 timewalking if TW is available (drops random hero gear)
-        if tw_available and timewalk < 5:
+        # 5/5 timewalking (champion reward) only matters below champion
+        if tw_available and has_sub_champion and timewalk < 5:
             return "⚠️"
         return "✅"
 
