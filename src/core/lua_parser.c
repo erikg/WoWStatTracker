@@ -488,6 +488,13 @@ static Character* parse_character(lua_State* L, const char* char_key) {
         c->dungeons = (int)d;
     }
 
+    /* Raids: from vault_raids.count (boss kills). Slot total only -- the
+     * raid `difficulties` are DifficultyIDs, not tiers, so they are NOT
+     * counted in vault_t8_plus below. */
+    if (get_nested_number(L, "vault_raids", "count", &d)) {
+        c->raids = (int)d;
+    }
+
     /* Count T8+ vault rewards (tier level >= 11 = ilvl 694+) */
     c->vault_t8_plus = count_t8_plus_rewards(L, "vault_delves", "tiers") +
                        count_t8_plus_rewards(L, "vault_dungeons", "levels");

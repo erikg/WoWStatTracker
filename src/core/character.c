@@ -105,6 +105,7 @@ Character* character_copy(const Character* src) {
     c->vault_visited = src->vault_visited;
     c->delves = src->delves;
     c->dungeons = src->dungeons;
+    c->raids = src->raids;
     c->vault_t8_plus = src->vault_t8_plus;
     c->gilded_stash = src->gilded_stash;
     c->quests = src->quests;
@@ -236,6 +237,7 @@ void character_reset_weekly(Character* c) {
     c->vault_visited = false;
     c->delves = 0;
     c->dungeons = 0;
+    c->raids = 0;
     c->vault_t8_plus = 0;
     c->gilded_stash = 0;
     c->quests = false;
@@ -257,6 +259,13 @@ int character_vault_dungeon_slots(int dungeons) {
     return 0;
 }
 
+int character_vault_raid_slots(int kills) {
+    if (kills >= 6) return 3;
+    if (kills >= 4) return 2;
+    if (kills >= 2) return 1;
+    return 0;
+}
+
 cJSON* character_to_json(const Character* c) {
     if (!c) return NULL;
 
@@ -275,6 +284,7 @@ cJSON* character_to_json(const Character* c) {
     cJSON_AddBoolToObject(json, "vault_visited", c->vault_visited);
     cJSON_AddNumberToObject(json, "delves", c->delves);
     cJSON_AddNumberToObject(json, "dungeons", c->dungeons);
+    cJSON_AddNumberToObject(json, "raids", c->raids);
     cJSON_AddNumberToObject(json, "vault_t8_plus", c->vault_t8_plus);
     cJSON_AddNumberToObject(json, "gilded_stash", c->gilded_stash);
     cJSON_AddBoolToObject(json, "quests", c->quests);
@@ -366,6 +376,7 @@ Character* character_from_json(const cJSON* json) {
     c->vault_visited = get_json_bool(json, "vault_visited", false);
     c->delves = (int)get_json_number(json, "delves", 0);
     c->dungeons = (int)get_json_number(json, "dungeons", 0);
+    c->raids = (int)get_json_number(json, "raids", 0);
     c->vault_t8_plus = (int)get_json_number(json, "vault_t8_plus", 0);
     c->gilded_stash = (int)get_json_number(json, "gilded_stash", 0);
     c->quests = get_json_bool(json, "quests", false);

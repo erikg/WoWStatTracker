@@ -359,6 +359,58 @@ static void test_character_vault_dungeon_slots(void) {
     TEST_ASSERT_EQUAL(3, character_vault_dungeon_slots(99));
 }
 
+static void test_character_vault_raid_slots(void) {
+    /* Raids row unlocks at 2 / 4 / 6 boss kills (Midnight S2) */
+    TEST_ASSERT_EQUAL(0, character_vault_raid_slots(0));
+    TEST_ASSERT_EQUAL(0, character_vault_raid_slots(1));
+    TEST_ASSERT_EQUAL(1, character_vault_raid_slots(2));
+    TEST_ASSERT_EQUAL(1, character_vault_raid_slots(3));
+    TEST_ASSERT_EQUAL(2, character_vault_raid_slots(4));
+    TEST_ASSERT_EQUAL(2, character_vault_raid_slots(5));
+    TEST_ASSERT_EQUAL(3, character_vault_raid_slots(6));
+    TEST_ASSERT_EQUAL(3, character_vault_raid_slots(7));
+}
+
+static void test_character_raids_copy_reset(void) {
+    Character* c = character_create("Realm", "Name");
+    c->raids = 5;
+
+    Character* copy = character_copy(c);
+    TEST_ASSERT_NOT_NULL(copy);
+    TEST_ASSERT_EQUAL(5, copy->raids);
+
+    /* Stale-week import path calls character_reset_weekly */
+    character_reset_weekly(c);
+    TEST_ASSERT_EQUAL(0, c->raids);
+
+    character_free(copy);
+    character_free(c);
+}
+
+static void test_character_raids_json_roundtrip(void) {
+    Character* c = character_create("Realm", "Name");
+    c->raids = 4;
+
+    cJSON* json = character_to_json(c);
+    TEST_ASSERT_NOT_NULL(json);
+    TEST_ASSERT_EQUAL(4, cJSON_GetObjectItem(json, "raids")->valueint);
+
+    Character* back = character_from_json(json);
+    TEST_ASSERT_NOT_NULL(back);
+    TEST_ASSERT_EQUAL(4, back->raids);
+
+    /* Old data files have no "raids" key -> default 0 */
+    cJSON_DeleteItemFromObject(json, "raids");
+    Character* old = character_from_json(json);
+    TEST_ASSERT_NOT_NULL(old);
+    TEST_ASSERT_EQUAL(0, old->raids);
+
+    character_free(old);
+    character_free(back);
+    cJSON_Delete(json);
+    character_free(c);
+}
+
 void test_character_suite(void) {
     RUN_TEST(test_character_new);
     RUN_TEST(test_character_create);
@@ -371,6 +423,9 @@ void test_character_suite(void) {
     RUN_TEST(test_character_reset_weekly);
     RUN_TEST(test_character_vault_world_slots);
     RUN_TEST(test_character_vault_dungeon_slots);
+    RUN_TEST(test_character_vault_raid_slots);
+    RUN_TEST(test_character_raids_copy_reset);
+    RUN_TEST(test_character_raids_json_roundtrip);
     RUN_TEST(test_character_to_json);
     RUN_TEST(test_character_from_json);
     RUN_TEST(test_character_to_json_new_fields);

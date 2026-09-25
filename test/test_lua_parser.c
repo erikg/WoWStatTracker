@@ -582,6 +582,59 @@ static void test_lua_parser_vault_t8_plus_none(void) {
     lua_parser_free_result(&result);
 }
 
+static void test_lua_parser_vault_raids(void) {
+    /* vault_raids.count -> raids; difficulties are DifficultyIDs (16 = Mythic)
+     * and must NOT be counted as T8+ tiers. */
+    const char* content =
+        "{\n"
+        "  characters = {\n"
+        "    [\"TestChar-Realm\"] = {\n"
+        "      item_level = 300,\n"
+        "      vault_raids = {\n"
+        "        count = 4,\n"
+        "        difficulties = {\n"
+        "          [2] = 16,\n"
+        "          [4] = 15,\n"
+        "        },\n"
+        "      },\n"
+        "    }\n"
+        "  },\n"
+        "  metadata = { version = \"1.2.0\" }\n"
+        "}";
+
+    LuaParseResult result = lua_parser_parse_content(content);
+    TEST_ASSERT_NOT_NULL(result.characters);
+    TEST_ASSERT_EQUAL(1, result.count);
+
+    Character* c = result.characters[0];
+    TEST_ASSERT_NOT_NULL(c);
+    TEST_ASSERT_EQUAL(4, c->raids);
+    TEST_ASSERT_EQUAL(0, c->vault_t8_plus);
+    TEST_ASSERT_EQUAL(0, c->delves);
+    TEST_ASSERT_EQUAL(0, c->dungeons);
+
+    lua_parser_free_result(&result);
+}
+
+static void test_lua_parser_vault_raids_missing(void) {
+    /* Old addon data without vault_raids -> raids = 0 */
+    const char* content =
+        "{\n"
+        "  characters = {\n"
+        "    [\"TestChar-Realm\"] = {\n"
+        "      item_level = 300,\n"
+        "      vault_delves = { count = 4 },\n"
+        "    }\n"
+        "  },\n"
+        "  metadata = { version = \"1.2.0\" }\n"
+        "}";
+
+    LuaParseResult result = lua_parser_parse_content(content);
+    TEST_ASSERT_EQUAL(1, result.count);
+    TEST_ASSERT_EQUAL(0, result.characters[0]->raids);
+    lua_parser_free_result(&result);
+}
+
 void test_lua_parser_suite(void) {
     RUN_TEST(test_lua_parser_empty_content);
     RUN_TEST(test_lua_parser_null_content);
@@ -605,4 +658,6 @@ void test_lua_parser_suite(void) {
     RUN_TEST(test_lua_parser_vault_t8_plus);
     RUN_TEST(test_lua_parser_vault_t8_plus_mixed);
     RUN_TEST(test_lua_parser_vault_t8_plus_none);
+    RUN_TEST(test_lua_parser_vault_raids);
+    RUN_TEST(test_lua_parser_vault_raids_missing);
 }

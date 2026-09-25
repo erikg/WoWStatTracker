@@ -26,6 +26,7 @@ struct Character {
     bool vault_visited;
     int delves;             /* 0-8, vault World row */
     int dungeons;           /* 0-8, vault Dungeons row */
+    int raids;              /* 0-6+, vault Raids row boss kills */
     int vault_t8_plus;      /* Count of vault rewards at T8+ (ilvl 694+) */
     int gilded_stash;       /* 0-4 */
     bool quests;
@@ -102,6 +103,7 @@ void character_reset_weekly(Character* c);
  * vault UI for Midnight Season 2:
  *   World row    (delves, world activities, prey, ritual sites): 2 / 4 / 8
  *   Dungeons row (heroic, mythic, timewalking):                  1 / 4 / 8
+ *   Raids row    (raid boss kills):                              2 / 4 / 6
  *
  * Blizzard has changed these between seasons; re-check the vault UI at the
  * start of each season (see CLAUDE.md, "Did the vault reward tiers or slot
@@ -109,6 +111,14 @@ void character_reset_weekly(Character* c);
  */
 int character_vault_world_slots(int activities);
 int character_vault_dungeon_slots(int dungeons);
+
+/*
+ * Raids row slots count toward the vault slot total (and thus the weekly
+ * token cap) only. They are deliberately NOT fed into vault_t8_plus: the
+ * addon's raid `difficulties` are DifficultyIDs, not tiers, and a raid slot
+ * is meant as the cheap 3rd filler.
+ */
+int character_vault_raid_slots(int kills);
 
 /*
  * Convert character to cJSON object.
