@@ -27,6 +27,7 @@ CONFIG_FILE = CONFIG_DIR / "wowstat_config.json"
 # start of each season.
 WORLD_VAULT_THRESHOLDS = [2, 4, 8]      # delves, world activities, prey, ritual sites
 DUNGEON_VAULT_THRESHOLDS = [1, 4, 8]    # heroic, mythic, timewalking
+RAID_VAULT_THRESHOLDS = [2, 4, 6]       # raid boss kills (slot total only, never T8+)
 
 # Item level reference
 ILVL_REFERENCE = {
@@ -414,6 +415,8 @@ def analyze_vault_rewards(char_data: dict) -> dict:
         "dungeon_count": 0,
         "delve_slots": 0,
         "dungeon_slots": 0,
+        "raid_count": 0,
+        "raid_slots": 0,
         "total_slots": 0,
         "rewards": [],
         "has_t8_plus": 0,  # Count of rewards at ilvl 694+
@@ -467,7 +470,16 @@ def analyze_vault_rewards(char_data: dict) -> dict:
             for _ in range(result["dungeon_slots"]):
                 result["rewards"].append(("T2", ILVL_REFERENCE["T2"]))
 
-    result["total_slots"] = result["delve_slots"] + result["dungeon_slots"]
+    # Raids row - counts toward total_slots only. The addon's raid
+    # `difficulties` are DifficultyIDs, not tiers, so they never feed
+    # has_t8_plus or the tier/ilvl rewards list; a raid slot is the cheap
+    # 3rd filler for the weekly token cap.
+    vault_raids = char_data.get("vault_raids", {})
+    if isinstance(vault_raids, dict):
+        result["raid_count"] = vault_raids.get("count", 0)
+        result["raid_slots"] = count_vault_slots(result["raid_count"], RAID_VAULT_THRESHOLDS)
+
+    result["total_slots"] = result["delve_slots"] + result["dungeon_slots"] + result["raid_slots"]
 
     return result
 
@@ -492,6 +504,16 @@ def format_vault_rewards(rewards: list) -> str:
             parts.append(key)
 
     return ", ".join(parts)
+
+
+def format_vault_display(vault_info: dict) -> str:
+    """Tier rewards plus raid-row slots (raid slots have no tier/ilvl)."""
+    display = format_vault_rewards(vault_info["rewards"])
+    raid_slots = vault_info.get("raid_slots", 0)
+    if raid_slots:
+        raid = f"Raid ×{raid_slots}" if raid_slots > 1 else "Raid"
+        display = raid if display == "-" else f"{display}, {raid}"
+    return display
 
 
 CRYSTAL_KEYS_ORDER = ["bc", "wotlk", "cata", "mop", "wod", "legion"]
@@ -633,6 +655,7 @@ def analyze_character(char_data: dict, is_current_week: bool,
         char_data = dict(char_data)
         char_data["vault_delves"] = {}
         char_data["vault_dungeons"] = {}
+        char_data["vault_raids"] = {}
         char_data["delves"] = 0
         char_data["timewalking_done"] = False
         char_data["timewalking_quest"] = {}
@@ -689,7 +712,7 @@ def analyze_character(char_data: dict, is_current_week: bool,
         "upgrades_left": upgrades_left,
         "is_complete": upgrades_left == 0 and champ_items == 0 and vet_items == 0,
         "vault_info": vault_info,
-        "vault_display": format_vault_rewards(vault_info["rewards"]),
+        "vault_display": format_vault_display(vault_info),
         "socket_info": socket_info,
         "socket_display": socket_display,
         "empty_display": empty_display,

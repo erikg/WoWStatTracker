@@ -1192,6 +1192,7 @@ static BOOL IsTimewalkingAvailable(void) {
  * - Done if fully upgraded AND all sockets gemmed AND all hero gear
  * - Red X if no vault rewards at all
  * - Done if all hero gear AND 3+ vault slots AND 3+ gilded
+ *   (vault slots = World + Dungeons + Raids rows; raid slots never count as T8+)
  * - Done if non-hero gear AND 2+ T8+ rewards AND 3+ slots AND
  *   (TW not available OR no veteran/adventurer/old gear OR timewalk >= 5)
  * - Warning otherwise
@@ -1230,10 +1231,13 @@ static int GetCharacterStatus(const Character *ch, BOOL twAvailable) {
         return 0;  /* Done */
     }
 
-    /* Calculate vault slots from both delves (World row) and dungeons (Dungeons row).
-     * Thresholds differ per row: World 2/4/8, Dungeons 1/4/8. */
+    /* Calculate vault slots across the World (delves), Dungeons and Raids rows.
+     * Thresholds differ per row: World 2/4/8, Dungeons 1/4/8, Raids 2/4/6.
+     * Raid slots count toward the slot total only (token cap / cheap 3rd
+     * filler), never toward vault_t8_plus. */
     int vaultSlots = character_vault_world_slots(ch->delves) +
-                     character_vault_dungeon_slots(ch->dungeons);
+                     character_vault_dungeon_slots(ch->dungeons) +
+                     character_vault_raid_slots(ch->raids);
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {
@@ -1307,9 +1311,10 @@ static void GetStatusReason(const Character *ch, BOOL twAvailable, wchar_t *buff
         return;
     }
 
-    /* Calculate vault slots (World 2/4/8, Dungeons 1/4/8) */
+    /* Calculate vault slots (World 2/4/8, Dungeons 1/4/8, Raids 2/4/6) */
     int vaultSlots = character_vault_world_slots(ch->delves) +
-                     character_vault_dungeon_slots(ch->dungeons);
+                     character_vault_dungeon_slots(ch->dungeons) +
+                     character_vault_raid_slots(ch->raids);
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {
@@ -1811,6 +1816,9 @@ void DoAddonImport(HWND hWnd) {
         return;
     }
 
+    /* Get current week ID */
+    char *currentWeekStr = week_id_current();
+
     /* Import characters */
     int importedCount = 0;
     int updatedCount = 0;
@@ -1821,6 +1829,9 @@ void DoAddonImport(HWND hWnd) {
         if (!addonChar || !addonChar->name || !addonChar->realm) {
             continue;
         }
+
+        BOOL addonIsCurrentWeek = addonChar->week_id && currentWeekStr &&
+                                  week_id_equal(addonChar->week_id, currentWeekStr);
 
         /* Find or create character */
         int existingIdx = character_store_find(store, addonChar->realm, addonChar->name);
@@ -1837,13 +1848,35 @@ void DoAddonImport(HWND hWnd) {
                 existing->veteran_items = addonChar->veteran_items;
                 existing->adventure_items = addonChar->adventure_items;
                 existing->old_items = addonChar->old_items;
-                existing->vault_visited = addonChar->vault_visited;
-                existing->delves = addonChar->delves;
-                existing->dungeons = addonChar->dungeons;
-                existing->vault_t8_plus = addonChar->vault_t8_plus;
-                existing->gilded_stash = addonChar->gilded_stash;
-                existing->quests = addonChar->quests;
-                existing->timewalk = addonChar->timewalk;
+
+                /* Class/spec/role: only overwrite with non-empty values so an
+                 * older addon file that lacks these keys never wipes them. */
+                if (addonChar->wow_class && *addonChar->wow_class)
+                    character_set_wow_class(existing, addonChar->wow_class);
+                if (addonChar->spec && *addonChar->spec)
+                    character_set_spec(existing, addonChar->spec);
+                if (addonChar->role && *addonChar->role)
+                    character_set_role(existing, addonChar->role);
+                if (addonChar->spec_id != 0)
+                    existing->spec_id = addonChar->spec_id;
+
+                if (addonIsCurrentWeek) {
+                    /* Addon data is from the current week - import weekly fields */
+                    character_set_week_id(existing, addonChar->week_id);
+                    existing->vault_visited = addonChar->vault_visited;
+                    existing->delves = addonChar->delves;
+                    existing->dungeons = addonChar->dungeons;
+                    existing->raids = addonChar->raids;
+                    existing->vault_t8_plus = addonChar->vault_t8_plus;
+                    existing->gilded_stash = addonChar->gilded_stash;
+                    existing->quests = addonChar->quests;
+                    existing->timewalk = addonChar->timewalk;
+                    existing->timewalk_accepted = addonChar->timewalk_accepted;
+                } else {
+                    /* Addon data is from a previous week - reset weekly fields */
+                    character_reset_weekly(existing);
+                    character_set_week_id(existing, NULL);
+                }
 
                 /* Update new aggregate fields */
                 existing->upgrade_current = addonChar->upgrade_current;
@@ -1872,12 +1905,17 @@ void DoAddonImport(HWND hWnd) {
             /* Add new character - make a copy since store takes ownership */
             Character *newChar = character_copy(addonChar);
             if (newChar) {
+                /* If addon data is from a previous week, reset weekly fields */
+                if (!addonIsCurrentWeek) {
+                    character_reset_weekly(newChar);
+                }
                 character_store_add(store, newChar);
                 importedCount++;
             }
         }
     }
 
+    free(currentWeekStr);
     lua_parser_free_result(&parseResult);
 
     /* Save and refresh */

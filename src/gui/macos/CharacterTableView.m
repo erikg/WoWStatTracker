@@ -302,6 +302,7 @@ static NSColor *kColorDefault;
  *   (ungemmed sockets warn in the tooltip but do not block done)
  * - ❌ if no vault rewards at all
  * - ✅ if all hero gear AND 3+ vault slots AND 3+ gilded
+ *   (vault slots = World + Dungeons + Raids rows; raid slots never count as T8+)
  * - ✅ if non-hero gear AND 2+ T8+ rewards AND 3+ slots AND
  *   (TW not available OR no veteran/adventurer/old gear OR timewalk >= 5)
  * - ⚠️ otherwise
@@ -340,10 +341,13 @@ static NSColor *kColorDefault;
         return 0;  /* ✅ Done */
     }
 
-    /* Calculate vault slots from both delves (World row) and dungeons (Dungeons row).
-     * Thresholds differ per row: World 2/4/8, Dungeons 1/4/8. */
+    /* Calculate vault slots across the World (delves), Dungeons and Raids rows.
+     * Thresholds differ per row: World 2/4/8, Dungeons 1/4/8, Raids 2/4/6.
+     * Raid slots count toward the slot total only (token cap / cheap 3rd
+     * filler), never toward vault_t8_plus. */
     int vaultSlots = character_vault_world_slots(character->delves) +
-                     character_vault_dungeon_slots(character->dungeons);
+                     character_vault_dungeon_slots(character->dungeons) +
+                     character_vault_raid_slots(character->raids);
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {
@@ -411,9 +415,10 @@ static NSColor *kColorDefault;
         return @"✅ Fully upgraded";
     }
 
-    /* Calculate vault slots (World 2/4/8, Dungeons 1/4/8) */
+    /* Calculate vault slots (World 2/4/8, Dungeons 1/4/8, Raids 2/4/6) */
     int vaultSlots = character_vault_world_slots(character->delves) +
-                     character_vault_dungeon_slots(character->dungeons);
+                     character_vault_dungeon_slots(character->dungeons) +
+                     character_vault_raid_slots(character->raids);
 
     /* No vault rewards at all = red X */
     if (vaultSlots == 0) {
