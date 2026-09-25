@@ -146,6 +146,7 @@ function WoWStatTracker:CollectCharacterData()
         vault_visited = self:HasVisitedVault(),
         vault_delves = self:GetDelvesFromVault(),  -- {count, tiers={[1]=tier, [4]=tier, [8]=tier}}
         vault_dungeons = self:GetDungeonsFromVault(),  -- {count, levels={[1]=lvl, [4]=lvl, [8]=lvl}}
+        vault_raids = self:GetRaidsFromVault(),  -- {count, difficulties={[2]=diffID, [4]=..., [6]=...}}
 
         -- Event-tracked completions (individual with timestamps)
         delve_completions = self:GetWeeklyDelveCompletions(),  -- [{tier, timestamp}, ...]
@@ -893,6 +894,44 @@ function WoWStatTracker:GetDungeonsFromVault()
         self:Debug("Vault Dungeons: " .. result.count .. " completed")
         for threshold, level in pairs(result.levels) do
             self:Debug("  At " .. threshold .. ": Level " .. level)
+        end
+    end
+
+    return result
+end
+
+-- Get raid information from Great Vault
+-- Returns: { count, difficulties = {diff_at_2, diff_at_4, diff_at_6} }
+-- Raid row thresholds are 2/4/6 bosses (Midnight S2). Unlike the other rows,
+-- activity.level here is a DifficultyID, not a tier/keystone level:
+-- 17 = LFR, 14 = Normal, 15 = Heroic, 16 = Mythic.
+function WoWStatTracker:GetRaidsFromVault()
+    local result = {
+        count = 0,
+        difficulties = {},  -- DifficultyID at each threshold (2, 4, 6)
+    }
+
+    if C_WeeklyRewards and C_WeeklyRewards.GetActivities
+       and Enum and Enum.WeeklyRewardChestThresholdType
+       and Enum.WeeklyRewardChestThresholdType.Raid then
+        local activities = C_WeeklyRewards.GetActivities(Enum.WeeklyRewardChestThresholdType.Raid)
+        if activities then
+            for _, activity in ipairs(activities) do
+                -- progress is bosses killed this week
+                if activity.progress and activity.progress > result.count then
+                    result.count = activity.progress
+                end
+                if activity.level and activity.level > 0 then
+                    result.difficulties[activity.threshold] = activity.level
+                end
+            end
+        end
+    end
+
+    if WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode then
+        self:Debug("Vault Raids: " .. result.count .. " bosses killed")
+        for threshold, diff in pairs(result.difficulties) do
+            self:Debug("  At " .. threshold .. ": DifficultyID " .. diff)
         end
     end
 

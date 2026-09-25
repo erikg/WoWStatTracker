@@ -734,6 +734,7 @@ end
 function WoWStatTracker:ShowDelveStatus()
     local delveVault = self:GetDelvesFromVault()
     local dungeonVault = self:GetDungeonsFromVault()
+    local raidVault = self:GetRaidsFromVault()
     local delveEvents = self:GetWeeklyDelveCompletions()
     local dungeonEvents = self:GetWeeklyDungeonCompletions()
     local twStatus = self:GetTimewalkingQuestStatus()
@@ -766,6 +767,17 @@ function WoWStatTracker:ShowDelveStatus()
             if c.level and c.level > 0 then info = info .. " +" .. c.level end
             print("    " .. i .. ". " .. (c.name or "?") .. " (" .. info .. ") " .. date("%m/%d %H:%M", c.timestamp))
         end
+    end
+
+    -- Raids (level is a DifficultyID, not a tier)
+    local raidDiffNames = {[17] = "LFR", [14] = "Normal", [15] = "Heroic", [16] = "Mythic"}
+    print("|cff00ff00Raids:|r " .. raidVault.count .. " bosses (from vault)")
+    local raidThresholds = {}
+    for threshold in pairs(raidVault.difficulties) do table.insert(raidThresholds, threshold) end
+    table.sort(raidThresholds)
+    for i, threshold in ipairs(raidThresholds) do
+        local diff = raidVault.difficulties[threshold]
+        print("  Slot " .. i .. " (" .. threshold .. "): " .. (raidDiffNames[diff] or ("Difficulty " .. diff)))
     end
 
     -- Timewalking quest
