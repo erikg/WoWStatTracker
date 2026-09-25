@@ -763,6 +763,10 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
             existing->dungeons = addon->dungeons;
             changed = YES;
         }
+        if (addon->raids != existing->raids) {
+            existing->raids = addon->raids;
+            changed = YES;
+        }
         if (addon->vault_t8_plus != existing->vault_t8_plus) {
             existing->vault_t8_plus = addon->vault_t8_plus;
             changed = YES;
@@ -779,9 +783,14 @@ static NSString * const kConfigLastWeekId = @"last_week_id";
             existing->timewalk = addon->timewalk;
             changed = YES;
         }
+        if (addon->timewalk_accepted != existing->timewalk_accepted) {
+            existing->timewalk_accepted = addon->timewalk_accepted;
+            changed = YES;
+        }
     } else {
         /* Addon data is from a previous week - reset weekly fields */
-        if (existing->vault_visited || existing->delves > 0 || existing->dungeons > 0 || existing->gilded_stash > 0 ||
+        if (existing->vault_visited || existing->delves > 0 || existing->dungeons > 0 || existing->raids > 0 ||
+            existing->gilded_stash > 0 ||
             existing->quests || existing->timewalk > 0) {
             character_reset_weekly(existing);
             changed = YES;
