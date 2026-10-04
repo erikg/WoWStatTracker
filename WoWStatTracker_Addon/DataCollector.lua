@@ -631,16 +631,11 @@ function WoWStatTracker:CountItemsByUpgradeTrack()
                 upgrades.current_total = upgrades.current_total + current
                 upgrades.max_total = upgrades.max_total + max
 
-                -- Store per-slot details for items that need attention:
-                -- 1. Not fully upgraded on current track (current < max)
-                -- 2. Fully upgraded but on a non-hero track (needs hero replacement)
+                -- Store every slot that has an upgrade track, maxed or not, so
+                -- an absent slot always means "no track" (old gear). Consumers
+                -- decide what needs attention from track + current/max.
                 local trackName = TRACK_ID_TO_NAME[track]
-                local needsUpgrade = current < max
-                local needsHero = (current >= max) and
-                    (track == UPGRADE_TRACK.CHAMPION or
-                     track == UPGRADE_TRACK.VETERAN or
-                     track == UPGRADE_TRACK.ADVENTURER)
-                if trackName and (needsUpgrade or needsHero) then
+                if trackName then
                     local itemId = GetItemInfoInstant(itemLink)
                     slot_upgrades[slotId] = {
                         slot = slotId,
