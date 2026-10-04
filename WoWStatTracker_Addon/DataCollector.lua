@@ -367,17 +367,31 @@ function WoWStatTracker:GetSocketInfo()
 end
 
 -- Slots that can be enchanted
--- In TWW: Chest, Back, Wrist, Legs, Feet, Rings, Weapon
+-- In Midnight: Head, Shoulder, Chest, Legs (spellthread/armor kit), Feet, Rings,
+-- Weapons. No wrist or back enchants. Off hand only counts when it holds a weapon.
 local ENCHANTABLE_SLOTS = {
+    [1] = true,   -- Head
+    [3] = true,   -- Shoulder
     [5] = true,   -- Chest
     [7] = true,   -- Legs
     [8] = true,   -- Feet
-    [9] = true,   -- Wrist
     [11] = true,  -- Ring 1
     [12] = true,  -- Ring 2
-    [15] = true,  -- Back
     [16] = true,  -- Main Hand
 }
+local OFF_HAND_SLOT = 17
+local ITEM_CLASS_WEAPON = (Enum and Enum.ItemClass and Enum.ItemClass.Weapon) or 2
+
+local function IsEnchantableSlot(slotId, itemLink)
+    if ENCHANTABLE_SLOTS[slotId] then
+        return true
+    end
+    if slotId == OFF_HAND_SLOT then
+        local classId = select(6, GetItemInfoInstant(itemLink))
+        return classId == ITEM_CLASS_WEAPON
+    end
+    return false
+end
 
 -- Check if an item has an enchantment by scanning its tooltip
 -- Returns: true if enchanted, false otherwise
@@ -392,18 +406,8 @@ function WoWStatTracker:ItemHasEnchant(itemLink)
         if tooltipData and tooltipData.lines then
             for _, line in ipairs(tooltipData.lines) do
                 if line.leftText then
-                    -- Enchantments show as "Enchanted: <name>" or specific enchant effects
-                    -- Also check for common TWW enchant patterns
-                    if line.leftText:match("^Enchanted:") or
-                       line.leftText:match("Council's") or
-                       line.leftText:match("Crystalline") or
-                       line.leftText:match("Defender's") or
-                       line.leftText:match("Cavalry's") or
-                       line.leftText:match("Scout's") or
-                       line.leftText:match("Oathsworn's") or
-                       line.leftText:match("Stormrider's") or
-                       line.leftText:match("Radiant") or
-                       line.leftText:match("Cursed") then
+                    -- Every enchant shows as "Enchanted: <name>"
+                    if line.leftText:match("^Enchanted:") then
                         return true
                     end
                 end
@@ -429,7 +433,7 @@ function WoWStatTracker:GetEnchantInfo()
             local itemLink = GetInventoryItemLink("player", slotId)
             if itemLink then
                 -- Check if this is an enchantable slot
-                if ENCHANTABLE_SLOTS[slotId] then
+                if IsEnchantableSlot(slotId, itemLink) then
                     result.enchantable_count = result.enchantable_count + 1
                     if self:ItemHasEnchant(itemLink) then
                         result.enchant_count = result.enchant_count + 1
