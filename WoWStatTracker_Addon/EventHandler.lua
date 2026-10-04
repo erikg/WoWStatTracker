@@ -22,6 +22,8 @@ function WoWStatTracker:SetupEvents()
         "ENCOUNTER_END",             -- Dungeon/raid completion
         "CHALLENGE_MODE_COMPLETED",  -- Mythic+ completion
         "SCENARIO_COMPLETED",        -- Scenario/delve completion
+        "SCENARIO_UPDATE",           -- Scenario stage change (cache delve tier)
+        "SCENARIO_CRITERIA_UPDATE",  -- Objective progress (cache delve tier)
         "LFG_COMPLETION_REWARD",     -- Dungeon finder completion (heroic, TW)
         "PLAYER_ENTERING_WORLD",     -- Zone changes, login
         "ZONE_CHANGED_NEW_AREA",     -- Zone changes
@@ -99,6 +101,9 @@ function WoWStatTracker:HandleEvent(event, ...)
         self:OnMythicPlusCompleted()
         shouldUpdate = true
         delay = 3
+
+    elseif event == "SCENARIO_UPDATE" or event == "SCENARIO_CRITERIA_UPDATE" then
+        self:CacheDelveTier()
 
     elseif event == "SCENARIO_COMPLETED" then
         -- Scenario completed - check if it was a delve
@@ -190,17 +195,7 @@ end
 
 -- Track delve completion
 function WoWStatTracker:OnScenarioCompleted()
-    -- Check if we're in a delve
-    local _, instanceType = GetInstanceInfo()
-    local scenarioInfo = C_ScenarioInfo and C_ScenarioInfo.GetScenarioInfo()
-
-    if not scenarioInfo then
-        self:Debug("No scenario info available")
-        return
-    end
-
-    -- Delves are scenario instances - check if this looks like a delve
-    -- Delves have tiers 1-11 and are in the "Delves" category
+    -- Returns nil unless we're in a delve (Delves difficulty) with a known tier
     local delveTier = self:GetCurrentDelveTier()
 
     if delveTier and delveTier > 0 then
@@ -210,42 +205,90 @@ function WoWStatTracker:OnScenarioCompleted()
     end
 end
 
--- Get current delve tier (if in a delve)
-function WoWStatTracker:GetCurrentDelveTier()
-    -- Try to get the delve tier from the scenario step info or keystone level
-    -- In TWW, delves use C_DelvesUI for tier information
-    if C_DelvesUI and C_DelvesUI.GetCurrentDelvesSeasonNumber then
-        -- We're in delve content, try to get the tier
-        -- The tier might be available from the active keystone or scenario info
+-- DifficultyID that GetInstanceInfo() reports inside a delve
+local DELVES_DIFFICULTY_ID = 208
+
+function WoWStatTracker:IsInDelve()
+    local _, _, difficultyID = GetInstanceInfo()
+    return difficultyID == DELVES_DIFFICULTY_ID
+end
+
+-- Read the tier from the delve's scenario header widget ("Tier 8" banner).
+-- Returns the tier number, or nil if no Delves header widget is showing.
+function WoWStatTracker:GetDelveTierFromWidget()
+    if not (C_UIWidgetManager and C_UIWidgetManager.GetAllWidgetsBySetID
+            and C_UIWidgetManager.GetScenarioHeaderDelvesWidgetVisualizationInfo) then
+        return nil
     end
 
-    -- Alternative: Check active keystone for tier
-    if C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo then
-        local level = C_ChallengeMode.GetActiveKeystoneInfo()
-        if level and level > 0 then
-            return level
+    local setIDs = {}
+    if C_ScenarioInfo and C_ScenarioInfo.GetScenarioStepInfo then
+        local stepInfo = C_ScenarioInfo.GetScenarioStepInfo()
+        if stepInfo and stepInfo.widgetSetID then
+            table.insert(setIDs, stepInfo.widgetSetID)
         end
     end
+    if C_UIWidgetManager.GetObjectiveTrackerWidgetSetID then
+        table.insert(setIDs, C_UIWidgetManager.GetObjectiveTrackerWidgetSetID())
+    end
 
-    -- Try to get from scenario step info
-    local scenarioInfo = C_ScenarioInfo and C_ScenarioInfo.GetScenarioInfo()
-    if scenarioInfo then
-        self:Debug("Scenario: " .. (scenarioInfo.name or "Unknown"))
-        -- Delve tier might be encoded in the scenario name or other fields
-        -- Look for "Tier X" or "Level X" in the name
-        if scenarioInfo.name then
-            local tier = scenarioInfo.name:match("Tier%s*(%d+)")
-                      or scenarioInfo.name:match("Level%s*(%d+)")
-            if tier then
-                return tonumber(tier)
+    for _, setID in ipairs(setIDs) do
+        local widgets = C_UIWidgetManager.GetAllWidgetsBySetID(setID)
+        for _, widget in ipairs(widgets or {}) do
+            local ok, info = pcall(C_UIWidgetManager.GetScenarioHeaderDelvesWidgetVisualizationInfo,
+                                   widget.widgetID)
+            if ok and info and info.tierText then
+                local tier = tonumber(tostring(info.tierText):match("(%d+)"))
+                if tier then
+                    return tier
+                end
             end
         end
     end
 
-    -- Check if we have a bountiful delve active (tier 11)
-    -- This is a fallback - ideally we'd have a direct API
-
     return nil
+end
+
+-- Remember the tier while inside the delve, in case the header widget is
+-- already gone by the time SCENARIO_COMPLETED fires.
+function WoWStatTracker:CacheDelveTier()
+    if not self:IsInDelve() then
+        self.cachedDelveTier = nil
+        return
+    end
+    local tier = self:GetDelveTierFromWidget()
+    if tier then
+        self.cachedDelveTier = tier
+    end
+end
+
+-- Get current delve tier (if in a delve)
+function WoWStatTracker:GetCurrentDelveTier()
+    if not self:IsInDelve() then
+        return nil
+    end
+
+    local tier = self:GetDelveTierFromWidget()
+    if tier then
+        return tier
+    end
+    if self.cachedDelveTier then
+        self:Debug("Delve tier from cache: " .. self.cachedDelveTier)
+        return self.cachedDelveTier
+    end
+
+    self:Debug("In a delve but no tier source found")
+    return nil
+end
+
+-- Print what each delve tier source reports (for live verification)
+function WoWStatTracker:ShowDelveTierSources()
+    local _, instanceType, difficultyID, difficultyName = GetInstanceInfo()
+    print("  instance: " .. tostring(instanceType) .. ", difficulty "
+          .. tostring(difficultyID) .. " (" .. tostring(difficultyName) .. ")")
+    print("  in delve: " .. tostring(self:IsInDelve()))
+    print("  widget tier: " .. tostring(self:GetDelveTierFromWidget()))
+    print("  cached tier: " .. tostring(self.cachedDelveTier))
 end
 
 -- Record a delve completion
@@ -682,6 +725,9 @@ function SlashCmdList.WOWSTATTRACKER(msg, editBox)
         WoWStatTracker:ExportData()
     elseif command == "gilded" then
         WoWStatTracker:ShowGildedStatus()
+    elseif command == "delvetier" then
+        WoWStatTracker:Print("Delve tier sources:")
+        WoWStatTracker:ShowDelveTierSources()
     elseif command == "explore" then
         WoWStatTracker:ExploreDelveAPI()
     elseif command == "clearlog" then
@@ -709,6 +755,7 @@ function SlashCmdList.WOWSTATTRACKER(msg, editBox)
         print("  /wst delves - Show delve progress")
         print("  /wst gilded - Show gilded stash (tier 11 bonus crests)")
         print("  /wst explore - Explore C_DelvesUI API")
+        print("  /wst delvetier - Show what the delve tier detection sees")
         print("  /wst log - Show recent debug log entries")
         print("  /wst clearlog - Clear debug log")
         print("  /wst adddelve <tier> - Manually add a delve completion")
