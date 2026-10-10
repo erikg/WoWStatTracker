@@ -8,7 +8,7 @@ Native C implementation of WoW Stat Tracker with platform-specific GUIs:
 
 - Track character realm, name, item level, and gear counts
 - Import character data directly from the WoW addon
-- Weekly progress tracking for vault visits, delves, gilded stash, Gearing Up for Trouble, quests, and timewalk
+- Weekly progress tracking for vault visits, delves, gilded stash, quests, and timewalk
 - Visual indicators with color-coded backgrounds for weekly activities
 - Status bar notifications with auto-dismiss and history
 - Auto-import when window is focused (optional)
