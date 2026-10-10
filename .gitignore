@@ -52,3 +52,6 @@ dist/
 
 # Local-only scratch/adjacent notes (not part of the repo)
 *.local.md
+
+# Local dev convenience (addon rsync to the live WoW install); see CLAUDE.md
+Makefile
