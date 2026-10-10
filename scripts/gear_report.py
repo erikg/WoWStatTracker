@@ -29,12 +29,26 @@ WORLD_VAULT_THRESHOLDS = [2, 4, 8]      # delves, world activities, prey, ritual
 DUNGEON_VAULT_THRESHOLDS = [1, 4, 8]    # heroic, mythic, timewalking
 RAID_VAULT_THRESHOLDS = [2, 4, 6]       # raid boss kills (slot total only, never T8+)
 
-# Item level reference
-ILVL_REFERENCE = {
-    "T8+": 710,  # T8-T11 all give same ilvl
-    "T2": 678,   # TW/Heroic equivalent
-    "T1": 671,
-}
+# Great Vault reward item levels, Midnight Season 2 (warcraft.wiki.gg "Midnight
+# Season 2", delve and dungeon tables). Re-check at the start of each season.
+#
+# World row: delve tier -> vault ilvl. T8 and above all give Hero 1/6 (confirmed
+# in-game 2026-10-10). Higher tiers only pay out more crests at the end-of-run
+# chest, not a better vault piece.
+WORLD_VAULT_ILVL = {1: 279, 2: 282, 3: 285, 4: 289, 5: 292, 6: 298, 7: 302, 8: 305}
+WORLD_VAULT_ILVL_MAX_TIER = 8  # tiers above this reuse its ilvl
+
+# Dungeons row: keystone level -> vault ilvl. Level 0 (or no level, which is how
+# heroic and timewalking slots arrive) uses the heroic value; Mythic 0 (302)
+# can't be told apart from heroic in the addon data. Timewalking counts as
+# heroic (289, confirmed in-game 2026-10-10).
+DUNGEON_VAULT_ILVL = {0: 289, 1: 302, 2: 305, 3: 305, 4: 308, 5: 308, 6: 311,
+                      7: 315, 8: 315, 9: 315, 10: 318}
+DUNGEON_VAULT_ILVL_MAX_LEVEL = 10  # levels above this reuse its ilvl
+
+# Tier/level at which a vault reward counts toward vault_t8_plus. Same rule as
+# lua_parser.c (`tier_level >= 8`): keyed on the tier number, not ilvl.
+T8_THRESHOLD = 8
 
 # Slot ID to name mapping
 SLOT_NAMES = {
@@ -294,24 +308,17 @@ def count_vault_slots(count: int, thresholds: list) -> int:
     return slots
 
 
-def get_tier_from_level(level: int) -> str:
-    """Convert a dungeon/delve level to tier notation."""
-    if level >= 8:
-        return "T8+"
-    elif level >= 2 or level == 0:  # level 0 = timewalking
-        return "T2"
-    else:
-        return "T1"
+def world_vault_reward(tier: int) -> tuple:
+    """(label, ilvl) for a World-row (delve) vault reward at the given tier."""
+    tier = max(1, tier)
+    return f"T{tier}", WORLD_VAULT_ILVL[min(tier, WORLD_VAULT_ILVL_MAX_TIER)]
 
 
-def get_ilvl_from_tier(tier: str) -> int:
-    """Get item level from tier notation."""
-    if "T8" in tier:
-        return ILVL_REFERENCE["T8+"]
-    elif tier == "T1":
-        return ILVL_REFERENCE["T1"]
-    else:
-        return ILVL_REFERENCE["T2"]
+def dungeon_vault_reward(level: int) -> tuple:
+    """(label, ilvl) for a Dungeons-row vault reward at the given keystone level."""
+    if level <= 0:
+        return "Heroic/TW", DUNGEON_VAULT_ILVL[0]
+    return f"M+{level}", DUNGEON_VAULT_ILVL[min(level, DUNGEON_VAULT_ILVL_MAX_LEVEL)]
 
 
 def analyze_enchant_info(char_data: dict) -> dict:
@@ -419,7 +426,7 @@ def analyze_vault_rewards(char_data: dict) -> dict:
         "raid_slots": 0,
         "total_slots": 0,
         "rewards": [],
-        "has_t8_plus": 0,  # Count of rewards at ilvl 694+
+        "has_t8_plus": 0,  # Count of rewards at tier/level 8+
     }
 
     # Delves (World row) - only count slots if we have actual tier data
@@ -432,16 +439,13 @@ def analyze_vault_rewards(char_data: dict) -> dict:
             result["delve_count"] = vault_delves.get("count", 0)
             result["delve_slots"] = count_vault_slots(result["delve_count"], WORLD_VAULT_THRESHOLDS)
             for threshold, tier in tiers.items():
-                tier_str = get_tier_from_level(int(tier))
-                ilvl = get_ilvl_from_tier(tier_str)
-                result["rewards"].append((tier_str, ilvl))
-                # Count rewards at ilvl 694+ (T8 threshold)
-                if ilvl >= 694:
+                result["rewards"].append(world_vault_reward(int(tier)))
+                if int(tier) >= T8_THRESHOLD:
                     result["has_t8_plus"] += 1
             # Fill in missing reward entries for slots not in tiers dict
             for i in range(result["delve_slots"] - len(tiers)):
-                # Assume T2 for missing entries (conservative estimate)
-                result["rewards"].append(("T2", ILVL_REFERENCE["T2"]))
+                # Assume T1 for missing entries (conservative estimate)
+                result["rewards"].append(world_vault_reward(1))
 
     # Dungeons (M+ row) - TW/Heroic can unlock slots even without tier data
     vault_dungeons = char_data.get("vault_dungeons", {})
@@ -453,22 +457,19 @@ def analyze_vault_rewards(char_data: dict) -> dict:
             # Calculate slots from count (levels dict may be incomplete)
             result["dungeon_slots"] = count_vault_slots(result["dungeon_count"], DUNGEON_VAULT_THRESHOLDS)
             for threshold, level in levels.items():
-                tier_str = get_tier_from_level(int(level))
-                ilvl = get_ilvl_from_tier(tier_str)
-                result["rewards"].append((tier_str, ilvl))
-                # Count rewards at ilvl 694+ (T8 threshold)
-                if ilvl >= 694:
+                result["rewards"].append(dungeon_vault_reward(int(level)))
+                if int(level) >= T8_THRESHOLD:
                     result["has_t8_plus"] += 1
             # Fill in missing reward entries for slots not in levels dict
             for i in range(result["dungeon_slots"] - len(levels)):
-                # Assume T2 for missing entries (TW/Heroic level)
-                result["rewards"].append(("T2", ILVL_REFERENCE["T2"]))
+                # Assume heroic/TW level for missing entries
+                result["rewards"].append(dungeon_vault_reward(0))
         elif result["dungeon_count"] > 0:
             # TW/Heroic dungeons - no level data but count > 0
-            # These unlock slots at T2 (678) level
+            # These unlock slots at heroic vault level
             result["dungeon_slots"] = count_vault_slots(result["dungeon_count"], DUNGEON_VAULT_THRESHOLDS)
             for _ in range(result["dungeon_slots"]):
-                result["rewards"].append(("T2", ILVL_REFERENCE["T2"]))
+                result["rewards"].append(dungeon_vault_reward(0))
 
     # Raids row - counts toward total_slots only. The addon's raid
     # `difficulties` are DifficultyIDs, not tiers, so they never feed
@@ -495,9 +496,10 @@ def format_vault_rewards(rewards: list) -> str:
         key = f"{tier} ({ilvl})"
         tier_counts[key] = tier_counts.get(key, 0) + 1
 
-    # Format as "T8+ (710) x2, T2 (678) x1"
+    # Format as "T11 (305) ×2, Heroic/TW (289)", highest ilvl first
+    ilvl_of = {f"{tier} ({ilvl})": ilvl for tier, ilvl in rewards}
     parts = []
-    for key, count in sorted(tier_counts.items(), key=lambda x: -get_ilvl_from_tier(x[0].split()[0])):
+    for key, count in sorted(tier_counts.items(), key=lambda x: -ilvl_of[x[0]]):
         if count > 1:
             parts.append(f"{key} ×{count}")
         else:
