@@ -75,6 +75,7 @@ function WoWStatTracker:UpdateCharacterData()
     
     -- Update character data
     local existingData = WoWStatTrackerDB.characters[charKey]
+    self:UpdateWeekBaseline(existingData, charData)
     for key, value in pairs(charData) do
         existingData[key] = value
     end
@@ -153,6 +154,7 @@ function WoWStatTracker:CollectCharacterData()
         dungeon_completions = self:GetWeeklyDungeonCompletions(),  -- [{type, level, name, timestamp}, ...]
         timewalking_quest = self:GetTimewalkingQuestStatus(),  -- {questId, accepted, completed, progress}
         timewarped_crystals = self:GetTimewarpedCrystals(),  -- per-expansion {in_bags, in_bank, completed, turned_in_week}
+        weekly_event_quests = self:GetWeeklyEventQuests(),  -- {[questId] = {title, accepted, completed, progress, required}}
 
         -- Other weekly progress
         quests = self:GetWeeklyQuestsCompleted(),
@@ -941,6 +943,86 @@ end
 function WoWStatTracker:GetWeeklyQuestsCompleted()
     -- Could track Theater Troupe, Spreading the Light, etc.
     return false
+end
+
+-- Rotating weekly event quests offered in Silvermoon (one per week, e.g. the
+-- delve bonus week). Tracked only because the reward feeds gear.
+WoWStatTracker.WEEKLY_EVENT_QUEST_IDS = {
+    93909,  -- Midnight: Delves
+}
+
+-- Status of each weekly event quest this character has touched this week.
+-- IsQuestFlaggedCompleted() resets at the weekly reset for these, so a
+-- completed flag means completed this week. Quests that are neither in the
+-- log nor completed are omitted (not offered this week, or not picked up).
+-- Returns: { [questId] = {title, accepted, completed, progress, required} }
+function WoWStatTracker:GetWeeklyEventQuests()
+    local result = {}
+    for _, questId in ipairs(self.WEEKLY_EVENT_QUEST_IDS) do
+        local onQuest = C_QuestLog.IsOnQuest(questId)
+        local completed = C_QuestLog.IsQuestFlaggedCompleted(questId)
+        if onQuest or completed then
+            local entry = {
+                title = C_QuestLog.GetTitleForQuestID(questId),
+                accepted = onQuest or completed,
+                completed = completed,
+                progress = 0,
+                required = 0,
+            }
+            local objectives = C_QuestLog.GetQuestObjectives(questId)
+            for _, obj in ipairs(objectives or {}) do
+                entry.progress = entry.progress + (obj.numFulfilled or 0)
+                entry.required = entry.required + (obj.numRequired or 0)
+            end
+            if completed and entry.required > 0 then
+                entry.progress = entry.required
+            end
+            result[questId] = entry
+        end
+    end
+    return result
+end
+
+-- Gear snapshot used to detect upgrades made during the week.
+function WoWStatTracker:GearSnapshot(data)
+    local sockets = 0
+    if data.socket_info and data.socket_info.slots_with_sockets then
+        sockets = #data.socket_info.slots_with_sockets
+    end
+    return {
+        upgrade_current = data.upgrade_current or 0,
+        heroic_items = data.heroic_items or 0,
+        sockets = sockets,
+        item_level = data.item_level or 0,
+    }
+end
+
+-- Keep week_baseline (gear at the start of the week) and week_gains (what
+-- changed since) on the character entry. The baseline is the last export of
+-- the previous week, taken before this week's data overwrites it. A character
+-- with no previous-week export gets a baseline from its first export this
+-- week, marked late = true: upgrades made before that export are not counted.
+function WoWStatTracker:UpdateWeekBaseline(existingData, charData)
+    local weekId = charData.week_id
+    local base = existingData.week_baseline
+    if not base or base.week_id ~= weekId then
+        local fromLastWeek = existingData.week_id and existingData.week_id ~= weekId
+            and existingData.upgrade_current ~= nil
+        base = self:GearSnapshot(fromLastWeek and existingData or charData)
+        base.week_id = weekId
+        base.late = not fromLastWeek
+        base.taken = time()
+        existingData.week_baseline = base
+    end
+
+    local now = self:GearSnapshot(charData)
+    local gains = {
+        upgrade_levels = now.upgrade_current - base.upgrade_current,
+        hero_items = now.heroic_items - base.heroic_items,
+        sockets = now.sockets - base.sockets,
+    }
+    gains.upgraded = gains.upgrade_levels > 0 or gains.hero_items > 0 or gains.sockets > 0
+    existingData.week_gains = gains
 end
 
 -- Timewalking weekly quest IDs (complete 5 dungeons)

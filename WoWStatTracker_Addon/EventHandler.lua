@@ -169,6 +169,11 @@ function WoWStatTracker:IsWeeklyQuest(questID)
             return true
         end
     end
+    for _, id in ipairs(self.WEEKLY_EVENT_QUEST_IDS) do
+        if id == questID then
+            return true
+        end
+    end
     
     return false
 end
