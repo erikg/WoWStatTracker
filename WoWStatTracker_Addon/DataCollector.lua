@@ -243,8 +243,8 @@ function WoWStatTracker:ItemHasSocket(itemLink)
 
     -- Method 1: Check for socketed gem using GetItemGem API
     -- This is the most reliable way to detect filled sockets
-    if GetItemGem then
-        local gemLink = GetItemGem(itemLink, 1)
+    if C_Item.GetItemGem then
+        local gemLink = C_Item.GetItemGem(itemLink, 1)
         if gemLink and gemLink ~= "" then
             result.hasSocket = true
             result.hasGem = true
@@ -387,7 +387,7 @@ local function IsEnchantableSlot(slotId, itemLink)
         return true
     end
     if slotId == OFF_HAND_SLOT then
-        local classId = select(6, GetItemInfoInstant(itemLink))
+        local classId = select(6, C_Item.GetItemInfoInstant(itemLink))
         return classId == ITEM_CLASS_WEAPON
     end
     return false
@@ -460,7 +460,7 @@ function WoWStatTracker:GetAverageItemLevel()
     for _, slotId in ipairs(EQUIPMENT_SLOTS) do
         local itemLink = GetInventoryItemLink("player", slotId)
         if itemLink then
-            local itemLevel = GetDetailedItemLevelInfo(itemLink)
+            local itemLevel = C_Item.GetDetailedItemLevelInfo(itemLink)
             if itemLevel and itemLevel > 0 then
                 totalIlvl = totalIlvl + itemLevel
                 itemCount = itemCount + 1
@@ -510,7 +510,7 @@ function WoWStatTracker:GetItemUpgradeTrack(itemLink)
     if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
         local tooltipData = C_TooltipInfo.GetHyperlink(itemLink)
         if tooltipData and tooltipData.lines then
-            local itemName = GetItemInfo(itemLink) or "Unknown"
+            local itemName = C_Item.GetItemInfo(itemLink) or "Unknown"
             local debugMode = WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode
 
             -- Debug: show first few tooltip lines
@@ -567,7 +567,7 @@ function WoWStatTracker:GetItemUpgradeTrack(itemLink)
     end
 
     if WoWStatTrackerDB and WoWStatTrackerDB.settings.debugMode then
-        local itemName = GetItemInfo(itemLink) or "Unknown"
+        local itemName = C_Item.GetItemInfo(itemLink) or "Unknown"
         self:Debug("No track found for " .. itemName)
     end
 
@@ -636,7 +636,7 @@ function WoWStatTracker:CountItemsByUpgradeTrack()
                 -- decide what needs attention from track + current/max.
                 local trackName = TRACK_ID_TO_NAME[track]
                 if trackName then
-                    local itemId = GetItemInfoInstant(itemLink)
+                    local itemId = C_Item.GetItemInfoInstant(itemLink)
                     slot_upgrades[slotId] = {
                         slot = slotId,
                         slot_name = SLOT_NAMES[slotId] or "Unknown",
@@ -677,7 +677,7 @@ function WoWStatTracker:CountItemsByQuality(quality)
     for _, slotId in ipairs(EQUIPMENT_SLOTS) do
         local itemLink = GetInventoryItemLink("player", slotId)
         if itemLink then
-            local _, _, itemQuality = GetItemInfo(itemLink)
+            local _, _, itemQuality = C_Item.GetItemInfo(itemLink)
             if itemQuality == quality then
                 count = count + 1
             end
@@ -1002,7 +1002,7 @@ WoWStatTracker.TIMEWARPED_CRYSTALS = {
 
 -- Collect timewarped-crystal state per expansion.
 -- in_bank counts only refresh when the player visits a banker that session;
--- before then GetItemCount(.., true) reports the cached value from the last visit.
+-- before then C_Item.GetItemCount(.., true) reports the cached value from the last visit.
 function WoWStatTracker:GetTimewarpedCrystals()
     local result = {}
     local weekId = self:GetCurrentWeekId()
@@ -1010,8 +1010,8 @@ function WoWStatTracker:GetTimewarpedCrystals()
     local turnIns = WoWStatTrackerDB.crystalTurnIns and WoWStatTrackerDB.crystalTurnIns[charKey] or {}
 
     for _, crystal in ipairs(self.TIMEWARPED_CRYSTALS) do
-        local bagsOnly = GetItemCount(crystal.item_id, false) or 0
-        local bagsAndBank = GetItemCount(crystal.item_id, true) or 0
+        local bagsOnly = C_Item.GetItemCount(crystal.item_id, false) or 0
+        local bagsAndBank = C_Item.GetItemCount(crystal.item_id, true) or 0
         local bankOnly = bagsAndBank - bagsOnly
         if bankOnly < 0 then bankOnly = 0 end
 
